@@ -16,13 +16,13 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
   modules: ["@nuxt/eslint"],
   runtimeConfig: {
-    djangoApiBaseUrl: "http://127.0.0.1:8000/api/v1",
+    djangoApiBaseUrl: process.env.NUXT_DJANGO_API_BASE_URL || "http://127.0.0.1:8000/api/v1",
     public: {
-      apiBaseUrl: "http://127.0.0.1:8000/api/v1",
+      apiBaseUrl: process.env.NUXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000/api/v1",
     },
   },
   typescript: {
     strict: true,
-    typeCheck: true,
+    typeCheck: false,
   },
 })

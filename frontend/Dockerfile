@@ -10,8 +10,8 @@ RUN npm install
 # Copy project source
 COPY . .
 
-# Build Nuxt application for production
-RUN npm run build
+# Prepare Nuxt and build application for production
+RUN npx nuxt prepare && npm run build
 
 # Production runtime image
 FROM node:22-alpine AS runner
