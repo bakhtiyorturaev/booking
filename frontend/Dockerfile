@@ -20,7 +20,9 @@ WORKDIR /app
 
 ENV NODE_ENV=production \
     PORT=3000 \
-    HOST=0.0.0.0
+    HOST=0.0.0.0 \
+    NITRO_HOST=0.0.0.0 \
+    NITRO_PORT=3000
 
 # Copy output build from builder
 COPY --from=builder /app/.output ./.output
@@ -28,4 +30,4 @@ COPY --from=builder /app/package.json ./package.json
 
 EXPOSE 3000
 
-CMD [node, .output/server/index.mjs]
+CMD node .output/server/index.mjs
