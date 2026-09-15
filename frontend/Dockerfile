@@ -1,11 +1,11 @@
-# Multi-stage Dockerfile for Nuxt 4 Frontend
-FROM node:20-alpine AS builder
+﻿# Multi-stage Dockerfile for Nuxt 4 Frontend
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# Install dependencies first (better cache layer)
+# Install dependencies
 COPY package*.json ./
-RUN npm ci
+RUN npm install
 
 # Copy project source
 COPY . .
@@ -14,7 +14,7 @@ COPY . .
 RUN npm run build
 
 # Production runtime image
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 
 WORKDIR /app
 
@@ -28,4 +28,4 @@ COPY --from=builder /app/package.json ./package.json
 
 EXPOSE 3000
 
-CMD ["node", ".output/server/index.mjs"]
+CMD [node, .output/server/index.mjs]
