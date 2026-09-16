@@ -1,10 +1,12 @@
 import type { Booking } from "~~/app/types/booking"
-import { djangoRequest, proxyDjangoError, requestLanguage } from "~~/server/utils/django"
+import { endAuthSession, isTerminalAuthError } from "~~/server/utils/authCookies"
+import { authenticatedDjangoRequest } from "~~/server/utils/authenticatedDjango"
+import { proxyDjangoError, requestLanguage } from "~~/server/utils/django"
 
 export default defineEventHandler(async (event) => {
   const body = await readBody(event)
   try {
-    return await djangoRequest<Booking>(
+    return await authenticatedDjangoRequest<Booking>(
       event,
       "/bookings/barber/",
       {
@@ -12,11 +14,13 @@ export default defineEventHandler(async (event) => {
         body,
         headers: {
           "Accept-Language": requestLanguage(event),
-          Authorization: getRequestHeader(event, "authorization") || "",
         },
       },
     )
   } catch (error) {
+    if ((error as { statusCode?: number }).statusCode === 401 || isTerminalAuthError(error)) {
+      return endAuthSession(event)
+    }
     return proxyDjangoError(event, error)
   }
 })
