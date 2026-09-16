@@ -1,3 +1,5 @@
+import html
+import logging
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 
@@ -12,6 +14,63 @@ from telegram_bot.services import (
     dispatch_pending_messages,
     translated_message,
 )
+
+logger = logging.getLogger(__name__)
+
+
+def get_safe_webapp_url():
+    url = getattr(settings, "TELEGRAM_MINIAPP_URL", "") or getattr(settings, "FRONTEND_URL", "") or "https://rezervuz.uz"
+    url = url.strip()
+    if not url.startswith("https://"):
+        if url.startswith("http://"):
+            url = "https://" + url[7:]
+        else:
+            url = "https://" + url
+    return url
+
+
+def get_safe_frontend_url():
+    url = getattr(settings, "FRONTEND_URL", "") or "https://rezervuz.uz"
+    url = url.strip()
+    if not url.startswith("http://") and not url.startswith("https://"):
+        url = "https://" + url
+    return url.rstrip("/")
+
+
+def build_user_keyboard(language="uz", site_url=None):
+    miniapp_url = get_safe_webapp_url()
+    buttons = []
+    if site_url:
+        site_text = "🌐 Saytga o‘tish" if language == "uz" else ("🌐 Перейти на сайт" if language == "ru" else "🌐 Open Website")
+        buttons.append([{"text": site_text, "url": site_url}])
+
+    miniapp_text = "🎮 RezervUZ ilovasini ochish" if language == "uz" else ("🎮 Открыть приложение" if language == "ru" else "🎮 Open Mini App")
+    if miniapp_url.startswith("https://"):
+        buttons.append([{"text": miniapp_text, "web_app": {"url": miniapp_url}}])
+    else:
+        buttons.append([{"text": miniapp_text, "url": miniapp_url}])
+
+    return {"inline_keyboard": buttons}
+
+
+def safe_send_message(client, chat_id, text, reply_markup=None):
+    if not chat_id:
+        return
+    try:
+        client.send_message(chat_id, text, reply_markup=reply_markup, parse_mode="HTML")
+    except Exception as err:
+        logger.warning("Telegram HTML sendMessage failed for chat_id=%s: %s", chat_id, err)
+        try:
+            # Fallback without markup
+            client.send_message(chat_id, text, reply_markup=None, parse_mode="HTML")
+        except Exception as html_err:
+            logger.warning("Telegram fallback HTML failed: %s", html_err)
+            try:
+                # Fallback plain text without parse_mode
+                plain_text = text.replace("<b>", "").replace("</b>", "").replace("<code>", "").replace("</code>", "")
+                client.send_message(chat_id, plain_text, reply_markup=None, parse_mode=None)
+            except Exception as final_err:
+                logger.exception("Failed to send telegram message to chat_id=%s: %s", chat_id, final_err)
 
 
 def handle_callback(client, callback):
@@ -70,21 +129,7 @@ def handle_message(client, message):
     language_code = user.get("language_code", "uz")[:2]
     language = language_code if language_code in ("uz", "ru", "en") else "uz"
 
-    miniapp_url = getattr(settings, "TELEGRAM_MINIAPP_URL", "")
-    if not miniapp_url:
-        frontend_url = getattr(settings, "FRONTEND_URL", "http://localhost:3000")
-        miniapp_url = frontend_url
-
-    webapp_keyboard = {
-        "inline_keyboard": [
-            [
-                {
-                    "text": "🎮 Klublarni ko‘rish va bron qilish" if language == "uz" else ("🎮 Открыть приложение" if language == "ru" else "🎮 Open Mini App"),
-                    "web_app": {"url": miniapp_url},
-                }
-            ]
-        ]
-    }
+    default_keyboard = build_user_keyboard(language)
 
     # 1. Agar foydalanuvchi kontakt yuborgan bo'lsa
     if contact:
@@ -109,10 +154,7 @@ def handle_message(client, message):
                     "You can now proceed with your bookings 👇"
                 )
             )
-            try:
-                client.send_message(chat_id, success_text, webapp_keyboard)
-            except Exception:
-                pass
+            safe_send_message(client, chat_id, success_text, default_keyboard)
             return
 
     # 2. Agar web login deep-link bo'lsa: /start login_<token>
@@ -128,81 +170,63 @@ def handle_message(client, message):
         if token:
             confirmed = confirm_web_login_from_bot(token, user)
 
-        user_name = user.get("first_name", "").strip() or "Foydalanuvchi"
+        raw_user_name = user.get("first_name", "").strip() or "Foydalanuvchi"
+        safe_user_name = html.escape(raw_user_name)
+
         if confirmed:
-            frontend_url = getattr(settings, "FRONTEND_URL", "https://rezervuz.uz").rstrip("/")
+            frontend_url = get_safe_frontend_url()
             site_return_url = f"{frontend_url}?tg_login={token}" if token else frontend_url
 
             login_success_text = (
-                f"✅ <b>Assalomu alaykum, {user_name}!</b>\n\n"
+                f"✅ <b>Assalomu alaykum, {safe_user_name}!</b>\n\n"
                 f"RezervUZ tizimiga muvaffaqiyatli kirdingiz.\n"
                 f"Brauzeringizdagi sahifaga qayting yoki quyidagi tugma orqali to‘g‘ridan-to‘g‘ri saytga o‘ting 👇"
                 if language == "uz"
                 else (
-                    f"✅ <b>Здравствуйте, {user_name}!</b>\n\n"
+                    f"✅ <b>Здравствуйте, {safe_user_name}!</b>\n\n"
                     f"Вы успешно вошли в систему RezervUZ.\n"
                     f"Вернитесь на страницу в браузере или перейдите по кнопке ниже 👇"
                     if language == "ru"
                     else (
-                        f"✅ <b>Welcome, {user_name}!</b>\n\n"
+                        f"✅ <b>Welcome, {safe_user_name}!</b>\n\n"
                         f"Successfully logged into RezervUZ.\n"
                         f"Return to your browser or click below to open the website 👇"
                     )
                 )
             )
-            login_keyboard = {
-                "inline_keyboard": [
-                    [
-                        {
-                            "text": "🌐 Saytga o‘tish" if language == "uz" else ("🌐 Перейти на сайт" if language == "ru" else "🌐 Open Website"),
-                            "url": site_return_url,
-                        }
-                    ],
-                    [
-                        {
-                            "text": "📱 Telegram Mini App" if language == "uz" else ("📱 Telegram Mini App" if language == "ru" else "📱 Telegram Mini App"),
-                            "web_app": {"url": miniapp_url},
-                        }
-                    ]
-                ]
-            }
+            login_keyboard = build_user_keyboard(language, site_url=site_return_url)
         else:
             login_success_text = (
                 "⚠️ Kirish havolasi eskirgan yoki noto‘g‘ri. Iltimos, saytdan qayta urinib ko‘ring."
                 if language == "uz"
                 else "⚠️ Ссылка для входа устарела. Попробуйте снова на сайте."
             )
-            login_keyboard = webapp_keyboard
+            login_keyboard = default_keyboard
 
-        try:
-            client.send_message(chat_id, login_success_text, login_keyboard)
-        except Exception:
-            pass
+        safe_send_message(client, chat_id, login_success_text, login_keyboard)
         return
 
     # 3. Oddiy /start xabari
     if text.startswith("/start"):
-        user_name = user.get("first_name", "").strip() or "Foydalanuvchi"
+        raw_user_name = user.get("first_name", "").strip() or "Foydalanuvchi"
+        safe_user_name = html.escape(raw_user_name)
         if language == "ru":
             greeting = (
-                f"👋 <b>Здравствуйте, {user_name}!</b>\n\n"
+                f"👋 <b>Здравствуйте, {safe_user_name}!</b>\n\n"
                 f"<b>RezervUZ</b> — платформу онлайн-бронирования игровых клубов (PlayStation, PC) и барбершопов.\n\n"
                 f"Нажмите кнопку ниже, чтобы открыть приложение и забронировать удобное время! 👇"
             )
         elif language == "en":
             greeting = (
-                f"👋 <b>Hello, {user_name}!</b>\n\n"
+                f"👋 <b>Hello, {safe_user_name}!</b>\n\n"
                 f"Welcome to <b>RezervUZ</b> — online booking platform for gaming clubs (PlayStation, PC) and barbershops.\n\n"
                 f"Tap the button below to open the app and reserve your spot! 👇"
             )
         else:
             greeting = (
-                f"👋 <b>Assalomu alaykum, {user_name}!</b>\n\n"
+                f"👋 <b>Assalomu alaykum, {safe_user_name}!</b>\n\n"
                 f"<b>RezervUZ</b> — o‘yin klublari (PlayStation, PC) hamda sartaroshxonalarni onlayn bron qilish platformasiga xush kelibsiz.\n\n"
                 f"Quyidagi tugma orqali platformani ochib, filiallarni ko‘rishingiz va o‘zingizga qulay vaqtni band qilishingiz mumkin! 👇"
             )
 
-        try:
-            client.send_message(chat_id, greeting, webapp_keyboard)
-        except Exception:
-            pass
+        safe_send_message(client, chat_id, greeting, default_keyboard)
