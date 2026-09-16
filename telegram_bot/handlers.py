@@ -129,6 +129,16 @@ def handle_message(client, message):
     language_code = user.get("language_code", "uz")[:2]
     language = language_code if language_code in ("uz", "ru", "en") else "uz"
 
+    # Sync telegram_chat_id if user exists in db
+    tg_user_id = user.get("id")
+    if tg_user_id and chat_id:
+        db_user = User.objects.filter(telegram_user_id=tg_user_id).first()
+        if db_user and hasattr(db_user, "profile"):
+            profile = db_user.profile
+            if profile.telegram_chat_id != str(chat_id):
+                profile.telegram_chat_id = str(chat_id)
+                profile.save(update_fields=["telegram_chat_id", "updated_at"])
+
     default_keyboard = build_user_keyboard(language)
 
     # 1. Agar foydalanuvchi kontakt yuborgan bo'lsa

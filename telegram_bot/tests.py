@@ -180,3 +180,52 @@ class TelegramBookingTests(TestCase):
         self.assertEqual(process_confirmation_timeouts(), 0)
         booking.refresh_from_db()
         self.assertEqual(booking.status, Booking.Status.PENDING_CONFIRMATION)
+
+    def test_send_customer_booking_notification_zone(self):
+        booking = self.make_booking()
+        self.user.profile.telegram_chat_id = "12345678"
+        self.user.profile.save()
+
+        fake_client = Mock()
+        from telegram_bot.services import send_customer_booking_notification
+        send_customer_booking_notification(booking, Booking.Status.CONFIRMED, client=fake_client)
+
+        self.assertTrue(fake_client.send_message.called)
+        call_args = fake_client.send_message.call_args
+        self.assertEqual(call_args.kwargs["chat_id"], "12345678")
+        self.assertIn("tasdiqlandi", call_args.kwargs["text"])
+        self.assertIn(booking.booking_number, call_args.kwargs["text"])
+
+    def test_send_customer_booking_notification_barber(self):
+        from apps.barbers.models import Barber
+        barber_user = User.objects.create_user(username="barber_u", phone="+998909998877")
+        barber = Barber.objects.create(
+            user=barber_user,
+            full_name="Master Rustam",
+            phone="+998909998877",
+            club=self.branch.club,
+            branch=self.branch,
+        )
+        booking = Booking.objects.create(
+            user=self.user,
+            barber=barber,
+            starts_at=timezone.now() + timedelta(days=1),
+            ends_at=timezone.now() + timedelta(days=1, hours=1),
+            quantity=1,
+            unit_price_tiyin=0,
+            total_price_tiyin=0,
+            status=Booking.Status.CONFIRMED,
+        )
+        self.user.profile.telegram_chat_id = "87654321"
+        self.user.profile.save()
+
+        fake_client = Mock()
+        from telegram_bot.services import send_customer_booking_notification
+        send_customer_booking_notification(booking, Booking.Status.CONFIRMED, client=fake_client)
+
+        self.assertTrue(fake_client.send_message.called)
+        call_args = fake_client.send_message.call_args
+        self.assertEqual(call_args.kwargs["chat_id"], "87654321")
+        self.assertIn("Master Rustam", call_args.kwargs["text"])
+        self.assertIn(booking.booking_number, call_args.kwargs["text"])
+

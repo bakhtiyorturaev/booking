@@ -177,6 +177,9 @@ class BarberBookingCreateSerializer(serializers.Serializer):
         from apps.barbers.services import send_barber_booking_notification
         send_barber_booking_notification(booking)
 
+        from telegram_bot.services import send_customer_booking_notification
+        send_customer_booking_notification(booking, Booking.Status.CONFIRMED)
+
         return booking
 
 

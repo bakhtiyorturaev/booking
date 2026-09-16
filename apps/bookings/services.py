@@ -285,9 +285,13 @@ def create_booking(user, hold_id):
             hold.status = BookingHold.Status.CONVERTED
             hold.save(update_fields=("status", "updated_at"))
             invalidate_branch_availability(hold.zone.branch_id)
-            from telegram_bot.services import queue_booking_message
+            from telegram_bot.services import queue_booking_message, send_customer_booking_notification
 
-            queue_booking_message(booking)
+            try:
+                queue_booking_message(booking)
+            except Exception:
+                pass
+            send_customer_booking_notification(booking, booking.status)
 
     if expired:
         raise ValidationError("bookings.hold_expired_or_used", code="bookings.hold_expired_or_used")
@@ -318,10 +322,15 @@ def cancel_booking(user, booking_id, reason=""):
         requested_by=user,
         reason=reason,
     )
-    invalidate_branch_availability(booking.zone.branch_id)
-    from telegram_bot.services import queue_booking_message
+    if booking.zone:
+        invalidate_branch_availability(booking.zone.branch_id)
+    from telegram_bot.services import queue_booking_message, send_customer_booking_notification
 
-    queue_booking_message(booking)
+    try:
+        queue_booking_message(booking)
+    except Exception:
+        pass
+    send_customer_booking_notification(booking, Booking.Status.CANCELLED)
     return booking
 
 
@@ -349,7 +358,12 @@ def transition_booking_for_operator(user, booking_id, target_status):
             raise ValidationError("bookings.noshow_grace_period_not_passed", code="bookings.noshow_grace_period_not_passed")
 
     booking.transition_to(target_status)
-    invalidate_branch_availability(booking.zone.branch_id)
+    if booking.zone:
+        invalidate_branch_availability(booking.zone.branch_id)
+    if target_status in (Booking.Status.CONFIRMED, Booking.Status.CANCELLED):
+        from telegram_bot.services import send_customer_booking_notification
+
+        send_customer_booking_notification(booking, target_status)
     return booking
 
 

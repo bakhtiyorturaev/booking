@@ -1,3 +1,5 @@
+import html
+import logging
 from datetime import timedelta
 from zoneinfo import ZoneInfo
 
@@ -16,16 +18,38 @@ from telegram_bot.models import (
     TelegramMessageTemplate,
 )
 
+logger = logging.getLogger(__name__)
+
 
 def _booking_values(booking):
-    local_timezone = ZoneInfo(booking.zone.branch.timezone)
+    branch_tz = "Asia/Tashkent"
+    if booking.zone and booking.zone.branch and booking.zone.branch.timezone:
+        branch_tz = booking.zone.branch.timezone
+    elif booking.barber and booking.barber.branch and booking.barber.branch.timezone:
+        branch_tz = booking.barber.branch.timezone
+
+    try:
+        local_timezone = ZoneInfo(branch_tz)
+    except Exception:
+        local_timezone = ZoneInfo("Asia/Tashkent")
+
     starts_at = timezone.localtime(booking.starts_at, local_timezone)
     ends_at = timezone.localtime(booking.ends_at, local_timezone)
     cancellation = getattr(booking, "cancellation", None)
+
+    branch_name = "-"
+    zone_name = "-"
+    if booking.zone:
+        branch_name = booking.zone.branch.name if booking.zone.branch else "-"
+        zone_name = booking.zone.name
+    elif booking.barber:
+        branch_name = booking.barber.branch.name if booking.barber.branch else (booking.barber.club.name if booking.barber.club else "-")
+        zone_name = f"Sartarosh: {booking.barber.full_name}"
+
     return {
         "booking_number": booking.booking_number,
-        "branch": booking.zone.branch.name,
-        "zone": booking.zone.name,
+        "branch": branch_name,
+        "zone": zone_name,
         "date": starts_at.strftime("%d.%m.%Y"),
         "time": starts_at.strftime("%H:%M"),
         "end_time": ends_at.strftime("%H:%M"),
@@ -81,6 +105,8 @@ def cancellation_keyboard(booking_id, language="uz"):
 
 
 def queue_booking_message(booking):
+    if not booking.zone:
+        return None
     binding = BranchTelegramBinding.objects.select_related("group").filter(
         branch=booking.zone.branch,
         is_active=True,
@@ -134,97 +160,328 @@ def dispatch_pending_messages(client=None, limit=100):
         message.save()
 
 
-def send_customer_booking_notification(booking, event_type, client=None):
-    """Mijozning shaxsiy Telegram botiga bron holati haqida xabar jo'natadi."""
-    profile = getattr(booking.user, "profile", None)
-    if not profile or not profile.telegram_chat_id or not profile.telegram_notifications_enabled:
-        return
+def _format_currency(amount_tiyin, language="uz"):
+    if not amount_tiyin or amount_tiyin <= 0:
+        if language == "ru":
+            return "0 сум (Бесплатно)"
+        elif language == "en":
+            return "0 UZS (Free)"
+        return "0 so‘m (Tekin)"
+    amount_som = amount_tiyin // 100
+    formatted_sum = f"{amount_som:,}".replace(",", " ")
+    if language == "ru":
+        return f"{formatted_sum} сум"
+    elif language == "en":
+        return f"{formatted_sum} UZS"
+    return f"{formatted_sum} so‘m"
 
-    client = client or TelegramClient()
-    language = profile.preferred_language or "uz"
-    local_tz = ZoneInfo(booking.zone.branch.timezone)
+
+def build_customer_booking_message_and_keyboard(booking, event_type, language="uz"):
+    from telegram_bot.handlers import build_user_keyboard
+
+    is_barber = bool(getattr(booking, "barber", None))
+    cancellation = getattr(booking, "cancellation", None)
+    reason = (cancellation.reason if cancellation and cancellation.reason else "").strip()
+    if not reason:
+        reason = "Sabab ko‘rsatilmagan" if language == "uz" else ("Причина не указана" if language == "ru" else "No reason provided")
+
+    if is_barber:
+        barber = booking.barber
+        club = barber.club if barber else None
+        branch = barber.branch if barber else None
+        branch_tz = (branch.timezone if branch and branch.timezone else None) or "Asia/Tashkent"
+        club_name = club.name if club else "Sartaroshxona"
+        branch_name = branch.name if branch else ""
+        address = getattr(branch, "full_address", "") or getattr(branch, "address", "") or ""
+        barber_name = barber.full_name if barber else "-"
+        barber_phone = barber.phone or ""
+    else:
+        zone = getattr(booking, "zone", None)
+        branch = zone.branch if zone else None
+        club = branch.club if branch else None
+        branch_tz = (branch.timezone if branch and branch.timezone else None) or "Asia/Tashkent"
+        club_name = club.name if club else "RezervUZ Klubi"
+        branch_name = branch.name if branch else ""
+        address = getattr(branch, "full_address", "") or getattr(branch, "address", "") or ""
+        zone_name = zone.name if zone else "Zona"
+        quantity = booking.quantity or 1
+
+    try:
+        local_tz = ZoneInfo(branch_tz)
+    except Exception:
+        local_tz = ZoneInfo("Asia/Tashkent")
+
     starts = timezone.localtime(booking.starts_at, local_tz)
     ends = timezone.localtime(booking.ends_at, local_tz)
-
-    club_name = booking.zone.branch.club.name
-    branch_name = booking.zone.branch.name
-    zone_name = booking.zone.name
     date_str = starts.strftime("%d.%m.%Y")
     time_str = f"{starts.strftime('%H:%M')} – {ends.strftime('%H:%M')}"
 
-    if event_type == Booking.Status.CONFIRMED:
-        if language == "ru":
-            text = (
-                f"✅ <b>Ваша бронь подтверждена!</b>\n\n"
-                f"🎮 <b>Клуб:</b> {club_name} ({branch_name})\n"
-                f"📍 <b>Зона:</b> {zone_name}\n"
-                f"📅 <b>Дата:</b> {date_str}\n"
-                f"⏰ <b>Время:</b> {time_str}\n"
-                f"🔢 <b>Номер брони:</b> <code>{booking.booking_number}</code>\n\n"
-                f"Ждем вас в клубе!"
-            )
-        elif language == "en":
-            text = (
-                f"✅ <b>Your booking is confirmed!</b>\n\n"
-                f"🎮 <b>Club:</b> {club_name} ({branch_name})\n"
-                f"📍 <b>Zone:</b> {zone_name}\n"
-                f"📅 <b>Date:</b> {date_str}\n"
-                f"⏰ <b>Time:</b> {time_str}\n"
-                f"🔢 <b>Booking Number:</b> <code>{booking.booking_number}</code>\n\n"
-                f"We look forward to your visit!"
-            )
+    # Price string
+    if is_barber:
+        if booking.total_price_tiyin and booking.total_price_tiyin > 0:
+            price_str = _format_currency(booking.total_price_tiyin, language)
         else:
-            text = (
-                f"✅ <b>Sizning broningiz tasdiqlandi!</b>\n\n"
-                f"🎮 <b>Klub:</b> {club_name} ({branch_name})\n"
-                f"📍 <b>Zona:</b> {zone_name}\n"
-                f"📅 <b>Sana:</b> {date_str}\n"
-                f"⏰ <b>Vaqt:</b> {time_str}\n"
-                f"🔢 <b>Bron raqami:</b> <code>{booking.booking_number}</code>\n\n"
-                f"Sizni klubimizda kutamiz!"
-            )
-    elif event_type == Booking.Status.CANCELLED:
-        cancellation = getattr(booking, "cancellation", None)
-        reason = cancellation.reason if cancellation else "-"
-        if language == "ru":
-            text = (
-                f"❌ <b>Бронь #{booking.booking_number} отменена</b>\n\n"
-                f"🎮 <b>Клуб:</b> {club_name} ({branch_name})\n"
-                f"📍 <b>Зона:</b> {zone_name}\n"
-                f"📅 <b>Дата:</b> {date_str} {time_str}\n"
-                f"ℹ️ <b>Причина:</b> {reason}"
-            )
-        elif language == "en":
-            text = (
-                f"❌ <b>Booking #{booking.booking_number} has been cancelled</b>\n\n"
-                f"🎮 <b>Club:</b> {club_name} ({branch_name})\n"
-                f"📍 <b>Zone:</b> {zone_name}\n"
-                f"📅 <b>Date:</b> {date_str} {time_str}\n"
-                f"ℹ️ <b>Reason:</b> {reason}"
-            )
-        else:
-            text = (
-                f"❌ <b>Bron #{booking.booking_number} bekor qilindi</b>\n\n"
-                f"🎮 <b>Klub:</b> {club_name} ({branch_name})\n"
-                f"📍 <b>Zona:</b> {zone_name}\n"
-                f"📅 <b>Sana:</b> {date_str} {time_str}\n"
-                f"ℹ️ <b>Sabab:</b> {reason}"
-            )
+            price_str = "Sartaroshxonada joyida kelishiladi" if language == "uz" else ("Оплата на месте в барбершопе" if language == "ru" else "Pay at location")
     else:
-        return
+        price_str = _format_currency(booking.total_price_tiyin, language)
 
+    # Construct messages based on type, status, and language
+    if is_barber:
+        if event_type == Booking.Status.CONFIRMED:
+            if language == "ru":
+                text = (
+                    f"💈 <b>Ваша запись к мастеру подтверждена!</b>\n\n"
+                    f"✂️ <b>Мастер:</b> {html.escape(barber_name)}\n"
+                    f"🏢 <b>Барбершоп:</b> {html.escape(club_name)}"
+                    f"{f' ({html.escape(branch_name)})' if branch_name else ''}\n"
+                    f"{f'📍 <b>Адрес:</b> {html.escape(address)}\n' if address else ''}"
+                    f"{f'📞 <b>Контакты мастера:</b> <code>{html.escape(barber_phone)}</code>\n' if barber_phone else ''}"
+                    f"📅 <b>Дата:</b> {date_str}\n"
+                    f"⏰ <b>Время:</b> {time_str}\n"
+                    f"💰 <b>Оплата:</b> {price_str}\n"
+                    f"🔖 <b>Номер брони:</b> <code>#{booking.booking_number}</code>\n\n"
+                    f"ℹ️ <i>Пожалуйста, приходите вовремя к назначенному времени.</i>"
+                )
+            elif language == "en":
+                text = (
+                    f"💈 <b>Your barber appointment is confirmed!</b>\n\n"
+                    f"✂️ <b>Barber:</b> {html.escape(barber_name)}\n"
+                    f"🏢 <b>Barbershop:</b> {html.escape(club_name)}"
+                    f"{f' ({html.escape(branch_name)})' if branch_name else ''}\n"
+                    f"{f'📍 <b>Address:</b> {html.escape(address)}\n' if address else ''}"
+                    f"{f'📞 <b>Contact:</b> <code>{html.escape(barber_phone)}</code>\n' if barber_phone else ''}"
+                    f"📅 <b>Date:</b> {date_str}\n"
+                    f"⏰ <b>Time:</b> {time_str}\n"
+                    f"💰 <b>Payment:</b> {price_str}\n"
+                    f"🔖 <b>Booking ID:</b> <code>#{booking.booking_number}</code>\n\n"
+                    f"ℹ️ <i>Please arrive on time for your appointment.</i>"
+                )
+            else:
+                text = (
+                    f"💈 <b>Sartarosh qabuliga broningiz tasdiqlandi!</b>\n\n"
+                    f"✂️ <b>Usta:</b> {html.escape(barber_name)}\n"
+                    f"🏢 <b>Sartaroshxona:</b> {html.escape(club_name)}"
+                    f"{f' ({html.escape(branch_name)})' if branch_name else ''}\n"
+                    f"{f'📍 <b>Manzil:</b> {html.escape(address)}\n' if address else ''}"
+                    f"{f'📞 <b>Usta bilan aloqa:</b> <code>{html.escape(barber_phone)}</code>\n' if barber_phone else ''}"
+                    f"📅 <b>Sana:</b> {date_str}\n"
+                    f"⏰ <b>Vaqt:</b> {time_str}\n"
+                    f"💰 <b>To‘lov:</b> {price_str}\n"
+                    f"🔖 <b>Bron raqami:</b> <code>#{booking.booking_number}</code>\n\n"
+                    f"ℹ️ <i>Iltimos, belgilangan vaqtda kechikmasdan tashrif buyuring.</i>"
+                )
+        elif event_type == Booking.Status.CANCELLED:
+            if language == "ru":
+                text = (
+                    f"❌ <b>Запись к мастеру отменена</b>\n\n"
+                    f"✂️ <b>Мастер:</b> {html.escape(barber_name)}\n"
+                    f"🏢 <b>Барбершоп:</b> {html.escape(club_name)}\n"
+                    f"📅 <b>Дата и время:</b> {date_str} {time_str}\n"
+                    f"🔖 <b>Номер брони:</b> <code>#{booking.booking_number}</code>\n"
+                    f"ℹ️ <b>Причина:</b> {html.escape(reason)}"
+                )
+            elif language == "en":
+                text = (
+                    f"❌ <b>Barber appointment cancelled</b>\n\n"
+                    f"✂️ <b>Barber:</b> {html.escape(barber_name)}\n"
+                    f"🏢 <b>Barbershop:</b> {html.escape(club_name)}\n"
+                    f"📅 <b>Date & time:</b> {date_str} {time_str}\n"
+                    f"🔖 <b>Booking ID:</b> <code>#{booking.booking_number}</code>\n"
+                    f"ℹ️ <b>Reason:</b> {html.escape(reason)}"
+                )
+            else:
+                text = (
+                    f"❌ <b>Sartarosh qabuliga bron bekor qilindi</b>\n\n"
+                    f"✂️ <b>Usta:</b> {html.escape(barber_name)}\n"
+                    f"🏢 <b>Sartaroshxona:</b> {html.escape(club_name)}\n"
+                    f"📅 <b>Sana va vaqt:</b> {date_str} {time_str}\n"
+                    f"🔖 <b>Bron raqami:</b> <code>#{booking.booking_number}</code>\n"
+                    f"ℹ️ <b>Sabab:</b> {html.escape(reason)}"
+                )
+        else:
+            return None, None
+    else:
+        # Zone / Club Booking
+        if event_type == Booking.Status.CONFIRMED:
+            if language == "ru":
+                text = (
+                    f"✅ <b>Ваша бронь успешно подтверждена!</b>\n\n"
+                    f"🎮 <b>Клуб:</b> {html.escape(club_name)}\n"
+                    f"🏢 <b>Филиал:</b> {html.escape(branch_name)}\n"
+                    f"{f'📍 <b>Адрес:</b> {html.escape(address)}\n' if address else ''}"
+                    f"🕹 <b>Зона / Место:</b> {html.escape(zone_name)} ({quantity} мест)\n"
+                    f"📅 <b>Дата:</b> {date_str}\n"
+                    f"⏰ <b>Время:</b> {time_str}\n"
+                    f"💰 <b>Итоговая сумма:</b> {price_str}\n"
+                    f"🔖 <b>Номер брони:</b> <code>#{booking.booking_number}</code>\n\n"
+                    f"ℹ️ <i>Пожалуйста, приходите за 5-10 минут до начала бронирования. Ждем вас!</i>"
+                )
+            elif language == "en":
+                text = (
+                    f"✅ <b>Your booking has been confirmed!</b>\n\n"
+                    f"🎮 <b>Club:</b> {html.escape(club_name)}\n"
+                    f"🏢 <b>Branch:</b> {html.escape(branch_name)}\n"
+                    f"{f'📍 <b>Address:</b> {html.escape(address)}\n' if address else ''}"
+                    f"🕹 <b>Zone:</b> {html.escape(zone_name)} ({quantity} place(s))\n"
+                    f"📅 <b>Date:</b> {date_str}\n"
+                    f"⏰ <b>Time:</b> {time_str}\n"
+                    f"💰 <b>Total price:</b> {price_str}\n"
+                    f"🔖 <b>Booking ID:</b> <code>#{booking.booking_number}</code>\n\n"
+                    f"ℹ️ <i>Please arrive 5-10 minutes prior to your scheduled time. See you soon!</i>"
+                )
+            else:
+                text = (
+                    f"✅ <b>Broningiz muvaffaqiyatli tasdiqlandi!</b>\n\n"
+                    f"🎮 <b>Klub:</b> {html.escape(club_name)}\n"
+                    f"🏢 <b>Filial:</b> {html.escape(branch_name)}\n"
+                    f"{f'📍 <b>Manzil:</b> {html.escape(address)}\n' if address else ''}"
+                    f"🕹 <b>Zona / Joy:</b> {html.escape(zone_name)} ({quantity} ta joy)\n"
+                    f"📅 <b>Sana:</b> {date_str}\n"
+                    f"⏰ <b>Vaqt:</b> {time_str}\n"
+                    f"💰 <b>Jami summa:</b> {price_str}\n"
+                    f"🔖 <b>Bron raqami:</b> <code>#{booking.booking_number}</code>\n\n"
+                    f"ℹ️ <i>Iltimos, belgilangan vaqtdan 5-10 daqiqa oldinroq tashrif buyurishingizni so‘raymiz. Sizni kutamiz!</i>"
+                )
+        elif event_type == Booking.Status.PENDING_CONFIRMATION:
+            if language == "ru":
+                text = (
+                    f"⏳ <b>Ваша бронь принята в обработку!</b>\n"
+                    f"<i>Администратор клуба скоро подтвердит её.</i>\n\n"
+                    f"🎮 <b>Клуб:</b> {html.escape(club_name)}\n"
+                    f"🏢 <b>Филиал:</b> {html.escape(branch_name)}\n"
+                    f"{f'📍 <b>Адрес:</b> {html.escape(address)}\n' if address else ''}"
+                    f"🕹 <b>Зона / Место:</b> {html.escape(zone_name)} ({quantity} мест)\n"
+                    f"📅 <b>Дата:</b> {date_str}\n"
+                    f"⏰ <b>Время:</b> {time_str}\n"
+                    f"💰 <b>Итоговая сумма:</b> {price_str}\n"
+                    f"🔖 <b>Номер брони:</b> <code>#{booking.booking_number}</code>\n\n"
+                    f"🔔 <i>Мы пришлем уведомление сразу после подтверждения.</i>"
+                )
+            elif language == "en":
+                text = (
+                    f"⏳ <b>Booking request received!</b>\n"
+                    f"<i>The club administrator will confirm it shortly.</i>\n\n"
+                    f"🎮 <b>Club:</b> {html.escape(club_name)}\n"
+                    f"🏢 <b>Branch:</b> {html.escape(branch_name)}\n"
+                    f"{f'📍 <b>Address:</b> {html.escape(address)}\n' if address else ''}"
+                    f"🕹 <b>Zone:</b> {html.escape(zone_name)} ({quantity} place(s))\n"
+                    f"📅 <b>Date:</b> {date_str}\n"
+                    f"⏰ <b>Time:</b> {time_str}\n"
+                    f"💰 <b>Total price:</b> {price_str}\n"
+                    f"🔖 <b>Booking ID:</b> <code>#{booking.booking_number}</code>\n\n"
+                    f"🔔 <i>We will notify you once confirmed.</i>"
+                )
+            else:
+                text = (
+                    f"⏳ <b>Broningiz qabul qilindi!</b>\n"
+                    f"<i>Klub administratori tez orada bronni tasdiqlaydi.</i>\n\n"
+                    f"🎮 <b>Klub:</b> {html.escape(club_name)}\n"
+                    f"🏢 <b>Filial:</b> {html.escape(branch_name)}\n"
+                    f"{f'📍 <b>Manzil:</b> {html.escape(address)}\n' if address else ''}"
+                    f"🕹 <b>Zona / Joy:</b> {html.escape(zone_name)} ({quantity} ta joy)\n"
+                    f"📅 <b>Sana:</b> {date_str}\n"
+                    f"⏰ <b>Vaqt:</b> {time_str}\n"
+                    f"💰 <b>Jami summa:</b> {price_str}\n"
+                    f"🔖 <b>Bron raqami:</b> <code>#{booking.booking_number}</code>\n\n"
+                    f"🔔 <i>Bron tasdiqlanishi bilan sizga xabar yuboramiz.</i>"
+                )
+        elif event_type == Booking.Status.CANCELLED:
+            if language == "ru":
+                text = (
+                    f"❌ <b>Ваша бронь отменена</b>\n\n"
+                    f"🎮 <b>Клуб:</b> {html.escape(club_name)} ({html.escape(branch_name)})\n"
+                    f"🕹 <b>Зона:</b> {html.escape(zone_name)}\n"
+                    f"📅 <b>Дата и время:</b> {date_str} {time_str}\n"
+                    f"🔖 <b>Номер брони:</b> <code>#{booking.booking_number}</code>\n"
+                    f"ℹ️ <b>Причина:</b> {html.escape(reason)}"
+                )
+            elif language == "en":
+                text = (
+                    f"❌ <b>Your booking has been cancelled</b>\n\n"
+                    f"🎮 <b>Club:</b> {html.escape(club_name)} ({html.escape(branch_name)})\n"
+                    f"🕹 <b>Zone:</b> {html.escape(zone_name)}\n"
+                    f"📅 <b>Date & time:</b> {date_str} {time_str}\n"
+                    f"🔖 <b>Booking ID:</b> <code>#{booking.booking_number}</code>\n"
+                    f"ℹ️ <b>Reason:</b> {html.escape(reason)}"
+                )
+            else:
+                text = (
+                    f"❌ <b>Broningiz bekor qilindi</b>\n\n"
+                    f"🎮 <b>Klub:</b> {html.escape(club_name)} ({html.escape(branch_name)})\n"
+                    f"🕹 <b>Zona:</b> {html.escape(zone_name)}\n"
+                    f"📅 <b>Sana va vaqt:</b> {date_str} {time_str}\n"
+                    f"🔖 <b>Bron raqami:</b> <code>#{booking.booking_number}</code>\n"
+                    f"ℹ️ <b>Sabab:</b> {html.escape(reason)}"
+                )
+        else:
+            return None, None
+
+    reply_markup = build_user_keyboard(language)
+    return text, reply_markup
+
+
+def send_customer_booking_notification(booking, event_type, client=None):
+    """Mijozning shaxsiy Telegram botiga bron holati haqida tartibli xabar jo'natadi."""
     try:
-        client.send_message(profile.telegram_chat_id, text)
-    except Exception:
-        pass
+        if not isinstance(booking, Booking):
+            booking = (
+                Booking.objects.select_related(
+                    "user__profile",
+                    "zone__branch__club",
+                    "barber__club",
+                    "barber__branch",
+                    "cancellation",
+                )
+                .filter(pk=booking)
+                .first()
+            )
+            if not booking:
+                return
+
+        user = getattr(booking, "user", None)
+        if not user:
+            return
+
+        profile = getattr(user, "profile", None)
+        if profile and profile.telegram_notifications_enabled is False:
+            return
+
+        chat_id = None
+        if profile and profile.telegram_chat_id and profile.telegram_chat_id.strip():
+            chat_id = profile.telegram_chat_id.strip()
+        elif getattr(user, "telegram_user_id", None):
+            chat_id = str(user.telegram_user_id)
+
+        if not chat_id:
+            logger.info("Cannot send customer booking notification: User #%s has no telegram chat_id or telegram_user_id", user.id)
+            return
+
+        language = (profile.preferred_language if profile and profile.preferred_language else "uz")
+        text, reply_markup = build_customer_booking_message_and_keyboard(booking, event_type, language)
+        if not text:
+            return
+
+        client = client or TelegramClient()
+        from telegram_bot.handlers import safe_send_message
+        safe_send_message(client, chat_id, text, reply_markup=reply_markup)
+        logger.info("Successfully sent customer booking notification (%s) to chat_id %s", event_type, chat_id)
+    except Exception as err:
+        logger.warning("send_customer_booking_notification failed for booking #%s: %s", getattr(booking, "id", "-"), err)
 
 
 @transaction.atomic
 def confirm_booking(booking_id, actor_id, actor_name=""):
-    booking = Booking.objects.select_for_update().select_related("user__profile", "zone__branch__club").get(pk=booking_id)
+    booking = (
+        Booking.objects.select_for_update()
+        .select_related("user__profile", "zone__branch__club", "barber__club", "barber__branch")
+        .get(pk=booking_id)
+    )
     booking.transition_to(Booking.Status.CONFIRMED)
     _record_action(booking, actor_id, actor_name)
-    queue_booking_message(booking)
+    try:
+        queue_booking_message(booking)
+    except Exception:
+        pass
     send_customer_booking_notification(booking, Booking.Status.CONFIRMED)
     return booking
 
@@ -237,7 +494,11 @@ def cancel_booking_from_telegram(
     actor_name="",
     language="uz",
 ):
-    booking = Booking.objects.select_for_update().select_related("user__profile", "zone__branch__club").get(pk=booking_id)
+    booking = (
+        Booking.objects.select_for_update()
+        .select_related("user__profile", "zone__branch__club", "barber__club", "barber__branch")
+        .get(pk=booking_id)
+    )
     if booking.status not in (
         Booking.Status.PENDING_CONFIRMATION,
         Booking.Status.CONFIRMED,
@@ -257,10 +518,14 @@ def cancel_booking_from_telegram(
         reason=reason.get_reason(language),
     )
     _record_action(booking, actor_id, actor_name)
-    queue_booking_message(booking)
+    try:
+        queue_booking_message(booking)
+    except Exception:
+        pass
     send_customer_booking_notification(booking, Booking.Status.CANCELLED)
-    from apps.bookings.services import invalidate_branch_availability
-    invalidate_branch_availability(booking.zone.branch_id)
+    if booking.zone:
+        from apps.bookings.services import invalidate_branch_availability
+        invalidate_branch_availability(booking.zone.branch_id)
     return booking
 
 
