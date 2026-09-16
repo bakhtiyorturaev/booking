@@ -134,10 +134,9 @@ def format_log_record(record, environment="development"):
 
 
 def format_event(title, message, level="INFO", environment="development"):
-    clean_title = title.strip()
-    safe_title = html.escape(clean_title) if "<" not in clean_title else clean_title
+    safe_title = html.escape(str(title).strip())
 
-    title_lower = title.lower()
+    title_lower = str(title).lower()
     if level.upper() in ("CRITICAL", "ERROR") or "xato" in title_lower:
         icon = "🚨"
     elif level.upper() == "WARNING" or "bekor" in title_lower:
@@ -153,12 +152,9 @@ def format_event(title, message, level="INFO", environment="development"):
         f"<b>Muhit:</b> {html.escape(environment)}\n"
         f"<b>Vaqt:</b> {formatted_time}\n\n"
     )
+    redacted_message = redact_sensitive_data(str(message).strip())
+    max_body_len = TELEGRAM_MESSAGE_LIMIT - len(header)
+    if len(redacted_message) > max_body_len:
+        redacted_message = redacted_message[:max_body_len - 1] + "…"
 
-    message_str = redact_sensitive_data(str(message))
-    if "<b" not in message_str and "<code" not in message_str and "<pre" not in message_str:
-        safe_message = _escape_with_limit(message_str, TELEGRAM_MESSAGE_LIMIT - len(header))
-    else:
-        max_msg_len = TELEGRAM_MESSAGE_LIMIT - len(header)
-        safe_message = message_str[:max_msg_len] if len(message_str) > max_msg_len else message_str
-
-    return header + safe_message
+    return header + redacted_message

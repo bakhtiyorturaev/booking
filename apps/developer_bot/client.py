@@ -1,3 +1,4 @@
+import re
 import requests
 
 
@@ -40,20 +41,11 @@ class DeveloperTelegramClient:
                 disable_web_page_preview=True,
             )
         except Exception:
-            clean_text = (
-                text.replace("<b>", "")
-                .replace("</b>", "")
-                .replace("<code>", "")
-                .replace("</code>", "")
-                .replace("<i>", "")
-                .replace("</i>", "")
-                .replace("<pre>", "")
-                .replace("</pre>", "")
-            )
+            clean_text = re.sub(r"<[^>]+>", "", text)
             return self.request(
                 "sendMessage",
                 chat_id=self.chat_id,
-                text=clean_text,
+                text=clean_text[:4096],
                 disable_web_page_preview=True,
             )
 
