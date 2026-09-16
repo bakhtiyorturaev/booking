@@ -300,7 +300,7 @@ def create_booking(user, hold_id):
 
 @transaction.atomic
 def cancel_booking(user, booking_id, reason=""):
-    booking = Booking.objects.select_for_update().select_related("zone__branch").get(
+    booking = Booking.objects.select_for_update().select_related("zone__branch", "barber__branch").get(
         pk=booking_id,
         user=user,
     )
@@ -310,7 +310,7 @@ def cancel_booking(user, booking_id, reason=""):
     ):
         raise ValidationError("bookings.only_confirmed_can_cancel", code="bookings.only_confirmed_can_cancel")
 
-    if booking.status == Booking.Status.CONFIRMED:
+    if booking.status == Booking.Status.CONFIRMED and booking.zone and booking.zone.branch:
         cancel_until = booking.starts_at - timedelta(
             minutes=booking.zone.branch.free_cancellation_minutes
         )
@@ -341,19 +341,27 @@ def transition_booking_for_operator(user, booking_id, target_status):
 
     booking = (
         Booking.objects.select_for_update()
-        .select_related("zone__branch__club")
+        .select_related("zone__branch__club", "barber__club", "barber__branch")
         .get(pk=booking_id)
     )
-    if not can_manage_club(user, booking.zone.branch.club):
+    club = (
+        booking.zone.branch.club
+        if (booking.zone and booking.zone.branch)
+        else (booking.barber.club if booking.barber else None)
+    )
+    if not club or not can_manage_club(user, club):
         raise PermissionError("clubs.permission_denied")
 
     now = timezone.now()
     if target_status == Booking.Status.CHECKED_IN and now < booking.starts_at:
         raise ValidationError("bookings.checkin_before_start_time", code="bookings.checkin_before_start_time")
     if target_status == Booking.Status.NO_SHOW:
-        no_show_after = booking.starts_at + timedelta(
-            minutes=booking.zone.branch.no_show_grace_minutes
+        grace_minutes = (
+            booking.zone.branch.no_show_grace_minutes
+            if (booking.zone and booking.zone.branch)
+            else 15
         )
+        no_show_after = booking.starts_at + timedelta(minutes=grace_minutes)
         if now < no_show_after:
             raise ValidationError("bookings.noshow_grace_period_not_passed", code="bookings.noshow_grace_period_not_passed")
 
@@ -376,11 +384,14 @@ def process_booking_lifecycle(now=None):
     no_show_ids = Booking.objects.filter(
         status=Booking.Status.CONFIRMED,
         starts_at__lte=now,
+        zone__isnull=False,
     ).values_list("id", flat=True)
     no_shows = 0
     for booking_id in no_show_ids.iterator():
         try:
             booking = Booking.objects.select_related("zone__branch").get(pk=booking_id)
+            if not booking.zone or not booking.zone.branch:
+                continue
             grace_deadline = booking.starts_at + timedelta(
                 minutes=booking.zone.branch.no_show_grace_minutes
             )
@@ -389,7 +400,8 @@ def process_booking_lifecycle(now=None):
                     locked = Booking.objects.select_for_update().get(pk=booking_id)
                     if locked.status == Booking.Status.CONFIRMED:
                         locked.transition_to(Booking.Status.NO_SHOW)
-                        invalidate_branch_availability(locked.zone.branch_id)
+                        if locked.zone:
+                            invalidate_branch_availability(locked.zone.branch_id)
                         no_shows += 1
         except Booking.DoesNotExist:
             continue
