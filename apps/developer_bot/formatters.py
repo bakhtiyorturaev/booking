@@ -49,8 +49,60 @@ def _escape_with_limit(value, max_length):
     return html.escape(value[:low]) + suffix
 
 
+try:
+    from zoneinfo import ZoneInfo
+    TASHKENT_TZ = ZoneInfo("Asia/Tashkent")
+except Exception:
+    from datetime import timedelta
+    TASHKENT_TZ = timezone(timedelta(hours=5))
+
+
+def _format_request_details(request):
+    if not request:
+        return []
+    try:
+        method = getattr(request, "method", "UNKNOWN")
+        path = getattr(request, "path", "")
+        full_path = request.get_full_path() if hasattr(request, "get_full_path") else path
+
+        user = getattr(request, "user", None)
+        if user and getattr(user, "is_authenticated", False):
+            user_str = f"{getattr(user, 'username', 'user')} (ID: {getattr(user, 'pk', '-')}, Rol: {getattr(user, 'role', '-')})"
+        else:
+            user_str = "Anonymous (Tizimga kirmagan)"
+
+        x_forwarded = getattr(request, "META", {}).get("HTTP_X_FORWARDED_FOR", "")
+        client_ip = x_forwarded.split(",")[0].strip() if x_forwarded else getattr(request, "META", {}).get("REMOTE_ADDR", "-")
+
+        lines = [
+            f"<b>Endpoint:</b> <code>{html.escape(method)} {html.escape(full_path)}</code>",
+            f"<b>Foydalanuvchi:</b> {html.escape(user_str)}",
+            f"<b>Client IP:</b> <code>{html.escape(client_ip)}</code>",
+        ]
+
+        if hasattr(request, "GET") and request.GET:
+            params = redact_sensitive_data(str(request.GET.dict()))
+            lines.append(f"<b>Query params:</b> <code>{html.escape(params)}</code>")
+
+        if method in ("POST", "PATCH", "PUT") and hasattr(request, "body"):
+            try:
+                body_bytes = getattr(request, "body", b"")
+                if body_bytes:
+                    body_str = body_bytes.decode("utf-8", errors="ignore").strip()
+                    if body_str:
+                        redacted_body = redact_sensitive_data(body_str)
+                        lines.append(f"<b>Request body:</b> <code>{_escape_with_limit(redacted_body, 400)}</code>")
+            except Exception:
+                pass
+
+        return lines
+    except Exception:
+        return []
+
+
 def format_log_record(record, environment="development"):
-    created_at = datetime.fromtimestamp(record.created, tz=timezone.utc)
+    created_at = datetime.fromtimestamp(record.created, tz=TASHKENT_TZ)
+    formatted_time = created_at.strftime("%Y-%m-%d %H:%M:%S (Toshkent vaqti)")
     message = redact_sensitive_data(record.getMessage())
     exception = redact_sensitive_data(_exception_text(record))
 
@@ -58,17 +110,24 @@ def format_log_record(record, environment="development"):
     parts = [
         f"{icon} <b>{html.escape(record.levelname)}</b>",
         f"<b>Muhit:</b> {html.escape(environment)}",
-        f"<b>Vaqt:</b> {created_at.isoformat(timespec='seconds')}",
+        f"<b>Vaqt:</b> {formatted_time}",
         f"<b>Logger:</b> {html.escape(record.name)}",
-        f"<b>Xabar:</b> {_escape_with_limit(message, 1000)}",
     ]
+
+    request = getattr(record, "request", None)
+    req_details = _format_request_details(request)
+    if req_details:
+        parts.extend(req_details)
+
+    parts.append(f"<b>Xabar:</b> {_escape_with_limit(message, 1000)}")
+
     text = "\n".join(parts)
     if exception:
-        wrapper = "\n<b>Stack trace:</b>\n<pre></pre>"
+        wrapper = "\n\n<b>Stack trace:</b>\n<pre></pre>"
         available = TELEGRAM_MESSAGE_LIMIT - len(text) - len(wrapper)
         if available > 1:
             text += (
-                "\n<b>Stack trace:</b>\n<pre>"
+                "\n\n<b>Stack trace:</b>\n<pre>"
                 f"{_escape_with_limit(exception, available)}</pre>"
             )
     return text[:TELEGRAM_MESSAGE_LIMIT]

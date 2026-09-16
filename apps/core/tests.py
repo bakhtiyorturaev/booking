@@ -21,3 +21,13 @@ class AppTranslationTests(TestCase):
             AppTranslation.objects.filter(code__in=("common.backend_connected", "auth.phone_number", "common.back")).count(),
             3,
         )
+
+    def test_normalize_language_complex_headers(self):
+        from apps.core.models import normalize_language
+        self.assertEqual(normalize_language("uz,uz;q=0.9"), "uz")
+        self.assertEqual(normalize_language("uz, ru;q=0.8"), "uz")
+        self.assertEqual(normalize_language("ru-RU,ru;q=0.9"), "ru")
+        self.assertEqual(normalize_language("en-US"), "en")
+        self.assertEqual(normalize_language("de,fr;q=0.9"), "uz")
+        self.assertEqual(normalize_language(""), "uz")
+        self.assertEqual(normalize_language(None), "uz")

@@ -27,7 +27,7 @@ def get_system_message(code, language="uz"):
             cache.set(cache_key, text, timeout=3600)
 
         except SystemMessage.DoesNotExist:
-            text = FALLBACK_MESSAGES[language]
+            text = FALLBACK_MESSAGES.get(language, FALLBACK_MESSAGES["uz"])
 
     return {
         "code": code,

@@ -4,9 +4,14 @@ from django.db import models
 SUPPORTED_LANGUAGES = ("uz", "ru", "en")
 
 def normalize_language(language):
-    language = (language or "uz").lower().split("-")[0]
-
-    return language
+    if not language:
+        return "uz"
+    raw = str(language).strip().lower()
+    # Handle "uz,ru;q=0.9", "uz-UZ", "uz, uz" etc.
+    first_part = raw.split(",")[0].split(";")[0].split("-")[0].strip()
+    if first_part in SUPPORTED_LANGUAGES:
+        return first_part
+    return "uz"
 
 
 class AppTranslation(models.Model):
@@ -41,8 +46,7 @@ class AppTranslation(models.Model):
             "en": self.text_en,
         }
 
-        text = values[language]
-        return text
+        return values.get(language) or self.text_uz or ""
 
 
     def __str__(self):
@@ -102,8 +106,7 @@ class SystemMessage(models.Model):
             "en": self.text_en,
         }
 
-        text = values[language]
-        return text
+        return values.get(language) or self.text_uz or ""
 
     def save(self, *args, **kwargs):
         self.full_clean()
