@@ -15,7 +15,7 @@ const emit = defineEmits<{
 }>()
 
 const { isTMA, haptic } = useTelegramWebApp()
-const { load, user } = useAuth()
+const { load, user, setUser } = useAuth()
 const { locale, load: loadTranslations, t } = useTranslations()
 const authApi = useAuthApi()
 
@@ -59,16 +59,36 @@ const handleTmaRequestContact = () => {
 }
 
 const submitPhone = async (phoneToSubmit?: string) => {
-  const phone = (phoneToSubmit || phoneInput.value).trim()
-  if (!phone) {
+  let raw = (phoneToSubmit || phoneInput.value).replace(/\s+/g, "").replace(/-/g, "").replace(/\(/g, "").replace(/\)/g, "").trim()
+  if (!raw) {
     errorMessage.value = t("auth.phone_number")
     return
+  }
+
+  let phone = raw
+  if (!phone.startsWith("+")) {
+    if (phone.startsWith("998")) {
+      phone = `+${phone}`
+    } else if (phone.length === 9) {
+      phone = `+998${phone}`
+    } else {
+      phone = `+${phone}`
+    }
   }
 
   isLoading.value = true
   errorMessage.value = ""
 
   try {
+    if (!user.value && !import.meta.server && window.Telegram?.WebApp?.initData) {
+      try {
+        const loginRes = await authApi.telegramMiniAppLogin(window.Telegram.WebApp.initData, locale.value)
+        setUser(loginRes.data.user)
+      } catch {
+        // Ignored
+      }
+    }
+
     const response = await authApi.saveTelegramContact({ phone }, locale.value)
     await load(true)
     haptic("success")

@@ -1,9 +1,10 @@
-import { djangoRequest, proxyDjangoError, requestLanguage } from "~~/server/utils/django"
+import { authenticatedDjangoRequest } from "~~/server/utils/authenticatedDjango"
+import { proxyDjangoError, requestLanguage } from "~~/server/utils/django"
 
 export default defineEventHandler(async (event) => {
   try {
     const body = await readBody(event)
-    return await djangoRequest(event, "/auth/telegram-miniapp/contact/", {
+    return await authenticatedDjangoRequest(event, "/auth/telegram-miniapp/contact/", {
       method: "POST",
       body,
       headers: { "Accept-Language": requestLanguage(event) },
@@ -12,3 +13,4 @@ export default defineEventHandler(async (event) => {
     return proxyDjangoError(event, error)
   }
 })
+
