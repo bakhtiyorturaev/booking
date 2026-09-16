@@ -135,13 +135,21 @@ def format_log_record(record, environment="development"):
 
 def format_event(title, message, level="INFO", environment="development"):
     safe_title = _escape_with_limit(redact_sensitive_data(title), 200)
-    prefix = (
-        f"ℹ️ <b>{html.escape(level.upper())}: {safe_title}</b>\n"
-        f"<b>Muhit:</b> {html.escape(environment)}\n"
-        "<b>Xabar:</b> "
+
+    title_lower = title.lower()
+    if level.upper() in ("CRITICAL", "ERROR") or "xato" in title_lower:
+        icon = "🚨"
+    elif level.upper() == "WARNING" or "bekor" in title_lower:
+        icon = "⚠️"
+    else:
+        icon = "✅"
+
+    header = (
+        f"{icon} <b>{safe_title}</b>\n"
+        f"<b>Muhit:</b> {html.escape(environment)}\n\n"
     )
     safe_message = _escape_with_limit(
         redact_sensitive_data(message),
-        TELEGRAM_MESSAGE_LIMIT - len(prefix),
+        TELEGRAM_MESSAGE_LIMIT - len(header),
     )
-    return prefix + safe_message
+    return header + safe_message
