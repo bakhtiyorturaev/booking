@@ -98,12 +98,15 @@ def handle_message(client, message):
                 except Exception:
                     pass
             success_text = (
-                "✅ <b>Telefon raqamingiz muvaffaqiyatli saqlandi!</b>\n\nEndi bemalol klublarni bron qilishingiz mumkin 👇"
+                "✅ <b>Telefon raqamingiz muvaffaqiyatli saqlandi!</b>\n\n"
+                "Endi bemalol o‘yin klublari va sartaroshxonalarni bron qilishingiz mumkin 👇"
                 if language == "uz"
                 else (
-                    "✅ <b>Ваш номер телефона успешно сохранен!</b>\n\nТеперь вы можете бронировать места в клубах 👇"
+                    "✅ <b>Ваш номер телефона успешно сохранен!</b>\n\n"
+                    "Теперь вы можете бронировать места в клубах и барбершопах 👇"
                     if language == "ru"
-                    else "✅ <b>Your phone number has been saved!</b>\n\nYou can now proceed with your bookings 👇"
+                    else "✅ <b>Your phone number has been saved!</b>\n\n"
+                    "You can now proceed with your bookings 👇"
                 )
             )
             try:
@@ -116,14 +119,23 @@ def handle_message(client, message):
     if text.startswith("/start login_"):
         token = text.replace("/start login_", "").strip()
         confirmed = confirm_web_login_from_bot(token, user)
+        user_name = user.get("first_name", "").strip() or "Foydalanuvchi"
         if confirmed:
             login_success_text = (
-                "✅ <b>Veb-saytga muvaffaqiyatli kirdingiz!</b>\n\nBrauzeringizga qaytib bron qilishni davom ettirishingiz mumkin."
+                f"✅ <b>Assalomu alaykum, {user_name}!</b>\n\n"
+                f"RezervUZ tizimiga muvaffaqiyatli kirdingiz.\n"
+                f"Brauzeringizdagi sahifaga qaytib, xizmatlardan foydalanishingiz mumkin."
                 if language == "uz"
                 else (
-                    "✅ <b>Вы успешно вошли на сайте!</b>\n\nМожете вернуться в браузер и продолжить бронирование."
+                    f"✅ <b>Здравствуйте, {user_name}!</b>\n\n"
+                    f"Вы успешно вошли в систему RezervUZ.\n"
+                    f"Можете вернуться в браузер и продолжить пользоваться сервисом."
                     if language == "ru"
-                    else "✅ <b>Successfully logged in on web!</b>\n\nYou can return to your browser now."
+                    else (
+                        f"✅ <b>Welcome, {user_name}!</b>\n\n"
+                        f"Successfully logged into RezervUZ.\n"
+                        f"You can now return to your browser."
+                    )
                 )
             )
         else:
@@ -140,23 +152,24 @@ def handle_message(client, message):
 
     # 3. Oddiy /start xabari
     if text.startswith("/start"):
+        user_name = user.get("first_name", "").strip() or "Foydalanuvchi"
         if language == "ru":
             greeting = (
-                f"👋 <b>Здравствуйте, {user.get('first_name', '')}!</b>\n\n"
-                f"Добро пожаловать в сервис онлайн-бронирования компьютерных и PlayStation клубов.\n\n"
-                f"Нажмите кнопку ниже, чтобы открыть приложение и выбрать клуб! 👇"
+                f"👋 <b>Здравствуйте, {user_name}!</b>\n\n"
+                f"<b>RezervUZ</b> — платформу онлайн-бронирования игровых клубов (PlayStation, PC) и барбершопов.\n\n"
+                f"Нажмите кнопку ниже, чтобы открыть приложение и забронировать удобное время! 👇"
             )
         elif language == "en":
             greeting = (
-                f"👋 <b>Hello, {user.get('first_name', '')}!</b>\n\n"
-                f"Welcome to the computer & PlayStation club booking service.\n\n"
-                f"Tap the button below to browse clubs and book your seat! 👇"
+                f"👋 <b>Hello, {user_name}!</b>\n\n"
+                f"Welcome to <b>RezervUZ</b> — online booking platform for gaming clubs (PlayStation, PC) and barbershops.\n\n"
+                f"Tap the button below to open the app and reserve your spot! 👇"
             )
         else:
             greeting = (
-                f"👋 <b>Assalomu alaykum, {user.get('first_name', '')}!</b>\n\n"
-                f"Kompyuter va PlayStation klublarini onlayn bron qilish tizimiga xush kelibsiz.\n\n"
-                f"Klublarni ko‘rish va joy band qilish uchun quyidagi tugmani bosing! 👇"
+                f"👋 <b>Assalomu alaykum, {user_name}!</b>\n\n"
+                f"<b>RezervUZ</b> — o‘yin klublari (PlayStation, PC) hamda sartaroshxonalarni onlayn bron qilish platformasiga xush kelibsiz.\n\n"
+                f"Quyidagi tugma orqali platformani ochib, filiallarni ko‘rishingiz va o‘zingizga qulay vaqtni band qilishingiz mumkin! 👇"
             )
 
         try:
