@@ -89,6 +89,7 @@ const checkNow = async () => {
       }
       await load(true).catch(() => undefined)
       haptic("success")
+      useToast().success(t("auth.login_success") || "Tizimga muvaffaqiyatli kirdingiz!")
       emit("authenticated")
       emit("update:modelValue", false)
     }

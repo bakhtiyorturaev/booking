@@ -92,12 +92,14 @@ const submitPhone = async (phoneToSubmit?: string) => {
     const response = await authApi.saveTelegramContact({ phone }, locale.value)
     await load(true)
     haptic("success")
+    useToast().success(t("auth.phone_saved_success") || "Telefon raqamingiz saqlandi!")
     emit("saved", response.data.phone)
     emit("update:modelValue", false)
   } catch (error: any) {
     const code = error?.data?.code || error?.code || error?.message || "common.backend_unavailable"
     errorMessage.value = code
     haptic("error")
+    useToast().error(formattedErrorMessage.value || code)
   } finally {
     isLoading.value = false
   }

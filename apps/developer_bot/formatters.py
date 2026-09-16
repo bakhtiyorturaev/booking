@@ -134,7 +134,8 @@ def format_log_record(record, environment="development"):
 
 
 def format_event(title, message, level="INFO", environment="development"):
-    safe_title = _escape_with_limit(redact_sensitive_data(title), 200)
+    clean_title = title.strip()
+    safe_title = html.escape(clean_title) if "<" not in clean_title else clean_title
 
     title_lower = title.lower()
     if level.upper() in ("CRITICAL", "ERROR") or "xato" in title_lower:
@@ -152,8 +153,12 @@ def format_event(title, message, level="INFO", environment="development"):
         f"<b>Muhit:</b> {html.escape(environment)}\n"
         f"<b>Vaqt:</b> {formatted_time}\n\n"
     )
-    safe_message = _escape_with_limit(
-        redact_sensitive_data(message),
-        TELEGRAM_MESSAGE_LIMIT - len(header),
-    )
+
+    message_str = redact_sensitive_data(str(message))
+    if "<b" not in message_str and "<code" not in message_str and "<pre" not in message_str:
+        safe_message = _escape_with_limit(message_str, TELEGRAM_MESSAGE_LIMIT - len(header))
+    else:
+        max_msg_len = TELEGRAM_MESSAGE_LIMIT - len(header)
+        safe_message = message_str[:max_msg_len] if len(message_str) > max_msg_len else message_str
+
     return header + safe_message

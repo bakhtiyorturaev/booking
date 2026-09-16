@@ -28,8 +28,10 @@ import BarberCard from "~/components/catalog/BarberCard.vue"
 import BarberBookingModal from "~/components/catalog/BarberBookingModal.vue"
 import TelegramAuthModal from "~/components/auth/TelegramAuthModal.vue"
 import TelegramContactModal from "~/components/auth/TelegramContactModal.vue"
+import { useToast } from "~/composables/useToast"
 
 definePageMeta({ layout: "customer" })
+const toast = useToast()
 
 const dateInTimezone = (timeZone: string) => {
   const parts = new Intl.DateTimeFormat("en", {
@@ -376,8 +378,11 @@ const submitBooking = async () => {
       quantity: quantity.value,
     })
     bookingResult.value = await bookingsApi.create(hold.id)
+    toast.success(t("branches.booking_success"))
   } catch (error) {
-    bookingError.value = error instanceof ApiRequestError ? error.message : t("common.backend_unavailable")
+    const errText = error instanceof ApiRequestError ? error.message : t("common.backend_unavailable")
+    bookingError.value = errText
+    toast.error(errText)
   } finally {
     submitting.value = false
   }

@@ -31,11 +31,29 @@ class DeveloperTelegramClient:
         return self.request("getChat", chat_id=self.chat_id)
 
     def send_message(self, text):
-        return self.request(
-            "sendMessage",
-            chat_id=self.chat_id,
-            text=text,
-            parse_mode="HTML",
-            disable_web_page_preview=True,
-        )
+        try:
+            return self.request(
+                "sendMessage",
+                chat_id=self.chat_id,
+                text=text,
+                parse_mode="HTML",
+                disable_web_page_preview=True,
+            )
+        except Exception:
+            clean_text = (
+                text.replace("<b>", "")
+                .replace("</b>", "")
+                .replace("<code>", "")
+                .replace("</code>", "")
+                .replace("<i>", "")
+                .replace("</i>", "")
+                .replace("<pre>", "")
+                .replace("</pre>", "")
+            )
+            return self.request(
+                "sendMessage",
+                chat_id=self.chat_id,
+                text=clean_text,
+                disable_web_page_preview=True,
+            )
 

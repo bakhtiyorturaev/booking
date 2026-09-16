@@ -38,11 +38,15 @@ const fetchBarbers = async () => {
 const approveAffiliation = async (barber: CabinetBarberItem) => {
   try {
     await adminApi.approveBarberAffiliation(barber.id)
-    successMessage.value = `${barber.full_name} sartaroshxonaga muvaffaqiyatli biriktirildi!`
+    const msg = `${barber.full_name} sartaroshxonaga muvaffaqiyatli biriktirildi!`
+    successMessage.value = msg
+    useToast().success(msg)
     setTimeout(() => { successMessage.value = "" }, 4000)
     await fetchBarbers()
   } catch (err: any) {
-    errorMessage.value = err?.message || "Tasdiqlashda xatolik yuz berdi"
+    const errText = err?.message || "Tasdiqlashda xatolik yuz berdi"
+    errorMessage.value = errText
+    useToast().error(errText)
   }
 }
 
@@ -50,20 +54,27 @@ const rejectAffiliation = async (barber: CabinetBarberItem) => {
   if (!confirm(`${barber.full_name}ning birikish so'rovini rad etmoqchimisiz?`)) return
   try {
     await adminApi.rejectBarberAffiliation(barber.id)
-    successMessage.value = `${barber.full_name}ning so'rovi rad etildi.`
+    const msg = `${barber.full_name}ning so'rovi rad etildi.`
+    successMessage.value = msg
+    useToast().success(msg)
     setTimeout(() => { successMessage.value = "" }, 4000)
     await fetchBarbers()
   } catch (err: any) {
-    errorMessage.value = err?.message || "Rad etishda xatolik yuz berdi"
+    const errText = err?.message || "Rad etishda xatolik yuz berdi"
+    errorMessage.value = errText
+    useToast().error(errText)
   }
 }
 
 const toggleActive = async (barber: CabinetBarberItem) => {
   try {
     await adminApi.toggleBarberStatus(barber.id)
+    useToast().success("Holat muvaffaqiyatli o'zgartirildi")
     await fetchBarbers()
   } catch (err: any) {
-    errorMessage.value = err?.message || "Holatni o'zgartirishda xatolik yuz berdi"
+    const errText = err?.message || "Holatni o'zgartirishda xatolik yuz berdi"
+    errorMessage.value = errText
+    useToast().error(errText)
   }
 }
 

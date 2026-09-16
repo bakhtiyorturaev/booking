@@ -98,8 +98,11 @@ const handleSlotSelect = (slot: BarberSlot) => {
 
 const handleConfirmBooking = async () => {
   if (!props.barber || !selectedSlot.value) return
+  const toast = useToast()
   if (!auth.isAuthenticated.value) {
-    errorMessage.value = t("barbers.auth_required_to_book")
+    const authMsg = t("barbers.auth_required_to_book")
+    errorMessage.value = authMsg
+    toast.warning(authMsg)
     return
   }
 
@@ -112,9 +115,12 @@ const handleConfirmBooking = async () => {
       selectedSlot.value.ends_at,
     )
     successBooking.value = booking
+    toast.success(t("barbers.booking_success_title"))
     emit("booked", booking)
   } catch (err: any) {
-    errorMessage.value = err?.message || t("barbers.booking_error_slot_taken")
+    const errText = err?.message || t("barbers.booking_error_slot_taken")
+    errorMessage.value = errText
+    toast.error(errText)
   } finally {
     isBooking.value = false
   }

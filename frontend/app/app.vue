@@ -58,4 +58,5 @@ onMounted(async () => {
     <NuxtRouteAnnouncer />
     <NuxtPage />
   </NuxtLayout>
+  <AppToast />
 </template>

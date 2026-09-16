@@ -118,6 +118,7 @@ const startCheckout = async (planCode: string) => {
   if (checkoutPending.value) return
   checkoutPending.value = planCode
   checkoutMessage.value = ""
+  const toast = useToast()
   try {
     const payment = await subscriptionApi.checkout(planCode, crypto.randomUUID())
     if (payment.checkout_url) {
@@ -125,9 +126,13 @@ const startCheckout = async (planCode: string) => {
       return
     }
     await subscriptionState.load(true)
-    checkoutMessage.value = t("profile.payment_successful")
+    const successMsg = t("profile.payment_successful")
+    checkoutMessage.value = successMsg
+    toast.success(successMsg)
   } catch (error) {
-    checkoutMessage.value = error instanceof ApiRequestError ? error.message : t("common.backend_unavailable")
+    const errText = error instanceof ApiRequestError ? error.message : t("common.backend_unavailable")
+    checkoutMessage.value = errText
+    toast.error(errText)
   } finally {
     checkoutPending.value = ""
   }

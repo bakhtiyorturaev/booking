@@ -17,8 +17,11 @@ import { useReviewsApi } from "~/api/reviews"
 import { ApiRequestError } from "~/types/api"
 import type { Booking } from "~/types/booking"
 import type { Review } from "~/types/review"
+import { useToast } from "~/composables/useToast"
 
 definePageMeta({ layout: "customer", middleware: "auth" })
+
+const toast = useToast()
 
 const bookingsApi = useBookingsApi()
 const reviewsApi = useReviewsApi()
@@ -110,10 +113,14 @@ const cancelBooking = async (booking: Booking) => {
   try {
     await bookingsApi.cancel(booking.id, cancelReason.value.trim())
     closeCancellation()
-    actionMessage.value = t("bookings.cancel_success")
+    const successMsg = t("bookings.cancel_success")
+    actionMessage.value = successMsg
+    toast.success(successMsg)
     await refresh()
   } catch (error) {
-    actionMessage.value = error instanceof ApiRequestError ? error.message : t("common.backend_unavailable")
+    const errText = error instanceof ApiRequestError ? error.message : t("common.backend_unavailable")
+    actionMessage.value = errText
+    toast.error(errText)
   } finally {
     cancelling.value = false
   }
@@ -143,10 +150,14 @@ const saveReview = async (booking: Booking) => {
     if (existing) await reviewsApi.update(existing.id, payload)
     else await reviewsApi.create({ booking_id: booking.id, ...payload })
     closeReview()
-    actionMessage.value = t(existing ? "reviews.update_success" : "reviews.create_success")
+    const successMsg = t(existing ? "reviews.update_success" : "reviews.create_success")
+    actionMessage.value = successMsg
+    toast.success(successMsg)
     await refreshReviews()
   } catch (error) {
-    actionMessage.value = error instanceof ApiRequestError ? error.message : t("common.backend_unavailable")
+    const errText = error instanceof ApiRequestError ? error.message : t("common.backend_unavailable")
+    actionMessage.value = errText
+    toast.error(errText)
   } finally {
     reviewSaving.value = false
   }
@@ -163,10 +174,14 @@ const deleteReview = async (review: Review) => {
     await reviewsApi.remove(review.id)
     deleteTarget.value = undefined
     closeReview()
-    actionMessage.value = t("reviews.delete_success")
+    const successMsg = t("reviews.delete_success")
+    actionMessage.value = successMsg
+    toast.success(successMsg)
     await refreshReviews()
   } catch (error) {
-    actionMessage.value = error instanceof ApiRequestError ? error.message : t("common.backend_unavailable")
+    const errText = error instanceof ApiRequestError ? error.message : t("common.backend_unavailable")
+    actionMessage.value = errText
+    toast.error(errText)
   } finally {
     reviewSaving.value = false
   }
