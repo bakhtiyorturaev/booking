@@ -206,27 +206,26 @@ def handle_message(client, message):
         safe_send_message(client, chat_id, login_success_text, login_keyboard)
         return
 
-    # 3. Oddiy /start xabari
-    if text.startswith("/start"):
-        raw_user_name = user.get("first_name", "").strip() or "Foydalanuvchi"
-        safe_user_name = html.escape(raw_user_name)
-        if language == "ru":
-            greeting = (
-                f"👋 <b>Здравствуйте, {safe_user_name}!</b>\n\n"
-                f"<b>RezervUZ</b> — платформу онлайн-бронирования игровых клубов (PlayStation, PC) и барбершопов.\n\n"
-                f"Нажмите кнопку ниже, чтобы открыть приложение и забронировать удобное время! 👇"
-            )
-        elif language == "en":
-            greeting = (
-                f"👋 <b>Hello, {safe_user_name}!</b>\n\n"
-                f"Welcome to <b>RezervUZ</b> — online booking platform for gaming clubs (PlayStation, PC) and barbershops.\n\n"
-                f"Tap the button below to open the app and reserve your spot! 👇"
-            )
-        else:
-            greeting = (
-                f"👋 <b>Assalomu alaykum, {safe_user_name}!</b>\n\n"
-                f"<b>RezervUZ</b> — o‘yin klublari (PlayStation, PC) hamda sartaroshxonalarni onlayn bron qilish platformasiga xush kelibsiz.\n\n"
-                f"Quyidagi tugma orqali platformani ochib, filiallarni ko‘rishingiz va o‘zingizga qulay vaqtni band qilishingiz mumkin! 👇"
-            )
+    # 3. /start yoki har qanday xabar uchun doimiy javob
+    raw_user_name = user.get("first_name", "").strip() or "Foydalanuvchi"
+    safe_user_name = html.escape(raw_user_name)
+    if language == "ru":
+        greeting = (
+            f"👋 <b>Здравствуйте, {safe_user_name}!</b>\n\n"
+            f"<b>RezervUZ</b> — платформа онлайн-бронирования игровых клубов (PlayStation, PC) и барбершопов.\n\n"
+            f"Нажмите кнопку ниже, чтобы открыть приложение и забронировать удобное время! 👇"
+        )
+    elif language == "en":
+        greeting = (
+            f"👋 <b>Hello, {safe_user_name}!</b>\n\n"
+            f"Welcome to <b>RezervUZ</b> — online booking platform for gaming clubs (PlayStation, PC) and barbershops.\n\n"
+            f"Tap the button below to open the app and reserve your spot! 👇"
+        )
+    else:
+        greeting = (
+            f"👋 <b>Assalomu alaykum, {safe_user_name}!</b>\n\n"
+            f"<b>RezervUZ</b> — o‘yin klublari (PlayStation, PC) hamda sartaroshxonalarni onlayn bron qilish platformasiga xush kelibsiz.\n\n"
+            f"Quyidagi tugma orqali platformani ochib, filiallarni ko‘rishingiz va o‘zingizga qulay vaqtni band qilishingiz mumkin! 👇"
+        )
 
-        safe_send_message(client, chat_id, greeting, default_keyboard)
+    safe_send_message(client, chat_id, greeting, default_keyboard)

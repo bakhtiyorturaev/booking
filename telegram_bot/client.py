@@ -1,3 +1,4 @@
+from django.conf import settings
 import requests
 
 from telegram_bot.models import TelegramBotSettings
@@ -10,14 +11,14 @@ class TelegramClient:
 
     def _connection(self):
         configuration = TelegramBotSettings.objects.filter(pk=1).first()
-        token = self.token_override or (
-            configuration.bot_token if configuration else ""
+        token = (
+            self.token_override
+            or (configuration.bot_token if configuration and configuration.bot_token else "")
+            or getattr(settings, "TELEGRAM_BOT_TOKEN", "").strip()
         )
-        if not token or (
-            not self.token_override and not configuration.is_configured
-        ):
+        if not token:
             raise RuntimeError(
-                "Telegram bot sozlamalarini Django admin orqali kiriting."
+                "Telegram bot sozlamalarini Django admin orqali kiriting yoki TELEGRAM_BOT_TOKEN ni .env da ko‘rsating."
             )
         timeout = self.request_timeout_override or (
             configuration.request_timeout_seconds if configuration else 20
@@ -51,8 +52,9 @@ class TelegramClient:
         payload = {
             "chat_id": chat_id,
             "text": text,
-            "parse_mode": parse_mode,
         }
+        if parse_mode:
+            payload["parse_mode"] = parse_mode
         if reply_markup is not None:
             payload["reply_markup"] = reply_markup
         return self.request("sendMessage", **payload)
