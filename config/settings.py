@@ -293,5 +293,6 @@ MEDIA_ROOT = BASE_DIR / "media"
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_BOT_USERNAME = os.getenv("TELEGRAM_BOT_USERNAME", "")
-TELEGRAM_MINIAPP_URL = os.getenv("TELEGRAM_MINIAPP_URL", "http://localhost:3000")
+TELEGRAM_MINIAPP_URL = os.getenv("TELEGRAM_MINIAPP_URL", "https://rezervuz.uz")
+
 
