@@ -16,7 +16,7 @@ const emit = defineEmits<{
 }>()
 
 const { isTMA, initTMA, haptic } = useTelegramWebApp()
-const { load, user } = useAuth()
+const { load, user, setUser } = useAuth()
 const { locale, load: loadTranslations, t } = useTranslations()
 const authApi = useAuthApi()
 
@@ -29,6 +29,7 @@ const deepLink = ref("")
 const token = ref("")
 const isLoading = ref(false)
 const isPolling = ref(false)
+const isChecking = ref(false)
 const errorMessage = ref("")
 let pollInterval: ReturnType<typeof setInterval> | null = null
 
@@ -52,6 +53,13 @@ const startWebLogin = async () => {
     const response = await authApi.initTelegramWebLogin(locale.value)
     token.value = response.data.token
     deepLink.value = response.data.deep_link
+    if (!import.meta.server) {
+      try {
+        sessionStorage.setItem("tg_web_login_token", response.data.token)
+      } catch {
+        // Ignored
+      }
+    }
     startPolling()
   } catch (error: any) {
     const code = error?.data?.code || error?.code || error?.message || "common.backend_unavailable"
@@ -61,31 +69,77 @@ const startWebLogin = async () => {
   }
 }
 
+const checkNow = async () => {
+  if (!token.value || isChecking.value) return
+  isChecking.value = true
+
+  try {
+    const response = await authApi.checkTelegramWebLogin(token.value, locale.value)
+    if (response.data?.status === "SUCCESS") {
+      stopPolling()
+      if (!import.meta.server) {
+        try {
+          sessionStorage.removeItem("tg_web_login_token")
+        } catch {
+          // Ignored
+        }
+      }
+      if (response.data.user) {
+        setUser(response.data.user)
+      }
+      await load(true).catch(() => undefined)
+      haptic("success")
+      emit("authenticated")
+      emit("update:modelValue", false)
+    }
+  } catch (error: any) {
+    if (error?.data?.code === "auth.session_expired") {
+      if (!import.meta.server) {
+        try {
+          sessionStorage.removeItem("tg_web_login_token")
+        } catch {
+          // Ignored
+        }
+      }
+    }
+  } finally {
+    isChecking.value = false
+  }
+}
+
+const onFocus = () => {
+  if (isPolling.value) void checkNow()
+}
+
+const onVisibilityChange = () => {
+  if (document.visibilityState === "visible" && isPolling.value) {
+    void checkNow()
+  }
+}
+
 const startPolling = () => {
   stopPolling()
   if (!token.value) return
   isPolling.value = true
 
-  pollInterval = setInterval(async () => {
-    try {
-      const response = await authApi.checkTelegramWebLogin(token.value, locale.value)
-      if (response.data?.status === "SUCCESS") {
-        stopPolling()
-        await load(true)
-        haptic("success")
-        emit("authenticated")
-        emit("update:modelValue", false)
-      }
-    } catch {
-      // Polling continues
-    }
-  }, 1500)
+  pollInterval = setInterval(() => {
+    void checkNow()
+  }, 1200)
+
+  if (!import.meta.server) {
+    window.addEventListener("focus", onFocus)
+    document.addEventListener("visibilitychange", onVisibilityChange)
+  }
 }
 
 const stopPolling = () => {
   if (pollInterval) {
     clearInterval(pollInterval)
     pollInterval = null
+  }
+  if (!import.meta.server) {
+    window.removeEventListener("focus", onFocus)
+    document.removeEventListener("visibilitychange", onVisibilityChange)
   }
   isPolling.value = false
 }

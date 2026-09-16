@@ -21,6 +21,26 @@ class TelegramWebLoginError(Exception):
         super().__init__(self.code)
 
 
+def get_effective_bot_username():
+    bot_username = getattr(settings, "TELEGRAM_BOT_USERNAME", "").strip()
+    if bot_username:
+        return bot_username.lstrip("@")
+    cached = cache.get("telegram_bot_me_username")
+    if cached:
+        return cached
+    try:
+        from telegram_bot.client import TelegramClient
+        client = TelegramClient()
+        me = client.request("getMe")
+        if me and me.get("username"):
+            cached = me["username"]
+            cache.set("telegram_bot_me_username", cached, timeout=86400)
+            return cached
+    except Exception:
+        pass
+    return "RezervUz_bot"
+
+
 def init_web_login():
     """
     Brauzer foydalanuvchisi uchun Telegram orqali kirish sessiyasini boshlash.
@@ -29,11 +49,7 @@ def init_web_login():
     cache_key = f"{CACHE_PREFIX}{token}"
     cache.set(cache_key, {"status": "PENDING", "created_at": int(timezone.now().timestamp())}, timeout=TOKEN_TTL_SECONDS)
 
-    bot_settings = TelegramBotSettings.objects.filter(pk=1).first()
-    bot_username = getattr(settings, "TELEGRAM_BOT_USERNAME", "")
-    if not bot_username:
-        bot_username = "ClubBookingBot"
-
+    bot_username = get_effective_bot_username()
     deep_link = f"https://t.me/{bot_username}?start=login_{token}"
     return {
         "token": token,
@@ -50,7 +66,7 @@ def confirm_web_login_from_bot(token, user_info, device_name="Web Browser via Te
     """
     cache_key = f"{CACHE_PREFIX}{token}"
     session_data = cache.get(cache_key)
-    if not session_data or session_data.get("status") != "PENDING":
+    if not session_data:
         return False
 
     telegram_user_id = user_info.get("id")
@@ -104,7 +120,7 @@ def confirm_web_login_from_bot(token, user_info, device_name="Web Browser via Te
             "tokens": tokens,
             "is_new_user": is_new_user,
         },
-        timeout=120,
+        timeout=300,
     )
     return True
 
@@ -131,7 +147,8 @@ def check_web_login_status(token):
         user = User.objects.filter(id=user_id).first()
         tokens = session_data.get("tokens")
         is_new_user = session_data.get("is_new_user", False)
-        cache.delete(cache_key)
+        # 60 soniya davomida SUCCESS holatida qoldiramiz (race condition va qayta yuklashlar uchun)
+        cache.set(cache_key, session_data, timeout=60)
         return {
             "status": "SUCCESS",
             "user": user,

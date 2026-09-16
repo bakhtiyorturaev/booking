@@ -116,36 +116,66 @@ def handle_message(client, message):
             return
 
     # 2. Agar web login deep-link bo'lsa: /start login_<token>
-    if text.startswith("/start login_"):
-        token = text.replace("/start login_", "").strip()
-        confirmed = confirm_web_login_from_bot(token, user)
+    if text.startswith("/start") and "login_" in text:
+        parts = text.split()
+        token = ""
+        for p in parts:
+            if "login_" in p:
+                token = p.split("login_", 1)[1].strip()
+                break
+
+        confirmed = False
+        if token:
+            confirmed = confirm_web_login_from_bot(token, user)
+
         user_name = user.get("first_name", "").strip() or "Foydalanuvchi"
         if confirmed:
+            frontend_url = getattr(settings, "FRONTEND_URL", "https://rezervuz.uz").rstrip("/")
+            site_return_url = f"{frontend_url}?tg_login={token}" if token else frontend_url
+
             login_success_text = (
                 f"✅ <b>Assalomu alaykum, {user_name}!</b>\n\n"
                 f"RezervUZ tizimiga muvaffaqiyatli kirdingiz.\n"
-                f"Brauzeringizdagi sahifaga qaytib, xizmatlardan foydalanishingiz mumkin."
+                f"Brauzeringizdagi sahifaga qayting yoki quyidagi tugma orqali to‘g‘ridan-to‘g‘ri saytga o‘ting 👇"
                 if language == "uz"
                 else (
                     f"✅ <b>Здравствуйте, {user_name}!</b>\n\n"
                     f"Вы успешно вошли в систему RezervUZ.\n"
-                    f"Можете вернуться в браузер и продолжить пользоваться сервисом."
+                    f"Вернитесь на страницу в браузере или перейдите по кнопке ниже 👇"
                     if language == "ru"
                     else (
                         f"✅ <b>Welcome, {user_name}!</b>\n\n"
                         f"Successfully logged into RezervUZ.\n"
-                        f"You can now return to your browser."
+                        f"Return to your browser or click below to open the website 👇"
                     )
                 )
             )
+            login_keyboard = {
+                "inline_keyboard": [
+                    [
+                        {
+                            "text": "🌐 Saytga o‘tish" if language == "uz" else ("🌐 Перейти на сайт" if language == "ru" else "🌐 Open Website"),
+                            "url": site_return_url,
+                        }
+                    ],
+                    [
+                        {
+                            "text": "📱 Telegram Mini App" if language == "uz" else ("📱 Telegram Mini App" if language == "ru" else "📱 Telegram Mini App"),
+                            "web_app": {"url": miniapp_url},
+                        }
+                    ]
+                ]
+            }
         else:
             login_success_text = (
                 "⚠️ Kirish havolasi eskirgan yoki noto‘g‘ri. Iltimos, saytdan qayta urinib ko‘ring."
                 if language == "uz"
                 else "⚠️ Ссылка для входа устарела. Попробуйте снова на сайте."
             )
+            login_keyboard = webapp_keyboard
+
         try:
-            client.send_message(chat_id, login_success_text, webapp_keyboard)
+            client.send_message(chat_id, login_success_text, login_keyboard)
         except Exception:
             pass
         return
