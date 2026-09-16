@@ -22,8 +22,16 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS("Telegram bot ishga tushdi."))
         while True:
             try:
-                process_booking_lifecycle()
-                dispatch_pending_messages(client)
+                try:
+                    process_booking_lifecycle()
+                except Exception as lifecycle_err:
+                    logger.warning("Booking lifecycle error: %s", lifecycle_err)
+
+                try:
+                    dispatch_pending_messages(client)
+                except Exception as dispatch_err:
+                    logger.warning("Pending message dispatch error: %s", dispatch_err)
+
                 for update in client.get_updates(offset=offset):
                     offset = update["update_id"] + 1
                     if callback := update.get("callback_query"):
@@ -36,5 +44,5 @@ class Command(BaseCommand):
                 logger.exception("Telegram polling jarayonida xatolik yuz berdi.")
                 configuration = TelegramBotSettings.objects.filter(pk=1).first()
                 time.sleep(
-                    configuration.retry_delay_seconds if configuration else 2
+                    configuration.retry_delay_seconds if configuration else 5
                 )
