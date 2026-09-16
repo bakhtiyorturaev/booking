@@ -102,7 +102,7 @@ def _format_request_details(request):
 
 def format_log_record(record, environment="development"):
     created_at = datetime.fromtimestamp(record.created, tz=TASHKENT_TZ)
-    formatted_time = created_at.strftime("%Y-%m-%d %H:%M:%S (Toshkent vaqti)")
+    formatted_time = created_at.strftime("%d.%m.%Y %H:%M:%S (Toshkent vaqti)")
     message = redact_sensitive_data(record.getMessage())
     exception = redact_sensitive_data(_exception_text(record))
 
@@ -144,9 +144,13 @@ def format_event(title, message, level="INFO", environment="development"):
     else:
         icon = "✅"
 
+    now_tashkent = datetime.now(TASHKENT_TZ)
+    formatted_time = now_tashkent.strftime("%d.%m.%Y %H:%M:%S (Toshkent vaqti)")
+
     header = (
         f"{icon} <b>{safe_title}</b>\n"
-        f"<b>Muhit:</b> {html.escape(environment)}\n\n"
+        f"<b>Muhit:</b> {html.escape(environment)}\n"
+        f"<b>Vaqt:</b> {formatted_time}\n\n"
     )
     safe_message = _escape_with_limit(
         redact_sensitive_data(message),
