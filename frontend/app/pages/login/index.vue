@@ -3,6 +3,11 @@ import TelegramAuthModal from "~/components/auth/TelegramAuthModal.vue"
 
 definePageMeta({ middleware: "guest" })
 
+const { t } = useTranslations()
+useHead({
+  title: computed(() => t("auth.login_tab") || "Kirish"),
+})
+
 const route = useRoute()
 const showModal = ref(true)
 

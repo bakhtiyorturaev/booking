@@ -23,6 +23,14 @@ await load()
 
 const activeCategory = ref<"GAMING_CLUB" | "BARBERSHOP">("GAMING_CLUB")
 
+useHead({
+  title: computed(() =>
+    activeCategory.value === "BARBERSHOP"
+      ? (t("barbers.all_barbershops") || "Sartaroshxonalar va Sartaroshlar")
+      : (t("clubs.catalog_title") || "Barcha klublar")
+  ),
+})
+
 const filterState = ref<FilterState>({
   search: "",
   city: "",

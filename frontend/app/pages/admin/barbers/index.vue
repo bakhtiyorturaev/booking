@@ -7,6 +7,10 @@ definePageMeta({
   middleware: ["admin"],
 })
 
+useHead({
+  title: "Sartaroshlar boshqaruvi",
+})
+
 const adminApi = useAdminApi()
 
 const barbers = ref<CabinetBarberItem[]>([])

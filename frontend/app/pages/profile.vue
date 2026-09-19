@@ -36,6 +36,10 @@ if (profileCodes.some(code => t(code) === code)) {
   await load(locale.value, true).catch(() => undefined)
 }
 
+useHead({
+  title: computed(() => t("profile.title") || "Mening profilim"),
+})
+
 const editing = ref(false)
 const pending = ref(false)
 const logoutPending = ref(false)

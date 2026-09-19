@@ -105,6 +105,14 @@ const { data, error, status } = await useAsyncData(
 const branch = computed(() => data.value?.branch)
 const barbers = computed(() => data.value?.barbers ?? [])
 const nearbyBranches = computed(() => data.value?.related ?? [])
+
+useHead({
+  title: computed(() => {
+    if (!branch.value) return t("branches.title") || "Filial"
+    const clubPart = branch.value.club?.name ? ` — ${branch.value.club.name}` : ""
+    return `${branch.value.name}${clubPart}`
+  }),
+})
 const reviews = computed(() => data.value?.reviews ?? [])
 const displayImages = computed(() => {
   if (!branch.value) return []

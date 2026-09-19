@@ -28,8 +28,11 @@ const reviewsApi = useReviewsApi()
 const subscriptionState = useSubscription()
 const { locale, load, t } = useTranslations()
 await load()
-if (["bookings.my_bookings", "branches.zones_title", "bookings.duration", "reviews.title"].some(code => t(code) === code)) await load(locale.value, true)
 await subscriptionState.load().catch(() => null)
+
+useHead({
+  title: computed(() => t("bookings.title") || "Mening bronlarim"),
+})
 
 type BookingScope = "all" | "upcoming" | "past"
 const scope = ref<BookingScope>("all")

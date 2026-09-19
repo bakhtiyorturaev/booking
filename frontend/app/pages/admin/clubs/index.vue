@@ -6,6 +6,10 @@ definePageMeta({
   middleware: ["admin"],
 })
 
+useHead({
+  title: "Klublar boshqaruvi",
+})
+
 const adminApi = useAdminApi()
 
 const clubs = ref<any[]>([])

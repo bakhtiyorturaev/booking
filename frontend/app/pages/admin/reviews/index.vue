@@ -6,6 +6,10 @@ definePageMeta({
   middleware: ["admin"],
 })
 
+useHead({
+  title: "Sharhlar moderatsiyasi",
+})
+
 const adminApi = useAdminApi()
 
 const reviews = ref<any[]>([])

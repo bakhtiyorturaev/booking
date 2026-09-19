@@ -6,6 +6,10 @@ definePageMeta({
   middleware: ["admin"],
 })
 
+useHead({
+  title: "Boshqaruv paneli",
+})
+
 const adminApi = useAdminApi()
 
 const stats = ref<any>(null)

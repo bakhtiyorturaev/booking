@@ -6,6 +6,10 @@ definePageMeta({
   middleware: ["admin"],
 })
 
+useHead({
+  title: "Filiallar va Zonalar",
+})
+
 const adminApi = useAdminApi()
 
 const clubs = ref<any[]>([])

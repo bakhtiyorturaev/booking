@@ -6,6 +6,10 @@ definePageMeta({
   middleware: ["admin"],
 })
 
+useHead({
+  title: "To‘lovlar boshqaruvi",
+})
+
 const adminApi = useAdminApi()
 
 const payments = ref<any[]>([])

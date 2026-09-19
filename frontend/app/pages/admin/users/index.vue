@@ -7,6 +7,10 @@ definePageMeta({
   middleware: ["admin"],
 })
 
+useHead({
+  title: "Foydalanuvchilar va Xodimlar",
+})
+
 const { user: currentUser } = useAuth()
 const adminApi = useAdminApi()
 

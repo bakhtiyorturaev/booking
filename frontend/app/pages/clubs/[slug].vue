@@ -26,6 +26,10 @@ const { data: club, error, status } = await useAsyncData(
   () => clubsApi.get(slug.value),
 )
 
+useHead({
+  title: computed(() => club.value?.name || t("clubs.title") || "Klub"),
+})
+
 const formatPrice = (value: number | null) => {
   if (value === null) return t("common.free")
   return `${new Intl.NumberFormat(locale.value).format(value / 100)} ${t("common.currency_uzs")}`

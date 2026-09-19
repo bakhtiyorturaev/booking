@@ -3,8 +3,8 @@ export default defineNuxtConfig({
   compatibilityDate: "2026-08-01",
   app: {
     head: {
-      title: "Club Booking",
-      titleTemplate: "%s — Club Booking",
+      title: "RezervUZ — Onlayn bron qilish platformasi",
+      titleTemplate: "%s — RezervUZ",
       meta: [
         { charset: "utf-8" },
         { name: "viewport", content: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" },
