@@ -91,7 +91,7 @@ const fetchBranches = async () => {
       barbers.value = extractList<BarberItem>(barbersRes)
     }
   } catch (err: any) {
-    showMessage(err?.message || t("common.backend_unavailable"))
+    console.error("Fetch catalog error:", err)
   } finally {
     isLoading.value = false
   }

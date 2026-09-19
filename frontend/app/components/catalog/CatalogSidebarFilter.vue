@@ -236,7 +236,7 @@ const resetFilters = () => {
         <button
           type="button"
           class="service-toggle-btn"
-          :class="{ active: localState.service_type === 'PLAYSTATION' }"
+          :class="{ active: localState.service_type === 'PLAYSTATION' || localState.service_type === 'PS' }"
           @click="selectService('PLAYSTATION')"
         >
           🎮 PlayStation
@@ -244,8 +244,8 @@ const resetFilters = () => {
         <button
           type="button"
           class="service-toggle-btn"
-          :class="{ active: localState.service_type === 'PC' }"
-          @click="selectService('PC')"
+          :class="{ active: localState.service_type === 'COMPUTER' || localState.service_type === 'PC' }"
+          @click="selectService('COMPUTER')"
         >
           💻 Cyber / PC
         </button>

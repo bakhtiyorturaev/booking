@@ -96,9 +96,13 @@ def requested_service_type(request):
     if not value:
         return None
     value = value.strip().upper()
-    if value not in Zone.ResourceType.values:
-        raise ValidationError({"service_type": "clubs.invalid_service_type"}, code="clubs.invalid_service_type")
-    return value
+    if value in ("PC", "CYBER", "COMPUTER"):
+        return Zone.ResourceType.COMPUTER
+    if value in ("PS", "PS5", "PLAYSTATION"):
+        return Zone.ResourceType.PLAYSTATION
+    if value in Zone.ResourceType.values:
+        return value
+    return None
 
 
 def location_filter(prefix, field, value):
