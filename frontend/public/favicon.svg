@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <style>
+      .r-symbol {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        font-weight: 900;
+        font-size: 280px;
+        text-anchor: middle;
+        dominant-baseline: central;
+        fill: #111827;
+      }
+    </style>
+  </defs>
+  <!-- Clean white circular background badge -->
+  <circle cx="256" cy="256" r="246" fill="#ffffff" />
+  <!-- Outer black circular border ring -->
+  <circle cx="256" cy="256" r="218" fill="none" stroke="#111827" stroke-width="40" />
+  <!-- Bold centered letter R -->
+  <text x="256" y="258" class="r-symbol">R</text>
+</svg>
