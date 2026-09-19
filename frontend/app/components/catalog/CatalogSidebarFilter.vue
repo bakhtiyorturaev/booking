@@ -37,6 +37,9 @@ const localState = reactive<FilterState>({
   ...props.modelValue,
 })
 
+const isRegionSectionOpen = ref(true)
+const showAllRegions = ref(false)
+
 watch(
   () => props.modelValue,
   (val) => {
@@ -66,15 +69,39 @@ const searchPlaceholder = computed(() => {
   return t("filter.search_placeholder") || "Qidirish..."
 })
 
-const cities = computed(() => [
+const allCities = computed(() => [
   { id: "", name: t("filter.all_regions") || "Barcha hududlar" },
-  { id: "Toshkent", name: t("filter.tashkent") || "Toshkent shahri" },
-  { id: "Samarqand", name: t("filter.samarkand") || "Samarqand" },
-  { id: "Buxoro", name: t("filter.bukhara") || "Buxoro" },
-  { id: "Farg'ona", name: t("filter.fergana") || "Farg‘ona" },
-  { id: "Namangan", name: t("filter.namangan") || "Namangan" },
-  { id: "Andijon", name: t("filter.andijan") || "Andijon" },
+  { id: "Toshkent", name: "Toshkent shahri" },
+  { id: "Toshkent viloyati", name: "Toshkent viloyati" },
+  { id: "Samarqand", name: "Samarqand" },
+  { id: "Buxoro", name: "Buxoro" },
+  { id: "Farg'ona", name: "Farg‘ona" },
+  { id: "Andijon", name: "Andijon" },
+  { id: "Namangan", name: "Namangan" },
+  { id: "Qashqadaryo", name: "Qashqadaryo" },
+  { id: "Surxondaryo", name: "Surxondaryo" },
+  { id: "Xorazm", name: "Xorazm" },
+  { id: "Navoiy", name: "Navoiy" },
+  { id: "Jizzax", name: "Jizzax" },
+  { id: "Sirdaryo", name: "Sirdaryo" },
+  { id: "Qoraqalpog'iston", name: "Qoraqalpog‘iston" },
 ])
+
+const displayedCities = computed(() => {
+  if (showAllRegions.value) return allCities.value
+  const top = allCities.value.slice(0, 5)
+  if (localState.city && !top.some(c => c.id === localState.city)) {
+    const selected = allCities.value.find(c => c.id === localState.city)
+    if (selected) top.push(selected)
+  }
+  return top
+})
+
+const selectedCityLabel = computed(() => {
+  if (!localState.city) return ""
+  const found = allCities.value.find(c => c.id === localState.city)
+  return found ? found.name : localState.city
+})
 
 const sortOptions = computed(() => {
   if (props.category === "BARBERSHOP") {
@@ -261,14 +288,28 @@ const resetFilters = () => {
       </div>
     </div>
 
-    <!-- 4. Hududlar / Shaharlar -->
+    <!-- 4. Hududlar / Shaharlar (Ochilib-yopiladigan accordion + Yana ko'rsatish) -->
     <div class="filter-group">
-      <h4 class="filter-group-heading">
-        {{ t("filter.region_city") || "Hudud / Shahar" }}
-      </h4>
-      <div class="select-box-list">
+      <div
+        class="filter-group-header"
+        @click="isRegionSectionOpen = !isRegionSectionOpen"
+      >
+        <h4 class="filter-group-heading">
+          {{ t("filter.region_city") || "Hudud / Shahar" }}
+          <span v-if="selectedCityLabel && !isRegionSectionOpen" class="selected-badge">
+            ({{ selectedCityLabel }})
+          </span>
+        </h4>
+        <span class="accordion-arrow" :class="{ open: isRegionSectionOpen }">
+          <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+            <path d="M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z" />
+          </svg>
+        </span>
+      </div>
+
+      <div v-show="isRegionSectionOpen" class="select-box-list">
         <label
-          v-for="city in cities"
+          v-for="city in displayedCities"
           :key="city.id"
           class="select-box-item"
           :class="{ checked: localState.city === city.id }"
@@ -286,6 +327,14 @@ const resetFilters = () => {
           </span>
           <span class="select-box-label">{{ city.name }}</span>
         </label>
+
+        <button
+          type="button"
+          class="toggle-more-btn"
+          @click="showAllRegions = !showAllRegions"
+        >
+          {{ showAllRegions ? "Kamroq ko‘rsatish ↑" : `Barcha ${allCities.length - 1} ta viloyatni ko‘rsatish ↓` }}
+        </button>
       </div>
     </div>
 
@@ -370,12 +419,40 @@ const resetFilters = () => {
   gap: 8px;
 }
 
+.filter-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+  padding-bottom: 2px;
+}
+
 .filter-group-heading {
   margin: 0;
   font-size: 13.5px;
   font-weight: 700;
   color: var(--text);
-  padding-bottom: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.selected-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  margin-left: 6px;
+}
+
+.accordion-arrow {
+  color: var(--muted);
+  transition: transform 0.2s ease;
+  display: flex;
+  align-items: center;
+}
+
+.accordion-arrow.open {
+  transform: rotate(180deg);
 }
 
 .filter-search-field {
@@ -451,6 +528,23 @@ const resetFilters = () => {
 .select-box-item.checked .select-box-label {
   font-weight: 600;
   color: var(--text);
+}
+
+.toggle-more-btn {
+  background: transparent;
+  border: 0;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 650;
+  text-align: left;
+  padding: 6px 6px 2px;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.toggle-more-btn:hover {
+  text-decoration: underline;
+  opacity: 0.9;
 }
 
 @media (max-width: 900px) {
