@@ -28,6 +28,20 @@
   --panel-border: rgba(7, 20, 38, 0.12);
 }
 
+/* Prevent FontAwesome massive SVG flash on initial page load / SSR hydration */
+svg.svg-inline--fa,
+svg:not(:root).svg-inline--fa,
+.svg-inline--fa {
+  display: inline-block;
+  height: 1em;
+  width: auto;
+  max-width: 1em;
+  max-height: 1em;
+  overflow: visible;
+  vertical-align: -0.125em;
+  box-sizing: content-box;
+}
+
 * {
   box-sizing: border-box;
 }

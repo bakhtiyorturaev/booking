@@ -27,7 +27,10 @@ export default defineNuxtConfig({
       ],
     },
   },
-  css: ["~/assets/css/main.css"],
+  css: [
+    "@fortawesome/fontawesome-svg-core/styles.css",
+    "~/assets/css/main.css",
+  ],
   devtools: { enabled: true },
   modules: ["@nuxt/eslint"],
   runtimeConfig: {
