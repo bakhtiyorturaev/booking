@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch
 from django.test import TestCase
 from django.utils import timezone
 
-from apps.accounts.models import User
+from apps.accounts.models import User, UserProfile
 from apps.bookings.models import Booking, BookingHold
 from apps.clubs.models import Branch, City, Club, Zone
 from telegram_bot.client import TelegramClient
@@ -57,6 +57,7 @@ class TelegramBookingTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.user = User.objects.create_user(username="telegram_user", phone="+998901112233")
+        cls.profile = UserProfile.objects.create(user=cls.user)
         club = Club.objects.create(owner=cls.user, name="Club", status=Club.Status.ACTIVE)
         city = City.objects.create(name="City", slug="telegram-city")
         cls.branch = Branch.objects.create(
@@ -192,9 +193,11 @@ class TelegramBookingTests(TestCase):
 
         self.assertTrue(fake_client.send_message.called)
         call_args = fake_client.send_message.call_args
-        self.assertEqual(call_args.kwargs["chat_id"], "12345678")
-        self.assertIn("tasdiqlandi", call_args.kwargs["text"])
-        self.assertIn(booking.booking_number, call_args.kwargs["text"])
+        sent_chat_id = call_args.kwargs.get("chat_id") or (call_args.args[0] if call_args.args else None)
+        sent_text = call_args.kwargs.get("text") or (call_args.args[1] if len(call_args.args) > 1 else "")
+        self.assertEqual(sent_chat_id, "12345678")
+        self.assertIn("tasdiqlandi", sent_text)
+        self.assertIn(booking.booking_number, sent_text)
 
     def test_send_customer_booking_notification_barber(self):
         from apps.barbers.models import Barber
@@ -225,7 +228,9 @@ class TelegramBookingTests(TestCase):
 
         self.assertTrue(fake_client.send_message.called)
         call_args = fake_client.send_message.call_args
-        self.assertEqual(call_args.kwargs["chat_id"], "87654321")
-        self.assertIn("Master Rustam", call_args.kwargs["text"])
-        self.assertIn(booking.booking_number, call_args.kwargs["text"])
+        sent_chat_id = call_args.kwargs.get("chat_id") or (call_args.args[0] if call_args.args else None)
+        sent_text = call_args.kwargs.get("text") or (call_args.args[1] if len(call_args.args) > 1 else "")
+        self.assertEqual(sent_chat_id, "87654321")
+        self.assertIn("Master Rustam", sent_text)
+        self.assertIn(booking.booking_number, sent_text)
 
