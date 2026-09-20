@@ -177,9 +177,9 @@ APP_TRANSLATIONS = (
     },
     {
         "code": "auth.open_in_telegram",
-        "text_uz": "Telegram orqali ochish",
-        "text_ru": "Открыть через Telegram",
-        "text_en": "Open via Telegram",
+        "text_uz": "Telegram orqali kirish",
+        "text_ru": "Войти через Telegram",
+        "text_en": "Log in via Telegram",
     },
     {
         "code": "auth.phone_number",
