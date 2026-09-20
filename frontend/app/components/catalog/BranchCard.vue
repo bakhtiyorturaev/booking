@@ -17,13 +17,15 @@ const { locale, t } = useTranslations()
 const favorites = useFavorites()
 
 const isFavorite = computed(() => {
-  const clubId = props.branch.club?.id
-  if (clubId) return favorites.isFavorite(clubId)
-  return props.branch.is_favorite || false
+  const clubId = props.branch?.club?.id
+  const branchId = props.branch?.id
+  if (clubId && favorites.isFavorite(clubId)) return true
+  if (branchId && favorites.isFavorite(branchId)) return true
+  return props.branch?.is_favorite || false
 })
 
 const formatPrice = (value: number | null) => {
-  if (props.branch.club?.category === "BARBERSHOP") return "Kelishiladi"
+  if (props.branch?.club?.category === "BARBERSHOP") return "Kelishiladi"
   if (value === null || value === 0) return t("common.free")
   return `${new Intl.NumberFormat(locale.value).format(value / 100)} ${t("common.currency_uzs")}`
 }
@@ -31,23 +33,24 @@ const formatPrice = (value: number | null) => {
 const toggleFavorite = (event: Event) => {
   event.preventDefault()
   event.stopPropagation()
-  const clubId = props.branch.club?.id
-  if (clubId) {
-    favorites.toggle(clubId)
+  const targetId = props.branch?.club?.id || props.branch?.id
+  if (targetId) {
+    favorites.toggle(targetId)
   }
 }
 
 const displayAddress = computed(() => {
-  if (props.branch.address) return props.branch.address
-  const city = props.branch.city?.name || ""
-  if (city && props.branch.full_address.startsWith(city)) {
-    return props.branch.full_address.slice(city.length).replace(/^[,\s]+/, "")
+  if (props.branch?.address) return props.branch.address
+  const city = props.branch?.city?.name || ""
+  const full = props.branch?.full_address || ""
+  if (city && full && full.startsWith(city)) {
+    return full.slice(city.length).replace(/^[,\s]+/, "")
   }
-  return props.branch.full_address
+  return full || props.branch?.address || ""
 })
 
 const ratingScore = computed(() => {
-  const rating = Number(props.branch.club.rating || 0)
+  const rating = Number(props.branch?.club?.rating || 0)
   return rating > 0 ? rating.toFixed(1) : "5.0"
 })
 </script>

@@ -32,7 +32,10 @@ const { user } = auth
 const { locale, load, t } = useTranslations()
 
 await load()
-await subscriptionState.load().catch(() => null)
+await Promise.all([
+  favorites.load(true).catch(() => null),
+  subscriptionState.load().catch(() => null),
+])
 
 const profileCodes = [
   "auth.phone_number", "auth.city", "auth.birth_date", "nav.logout",
@@ -228,15 +231,12 @@ const favoriteBranches = computed(() => {
 
         <!-- Tariff & Actions Area -->
         <div class="profile-user-actions">
-          <!-- Current Tariff Status Badge (In place of old subscription section) -->
+          <!-- Current Tariff Status Badge -->
           <div class="profile-tariff-badge" :class="{ 'is-premium': subscriptionState.isPaid.value }">
             <FontAwesomeIcon :icon="faCrown" class="tariff-crown-icon" />
-            <div class="tariff-badge-text">
-              <span class="tariff-label">Tarif:</span>
-              <strong class="tariff-value">
-                {{ subscriptionState.isPaid.value ? t("profile.subscription_paid") : (t("profile.subscription_free") || "Bepul") }}
-              </strong>
-            </div>
+            <strong class="tariff-value">
+              {{ subscriptionState.isPaid.value ? (t("profile.subscription_paid") || "Premium") : (t("profile.subscription_free") || "Bepul") }}
+            </strong>
           </div>
 
           <!-- Admin Link if Admin/Mod -->
