@@ -243,9 +243,9 @@ const deleteReview = async (review: Review) => {
 
             <!-- Barber Booking (Barbershop) -->
             <template v-else-if="booking.barber">
-              <h2>✂️ {{ booking.barber.full_name }}</h2>
+              <h2>{{ booking.barber.full_name }}</h2>
               <div class="booking-type-badges">
-                <span>💈 {{ t("barbers.barbershop") }}</span>
+                <span>{{ t("barbers.barbershop") }}</span>
               </div>
               <span class="barber-salon-link">
                 {{ booking.barber.club?.name || t("barbers.barbershop") }}

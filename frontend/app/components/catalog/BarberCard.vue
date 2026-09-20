@@ -2,14 +2,18 @@
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome"
 import {
   faClock,
+  faHeart,
   faLocationDot,
-  faScissors,
   faStar,
   faStore,
+  faUser,
 } from "@fortawesome/free-solid-svg-icons"
 import type { BarberItem } from "~/types/barber"
+import { useTranslations } from "~/composables/useTranslations"
+import { useFavorites } from "~/composables/useFavorites"
 
 const { t } = useTranslations()
+const favorites = useFavorites()
 
 const props = defineProps<{
   barber: BarberItem
@@ -18,6 +22,25 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: "book", barber: BarberItem): void
 }>()
+
+const isFavorite = computed(() => {
+  if (props.barber.club_id) return favorites.isFavorite(props.barber.club_id)
+  return favorites.isFavorite(props.barber.id)
+})
+
+const toggleFavorite = (event: Event) => {
+  event.preventDefault()
+  event.stopPropagation()
+  const targetId = props.barber.club_id || props.barber.id
+  if (targetId) {
+    favorites.toggle(targetId)
+  }
+}
+
+const ratingScore = computed(() => {
+  const rating = Number(props.barber.rating || 0)
+  return rating > 0 ? rating.toFixed(1) : "5.0"
+})
 
 const getStatusClass = (status: string) => {
   switch (status) {
@@ -84,7 +107,7 @@ const displayLocation = computed(() => {
       >
       <div v-else class="barber-no-photo-banner">
         <div class="banner-gradient-bg">
-          <FontAwesomeIcon :icon="faScissors" class="banner-bg-watermark" />
+          <FontAwesomeIcon :icon="faUser" class="banner-bg-watermark" />
           <span class="banner-barber-fullname">{{ barber.full_name }}</span>
         </div>
       </div>
@@ -100,19 +123,30 @@ const displayLocation = computed(() => {
         </span>
       </div>
 
-      <!-- Rating Badge Overlay -->
-      <div class="barber-rating-badge">
-        <FontAwesomeIcon :icon="faStar" class="star-icon" />
-        <span class="rating-num">{{ Number(barber.rating || 5.0).toFixed(1) }}</span>
-      </div>
+      <!-- Favorite Heart Button -->
+      <button
+        type="button"
+        class="bronla-heart-btn"
+        :class="{ active: isFavorite }"
+        aria-label="Sevimlilar"
+        @click="toggleFavorite"
+      >
+        <FontAwesomeIcon :icon="faHeart" />
+      </button>
     </div>
 
     <!-- Card Body -->
     <div class="bronla-card-body">
-      <!-- 1. Barber Full Name -->
-      <h3 class="bronla-barber-name" :title="barber.full_name">
-        {{ barber.full_name }}
-      </h3>
+      <!-- 1. Barber Full Name & Rating Pill -->
+      <div class="bronla-header-line">
+        <h3 class="bronla-barber-name" :title="barber.full_name">
+          {{ barber.full_name }}
+        </h3>
+        <div class="bronla-rating-pill">
+          <FontAwesomeIcon :icon="faStar" class="star-icon" />
+          <span class="rating-num">{{ ratingScore }}</span>
+        </div>
+      </div>
 
       <!-- 2. Barbershop Salon Subtitle -->
       <div class="barber-salon-meta" :title="barber.club_name">
@@ -126,13 +160,13 @@ const displayLocation = computed(() => {
         <span>{{ displayLocation }}</span>
       </p>
 
-      <!-- 4. Work Hours (Plain clean text line under location) -->
+      <!-- 4. Work Hours -->
       <p class="barber-time-meta">
         <FontAwesomeIcon :icon="faClock" class="clock-icon" />
         <span>{{ t("barbers.work_time") }} <strong>{{ (barber.work_start_time || '09:00').slice(0, 5) }} - {{ (barber.work_end_time || '20:00').slice(0, 5) }}</strong></span>
       </p>
 
-      <!-- 5. Action Button (Matching Club Color: #10b981) -->
+      <!-- 5. Action Button -->
       <button
         type="button"
         class="bronla-book-button barber-action-btn"
@@ -140,8 +174,7 @@ const displayLocation = computed(() => {
         :disabled="barber.status === 'DAY_OFF'"
         @click="emit('book', barber)"
       >
-        <FontAwesomeIcon :icon="faScissors" />
-        <span>{{ barber.status === 'DAY_OFF' ? t('barbers.day_off_today') : t('bookings.book_now') }}</span>
+        {{ barber.status === 'DAY_OFF' ? t('barbers.day_off_today') : t('bookings.book_now') }}
       </button>
     </div>
   </article>
@@ -210,7 +243,6 @@ const displayLocation = computed(() => {
   position: absolute;
   font-size: 68px;
   color: rgba(255, 255, 255, 0.08);
-  transform: rotate(-15deg);
   pointer-events: none;
 }
 
@@ -301,31 +333,33 @@ const displayLocation = computed(() => {
   border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-.barber-rating-badge {
+.bronla-heart-btn {
   position: absolute;
   top: 8px;
   right: 8px;
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 3px 7px;
-  border-radius: 6px;
-  background: rgba(15, 23, 42, 0.85);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.7);
   backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.15);
   color: #ffffff;
-  font-size: 10.5px;
-  font-weight: 800;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  cursor: pointer;
   z-index: 2;
+  transition: all 0.15s ease;
 }
 
-.star-icon {
-  color: #facc15;
-  font-size: 9px;
+.bronla-heart-btn:hover {
+  transform: scale(1.1);
+  background: rgba(239, 68, 68, 0.9);
 }
 
-.rating-num {
-  font-weight: 800;
+.bronla-heart-btn.active {
+  color: #ef4444;
+  background: #ffffff;
 }
 
 .bronla-card-body {
@@ -335,16 +369,47 @@ const displayLocation = computed(() => {
   flex: 1;
 }
 
+.bronla-header-line {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
 .bronla-barber-name {
-  margin: 0 0 3px;
-  font-size: 14.5px;
-  font-weight: 800;
-  line-height: 1.25;
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 750;
+  line-height: 1.3;
   color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   letter-spacing: -0.01em;
+  flex: 1;
+}
+
+.bronla-rating-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2.5px 6px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 750;
+  flex-shrink: 0;
+}
+
+.star-icon {
+  color: #facc15;
+  font-size: 9px;
+}
+
+.rating-num {
+  font-weight: 800;
 }
 
 .barber-salon-meta {
@@ -429,7 +494,6 @@ const displayLocation = computed(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
 }
 
 .bronla-book-button:hover:not(:disabled) {
@@ -458,8 +522,18 @@ const displayLocation = computed(() => {
   }
 
   .bronla-barber-name {
-    font-size: 13px;
-    margin-bottom: 2px;
+    font-size: 12.5px;
+  }
+
+  .bronla-rating-pill {
+    padding: 2px 5px;
+    font-size: 9px;
+    border-radius: 4px;
+    gap: 2px;
+  }
+
+  .star-icon {
+    font-size: 8px;
   }
 
   .barber-salon-meta {
@@ -497,7 +571,6 @@ const displayLocation = computed(() => {
     font-size: 11.5px;
     font-weight: 700;
     border-radius: 8px;
-    gap: 4px;
     padding: 0 4px;
   }
 
@@ -512,14 +585,12 @@ const displayLocation = computed(() => {
     height: 4.5px;
   }
 
-  .barber-rating-badge {
-    padding: 2px 5px;
-    font-size: 9px;
-    border-radius: 4px;
-  }
-
-  .star-icon {
-    font-size: 8px;
+  .bronla-heart-btn {
+    width: 24px;
+    height: 24px;
+    font-size: 10px;
+    top: 6px;
+    right: 6px;
   }
 
   .banner-barber-fullname {
