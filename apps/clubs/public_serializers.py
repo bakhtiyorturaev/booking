@@ -18,10 +18,16 @@ class PublicClubBriefSerializer(serializers.ModelSerializer):
 
 class PublicBranchListSerializer(BranchSummarySerializer):
     club = PublicClubBriefSerializer(read_only=True)
+    is_favorite = serializers.SerializerMethodField()
 
     class Meta(BranchSummarySerializer.Meta):
-        fields = ("club",) + BranchSummarySerializer.Meta.fields
+        fields = ("club", "is_favorite") + BranchSummarySerializer.Meta.fields
         read_only_fields = fields
+
+    @extend_schema_field(OpenApiTypes.BOOL)
+    def get_is_favorite(self, obj):
+        favorite_ids = self.context.get("favorite_club_ids", set())
+        return obj.club_id in favorite_ids
 
     @extend_schema_field(OpenApiTypes.FLOAT)
     def get_distance_km(self, obj):

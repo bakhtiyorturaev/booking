@@ -14,8 +14,13 @@ const props = defineProps<{
 }>()
 
 const { locale, t } = useTranslations()
+const favorites = useFavorites()
 
-const isFavorite = ref(false)
+const isFavorite = computed(() => {
+  const clubId = props.branch.club?.id
+  if (clubId) return favorites.isFavorite(clubId)
+  return props.branch.is_favorite || false
+})
 
 const formatPrice = (value: number | null) => {
   if (props.branch.club?.category === "BARBERSHOP") return "Kelishiladi"
@@ -26,14 +31,11 @@ const formatPrice = (value: number | null) => {
 const toggleFavorite = (event: Event) => {
   event.preventDefault()
   event.stopPropagation()
-  isFavorite.value = !isFavorite.value
+  const clubId = props.branch.club?.id
+  if (clubId) {
+    favorites.toggle(clubId)
+  }
 }
-
-const locationLabel = computed(() => {
-  if (props.branch.district?.name) return props.branch.district.name
-  if (props.branch.city?.name) return props.branch.city.name
-  return props.branch.full_address.split(",")[0] || ""
-})
 
 const displayAddress = computed(() => {
   if (props.branch.address) return props.branch.address
@@ -67,11 +69,8 @@ const ratingScore = computed(() => {
         </div>
 
         <!-- Top Badges Overlay -->
-        <div class="bronla-badges-row">
-          <span v-if="locationLabel" class="bronla-badge location-badge">
-            {{ locationLabel }}
-          </span>
-          <span v-if="branch.distance_km !== null" class="bronla-badge distance-badge">
+        <div v-if="branch.distance_km !== null" class="bronla-badges-row">
+          <span class="bronla-badge distance-badge">
             {{ branch.distance_km.toFixed(1) }} km
           </span>
         </div>
@@ -88,7 +87,7 @@ const ratingScore = computed(() => {
         </button>
 
         <span v-if="branch.is_24_hours" class="bronla-badge-bottom">
-          ⚡ 24/7
+          24/7
         </span>
       </div>
 

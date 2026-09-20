@@ -2,17 +2,21 @@
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome"
 import {
   faCalendar,
+  faCrown,
+  faHeart,
   faLocationDot,
   faPen,
   faPhone,
   faRightFromBracket,
-  faCrown,
   faUser,
 } from "@fortawesome/free-solid-svg-icons"
 
 import { useAuthApi } from "~/api/auth"
 import { useSubscriptionApi } from "~/api/subscription"
+import { useFavorites } from "~/composables/useFavorites"
+import BranchCard from "~/components/catalog/BranchCard.vue"
 import { ApiRequestError } from "~/types/api"
+import type { BranchListSummary } from "~/types/club"
 
 definePageMeta({
   layout: "customer",
@@ -23,10 +27,12 @@ const auth = useAuth()
 const authApi = useAuthApi()
 const subscriptionApi = useSubscriptionApi()
 const subscriptionState = useSubscription()
+const favorites = useFavorites()
 const { user } = auth
 const { locale, load, t } = useTranslations()
 
 await load()
+await favorites.load(true).catch(() => null)
 const profileCodes = [
   "auth.phone_number", "auth.city", "auth.birth_date", "nav.logout", "common.free",
   "profile.personal_details", "common.edit", "common.save", "common.cancel", "common.currency_uzs",
@@ -156,6 +162,58 @@ const fields = computed(() => [
   { code: "auth.city", value: profile.value?.city, icon: faLocationDot },
   { code: "auth.birth_date", value: formatDate(profile.value?.birth_date), icon: faCalendar },
 ])
+
+const favoriteBranches = computed(() => {
+  const list: BranchListSummary[] = []
+  for (const item of favorites.favoritesList.value) {
+    if (item.club?.branches?.length) {
+      for (const branch of item.club.branches) {
+        list.push({
+          ...branch,
+          club: {
+            id: item.club.id,
+            name: item.club.name,
+            category: item.club.category,
+            category_display: item.club.category_display,
+            slug: item.club.slug,
+            logo: item.club.logo,
+            rating: item.club.rating,
+            review_count: item.club.review_count,
+          },
+          is_favorite: true,
+        })
+      }
+    } else if (item.club) {
+      list.push({
+        id: item.club.id,
+        name: item.club.name,
+        address: "",
+        full_address: "",
+        city: { id: "", name: "", slug: "" },
+        district: null,
+        latitude: "0",
+        longitude: "0",
+        is_24_hours: false,
+        service_types: item.club.service_types || [],
+        min_price_tiyin: item.club.min_price_tiyin,
+        cover_image: item.club.cover || item.club.logo,
+        distance_km: item.club.distance_km,
+        is_favorite: true,
+        club: {
+          id: item.club.id,
+          name: item.club.name,
+          category: item.club.category,
+          category_display: item.club.category_display,
+          slug: item.club.slug,
+          logo: item.club.logo,
+          rating: item.club.rating,
+          review_count: item.club.review_count,
+        },
+      })
+    }
+  }
+  return list
+})
 </script>
 
 <template>
@@ -280,16 +338,152 @@ const fields = computed(() => [
           </div>
           <p v-else class="subscription-current-status">{{ t("profile.subscription_plans") }}</p>
         </section>
+
+        <!-- Favorites Section -->
+        <section class="profile-favorites-section">
+          <div class="profile-card-heading">
+            <h2>
+              <FontAwesomeIcon :icon="faHeart" class="favorite-heart-icon" />
+              {{ t("profile.favorites") }}
+              <span v-if="favoriteBranches.length" class="favorites-count-badge">
+                {{ favoriteBranches.length }}
+              </span>
+            </h2>
+          </div>
+
+          <div v-if="favorites.loading.value" class="favorites-loading-state">
+            <p>{{ t("common.loading") }}</p>
+          </div>
+
+          <div v-else-if="favoriteBranches.length" class="profile-favorites-grid">
+            <BranchCard
+              v-for="branch in favoriteBranches"
+              :key="branch.id"
+              :branch="branch"
+            />
+          </div>
+
+          <div v-else class="favorites-empty-state">
+            <div class="favorites-empty-icon">
+              <FontAwesomeIcon :icon="faHeart" />
+            </div>
+            <h3>{{ t("profile.no_favorites") }}</h3>
+            <p>{{ t("profile.no_favorites_desc") }}</p>
+            <NuxtLink to="/" class="primary-button favorites-explore-btn">
+              {{ t("profile.explore_clubs") }}
+            </NuxtLink>
+          </div>
+        </section>
       </article>
     </div>
   </section>
 </template>
 
 <style scoped>
+.profile-favorites-section {
+  margin-top: 26px;
+  padding-top: 24px;
+  border-top: 1px solid var(--panel-border);
+}
+
+.profile-favorites-section h2 {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0;
+  font-size: 18px;
+  letter-spacing: -0.02em;
+}
+
+.favorite-heart-icon {
+  color: #ef4444;
+}
+
+.favorites-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+.profile-favorites-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.favorites-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 36px 16px;
+  margin-top: 16px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--control) 40%, transparent);
+  border: 1px dashed var(--panel-border);
+}
+
+.favorites-empty-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  font-size: 20px;
+  margin-bottom: 12px;
+}
+
+.favorites-empty-state h3 {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.favorites-empty-state p {
+  margin: 0 0 16px;
+  font-size: 13px;
+  color: var(--muted);
+  max-width: 320px;
+  line-height: 1.4;
+}
+
+.favorites-explore-btn {
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 18px;
+  border-radius: 9px;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.favorites-loading-state {
+  padding: 24px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 @media (max-width: 640px) {
   .profile-grid {
     grid-template-columns: 1fr;
     gap: 16px;
+  }
+
+  .profile-favorites-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
   }
 
   .subscription-plan-card {

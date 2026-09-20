@@ -33,6 +33,12 @@ export interface ClubBrief {
 
 export interface BranchListSummary extends BranchSummary {
   club: ClubBrief
+  is_favorite?: boolean
+}
+
+export interface FavoriteItem {
+  id: string
+  club: ClubSummary
 }
 
 export interface BranchZone {

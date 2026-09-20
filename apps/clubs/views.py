@@ -552,6 +552,14 @@ class PublicBranchViewSet(viewsets.ReadOnlyModelViewSet):
                 )
             except (Branch.DoesNotExist, ValueError):
                 pass
+        favorite_ids = set()
+        if self.request.user and self.request.user.is_authenticated:
+            favorite_ids = set(
+                Favorite.objects.filter(
+                    user=self.request.user,
+                ).values_list("club_id", flat=True)
+            )
+        context["favorite_club_ids"] = favorite_ids
         return context
 
     @extend_schema(
@@ -637,6 +645,21 @@ class FavoriteViewSet(
                 Prefetch("club__branches", queryset=active_branch_queryset())
             )
         )
+
+    def get_object(self):
+        lookup = self.kwargs.get(self.lookup_url_kwarg or self.lookup_field)
+        queryset = self.get_queryset()
+        try:
+            uuid.UUID(str(lookup))
+            obj = queryset.filter(Q(id=lookup) | Q(club__id=lookup)).first()
+            if obj:
+                return obj
+        except (ValueError, TypeError):
+            pass
+        obj = queryset.filter(club__slug=lookup).first()
+        if obj:
+            return obj
+        return get_object_or_404(queryset, pk=lookup)
 
     def get_serializer_class(self):
         if self.action == "create":
