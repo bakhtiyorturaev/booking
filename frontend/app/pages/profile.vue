@@ -13,7 +13,7 @@ import {
 } from "@fortawesome/free-solid-svg-icons"
 
 import { useAuthApi } from "~/api/auth"
-import { useSubscriptionApi } from "~/api/subscription"
+import { useSubscription } from "~/composables/useSubscription"
 import { useFavorites } from "~/composables/useFavorites"
 import BranchCard from "~/components/catalog/BranchCard.vue"
 import { ApiRequestError } from "~/types/api"
@@ -26,18 +26,18 @@ definePageMeta({
 
 const auth = useAuth()
 const authApi = useAuthApi()
-const subscriptionApi = useSubscriptionApi()
 const subscriptionState = useSubscription()
 const favorites = useFavorites()
 const { user } = auth
 const { locale, load, t } = useTranslations()
 
 await load()
-await favorites.load(true).catch(() => null)
+await subscriptionState.load().catch(() => null)
+
 const profileCodes = [
   "auth.phone_number", "auth.city", "auth.birth_date", "nav.logout",
-  "profile.personal_details", "common.edit", "common.save", "common.cancel", "common.currency_uzs",
-  "bookings.subscription_required", "common.days_count", "profile.subscription_plans", "profile.buy_subscription", "profile.checkout_processing", "profile.payment_successful", "profile.payment_failed",
+  "profile.personal_details", "common.edit", "common.save", "common.cancel",
+  "profile.subscription_paid", "profile.subscription_free",
 ]
 if (profileCodes.some(code => t(code) === code)) {
   await load(locale.value, true).catch(() => undefined)
@@ -47,19 +47,17 @@ useHead({
   title: computed(() => t("profile.title") || "Mening profilim"),
 })
 
+// Always reload favorites on client mount to ensure fresh state
+onMounted(async () => {
+  await favorites.load(true).catch(() => null)
+})
+
 const editing = ref(false)
 const pending = ref(false)
 const logoutPending = ref(false)
-const checkoutPending = ref("")
-const checkoutMessage = ref("")
-const { data: plans } = await useAsyncData(
-  "subscription-plans",
-  () => subscriptionApi.plans(),
-  { default: () => [] },
-)
-await subscriptionState.load()
 const messageSuccess = ref(false)
 const { message, show: showMessage, clear: clearMessage } = useTimedMessage()
+
 const form = reactive({
   full_name: "",
   city: "",
@@ -132,33 +130,6 @@ const signOut = async () => {
   }
 }
 
-const formatPrice = (value: number) =>
-  `${new Intl.NumberFormat(locale.value).format(value / 100)} ${t("common.currency_uzs")}`
-
-const startCheckout = async (planCode: string) => {
-  if (checkoutPending.value) return
-  checkoutPending.value = planCode
-  checkoutMessage.value = ""
-  const toast = useToast()
-  try {
-    const payment = await subscriptionApi.checkout(planCode, crypto.randomUUID())
-    if (payment.checkout_url) {
-      await navigateTo(payment.checkout_url, { external: true })
-      return
-    }
-    await subscriptionState.load(true)
-    const successMsg = t("profile.payment_successful")
-    checkoutMessage.value = successMsg
-    toast.success(successMsg)
-  } catch (error) {
-    const errText = error instanceof ApiRequestError ? error.message : t("common.backend_unavailable")
-    checkoutMessage.value = errText
-    toast.error(errText)
-  } finally {
-    checkoutPending.value = ""
-  }
-}
-
 const formatDate = (value?: string | null) => {
   if (!value) return ""
   try {
@@ -181,48 +152,50 @@ const fields = computed(() => [
 const favoriteBranches = computed(() => {
   const list: BranchListSummary[] = []
   for (const item of favorites.favoritesList.value) {
-    if (item.club?.branches?.length) {
-      for (const branch of item.club.branches) {
+    if (!item?.club) continue
+    const club = item.club
+    if (club.branches && club.branches.length > 0) {
+      for (const branch of club.branches) {
         list.push({
           ...branch,
           club: {
-            id: item.club.id,
-            name: item.club.name,
-            category: item.club.category,
-            category_display: item.club.category_display,
-            slug: item.club.slug,
-            logo: item.club.logo,
-            rating: item.club.rating,
-            review_count: item.club.review_count,
+            id: club.id,
+            name: club.name,
+            category: club.category,
+            category_display: club.category_display,
+            slug: club.slug,
+            logo: club.logo,
+            rating: club.rating,
+            review_count: club.review_count,
           },
           is_favorite: true,
         })
       }
-    } else if (item.club) {
+    } else {
       list.push({
-        id: item.club.id,
-        name: item.club.name,
-        address: "",
-        full_address: "",
+        id: club.id,
+        name: club.name,
+        address: club.description || "",
+        full_address: club.description || "",
         city: { id: "", name: "", slug: "" },
         district: null,
         latitude: "0",
         longitude: "0",
         is_24_hours: false,
-        service_types: item.club.service_types || [],
-        min_price_tiyin: item.club.min_price_tiyin,
-        cover_image: item.club.cover || item.club.logo,
-        distance_km: item.club.distance_km,
+        service_types: club.service_types || [],
+        min_price_tiyin: club.min_price_tiyin || 0,
+        cover_image: club.cover || club.logo,
+        distance_km: club.distance_km,
         is_favorite: true,
         club: {
-          id: item.club.id,
-          name: item.club.name,
-          category: item.club.category,
-          category_display: item.club.category_display,
-          slug: item.club.slug,
-          logo: item.club.logo,
-          rating: item.club.rating,
-          review_count: item.club.review_count,
+          id: club.id,
+          name: club.name,
+          category: club.category,
+          category_display: club.category_display,
+          slug: club.slug,
+          logo: club.logo,
+          rating: club.rating,
+          review_count: club.review_count,
         },
       })
     }
@@ -253,7 +226,20 @@ const favoriteBranches = computed(() => {
           </div>
         </div>
 
+        <!-- Tariff & Actions Area -->
         <div class="profile-user-actions">
+          <!-- Current Tariff Status Badge (In place of old subscription section) -->
+          <div class="profile-tariff-badge" :class="{ 'is-premium': subscriptionState.isPaid.value }">
+            <FontAwesomeIcon :icon="faCrown" class="tariff-crown-icon" />
+            <div class="tariff-badge-text">
+              <span class="tariff-label">Tarif:</span>
+              <strong class="tariff-value">
+                {{ subscriptionState.isPaid.value ? t("profile.subscription_paid") : (t("profile.subscription_free") || "Bepul") }}
+              </strong>
+            </div>
+          </div>
+
+          <!-- Admin Link if Admin/Mod -->
           <NuxtLink
             v-if="['ADMIN', 'MODERATOR'].includes(user?.role || '')"
             to="/admin"
@@ -261,6 +247,8 @@ const favoriteBranches = computed(() => {
           >
             {{ t("admin.dashboard") }}
           </NuxtLink>
+
+          <!-- Red Logout Button -->
           <button
             type="button"
             class="profile-danger-logout-btn"
@@ -337,48 +325,6 @@ const favoriteBranches = computed(() => {
             </div>
           </dl>
         </template>
-      </article>
-
-      <!-- Subscription Card -->
-      <article class="profile-section-card">
-        <header class="profile-section-header">
-          <h2>
-            <FontAwesomeIcon :icon="faCrown" class="crown-icon" />
-            <span>{{ t("profile.subscription") }}</span>
-          </h2>
-          <span class="subscription-status-chip" :class="{ paid: subscriptionState.isPaid.value }">
-            {{ subscriptionState.isPaid.value ? t("profile.subscription_paid") : t("profile.subscription_free") }}
-          </span>
-        </header>
-
-        <p v-if="subscriptionState.isPaid.value" class="subscription-info-text">
-          {{ t("profile.subscription_active_until", { date: formatDate(subscriptionState.subscription.value?.expires_at) }) }}
-        </p>
-        <p v-else class="subscription-info-text">{{ t("bookings.subscription_required") }}</p>
-
-        <p v-if="checkoutMessage" class="form-message profile-form-message" role="status">
-          {{ checkoutMessage }}
-        </p>
-
-        <div v-if="plans.length" class="subscription-plan-grid">
-          <div v-for="plan in plans" :key="plan.code" class="subscription-plan-item">
-            <div class="plan-details">
-              <strong>{{ plan.name }}</strong>
-              <span class="plan-days">{{ t("common.days_count", { days: plan.duration_days }) }}</span>
-            </div>
-            <div class="plan-action">
-              <span class="plan-price">{{ formatPrice(plan.price_tiyin) }}</span>
-              <button
-                type="button"
-                class="plan-buy-btn"
-                :disabled="Boolean(checkoutPending)"
-                @click="startCheckout(plan.code)"
-              >
-                {{ checkoutPending === plan.code ? t("profile.checkout_processing") : t("profile.buy_subscription") }}
-              </button>
-            </div>
-          </div>
-        </div>
       </article>
 
       <!-- Favorites Section -->
@@ -525,13 +471,58 @@ const favoriteBranches = computed(() => {
   align-items: center;
   gap: 10px;
   flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+/* Tariff Badge */
+.profile-tariff-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--control) 80%, transparent);
+  border: 1px solid var(--panel-border);
+  font-size: 12px;
+}
+
+.profile-tariff-badge.is-premium {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.35);
+  color: #f59e0b;
+}
+
+.tariff-crown-icon {
+  color: #f59e0b;
+  font-size: 13px;
+}
+
+.tariff-badge-text {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.tariff-label {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.tariff-value {
+  font-size: 12px;
+  font-weight: 750;
+  color: var(--text);
+}
+
+.profile-tariff-badge.is-premium .tariff-value {
+  color: #f59e0b;
 }
 
 .admin-portal-link {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 14px;
+  padding: 7px 14px;
   border-radius: 9px;
   background: color-mix(in srgb, var(--accent) 15%, transparent);
   color: var(--accent);
@@ -552,7 +543,7 @@ const favoriteBranches = computed(() => {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 16px;
+  padding: 7px 15px;
   border-radius: 10px;
   border: 1px solid rgba(239, 68, 68, 0.35);
   background: rgba(239, 68, 68, 0.08);
@@ -602,10 +593,6 @@ const favoriteBranches = computed(() => {
   align-items: center;
   gap: 8px;
   letter-spacing: -0.015em;
-}
-
-.crown-icon {
-  color: #f59e0b;
 }
 
 .favorite-heart-icon {
@@ -756,90 +743,6 @@ const favoriteBranches = computed(() => {
   cursor: wait;
 }
 
-/* Subscription */
-.subscription-status-chip {
-  display: inline-flex;
-  align-items: center;
-  padding: 3px 9px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 750;
-  background: color-mix(in srgb, var(--control) 90%, transparent);
-  color: var(--muted);
-}
-
-.subscription-status-chip.paid {
-  background: rgba(34, 197, 94, 0.15);
-  color: #22c55e;
-}
-
-.subscription-info-text {
-  margin: 0 0 14px;
-  font-size: 13px;
-  color: var(--muted);
-  line-height: 1.45;
-}
-
-.subscription-plan-grid {
-  display: grid;
-  gap: 10px;
-}
-
-.subscription-plan-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 12px 16px;
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--control) 40%, transparent);
-  border: 1px solid var(--panel-border);
-}
-
-.plan-details {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.plan-details strong {
-  font-size: 13px;
-  color: var(--text);
-}
-
-.plan-days {
-  font-size: 11px;
-  color: var(--muted);
-}
-
-.plan-action {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.plan-price {
-  font-size: 13px;
-  font-weight: 750;
-  color: var(--accent);
-}
-
-.plan-buy-btn {
-  padding: 6px 14px;
-  border-radius: 8px;
-  border: 0;
-  background: var(--accent);
-  color: #000;
-  font-size: 12px;
-  font-weight: 750;
-  cursor: pointer;
-  transition: opacity 0.2s ease;
-}
-
-.plan-buy-btn:hover:not(:disabled) {
-  opacity: 0.9;
-}
-
 /* Favorites */
 .favorites-count-badge {
   display: inline-flex;
@@ -925,7 +828,7 @@ const favoriteBranches = computed(() => {
   }
 
   .profile-user-actions {
-    justify-content: flex-end;
+    justify-content: space-between;
     padding-top: 12px;
     border-top: 1px solid var(--panel-border);
   }

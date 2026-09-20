@@ -367,20 +367,60 @@ class ResourceBlockSerializer(CleanModelSerializer):
 
 
 class FavoriteCreateSerializer(serializers.ModelSerializer):
+    club = serializers.CharField(required=False, allow_null=True)
+    branch = serializers.CharField(required=False, allow_null=True)
+
     class Meta:
         model = Favorite
-        fields = ("id", "club")
+        fields = ("id", "club", "branch")
         read_only_fields = ("id",)
 
-    def validate_club(self, value):
-        if value.status != Club.Status.ACTIVE:
-            raise serializers.ValidationError("clubs.active_club_only_favorites", code="clubs.active_club_only_favorites")
-        return value
+    def validate(self, attrs):
+        raw_id = (
+            attrs.get("club")
+            or attrs.get("branch")
+            or self.initial_data.get("club_id")
+            or self.initial_data.get("branch_id")
+            or self.initial_data.get("club")
+            or self.initial_data.get("id")
+        )
+        if not raw_id:
+            raise serializers.ValidationError({"club": "Club ID talab qilinadi."}, code="required")
+
+        # 1. Check if raw_id is a Club
+        from django.db.models import Q
+        club = Club.objects.filter(status=Club.Status.ACTIVE).filter(
+            Q(id=raw_id) | Q(slug=raw_id) if isinstance(raw_id, str) else Q(id=raw_id)
+        ).first()
+
+        # 2. Check if raw_id is a Branch
+        if not club:
+            branch = Branch.objects.filter(status=Branch.Status.ACTIVE).filter(
+                Q(id=raw_id)
+            ).select_related("club").first()
+            if branch and branch.club.status == Club.Status.ACTIVE:
+                club = branch.club
+
+        # 3. Check if raw_id is a Barber
+        if not club:
+            try:
+                from apps.barbers.models import Barber
+                barber = Barber.objects.filter(id=raw_id).select_related("club").first()
+                if barber and barber.club and barber.club.status == Club.Status.ACTIVE:
+                    club = barber.club
+            except Exception:
+                pass
+
+        if not club:
+            raise serializers.ValidationError({"club": "clubs.active_club_only_favorites"}, code="clubs.active_club_only_favorites")
+
+        attrs["resolved_club"] = club
+        return attrs
 
     def create(self, validated_data):
         favorite, _ = Favorite.objects.get_or_create(
             user=self.context["request"].user,
-            club=validated_data["club"],
+            club=validated_data["resolved_club"],
         )
         return favorite
 

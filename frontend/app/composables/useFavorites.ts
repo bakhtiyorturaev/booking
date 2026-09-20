@@ -43,7 +43,7 @@ export const useFavorites = () => {
     if (initialized.value && !force) return
     loading.value = true
 
-    // Load guest cached favorites first
+    // Load guest cached favorites
     const cachedIds = loadFromLocalStorage()
     if (cachedIds.length && !favoriteClubIds.value.length) {
       favoriteClubIds.value = cachedIds
@@ -52,13 +52,24 @@ export const useFavorites = () => {
     if (auth.isAuthenticated.value) {
       try {
         const res = await favoritesApi.list()
-        favoritesList.value = res.results || []
-        const serverIds = (res.results || []).map(f => f.club.id)
-        
-        // Merge with local cached IDs if any
+        const items = res.results || []
+        favoritesList.value = items
+        const serverIds = items.map(f => f.club?.id).filter(Boolean) as string[]
+
+        // Merge with local cached IDs
         const combined = Array.from(new Set([...serverIds, ...cachedIds]))
         favoriteClubIds.value = combined
         saveToLocalStorage(combined)
+
+        // If there were cached guest IDs not yet on server, sync them
+        if (cachedIds.length > 0) {
+          const missingOnServer = cachedIds.filter(id => !serverIds.includes(id))
+          if (missingOnServer.length > 0) {
+            for (const cid of missingOnServer) {
+              favoritesApi.add(cid).catch(() => null)
+            }
+          }
+        }
       } catch {
         // Ignore loading errors
       }
@@ -78,7 +89,7 @@ export const useFavorites = () => {
 
     if (currentlyFav) {
       favoriteClubIds.value = favoriteClubIds.value.filter(id => id !== clubId)
-      favoritesList.value = favoritesList.value.filter(item => item.club.id !== clubId && item.id !== clubId)
+      favoritesList.value = favoritesList.value.filter(item => item.club?.id !== clubId && item.id !== clubId)
       saveToLocalStorage(favoriteClubIds.value)
 
       if (auth.isAuthenticated.value) {
@@ -96,8 +107,13 @@ export const useFavorites = () => {
       if (auth.isAuthenticated.value) {
         try {
           const created = await favoritesApi.add(clubId)
-          if (created && created.id) {
-            favoritesList.value = [created, ...favoritesList.value.filter(i => i.club.id !== clubId)]
+          if (created && created.club && created.club.name) {
+            favoritesList.value = [created, ...favoritesList.value.filter(i => i.club?.id !== clubId)]
+          } else {
+            const refreshed = await favoritesApi.list()
+            if (refreshed?.results) {
+              favoritesList.value = refreshed.results
+            }
           }
         } catch {
           // Silent fallback

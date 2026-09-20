@@ -4,7 +4,7 @@ from django.db.models import F, Min, Prefetch, Q
 from django.shortcuts import get_object_or_404
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
-from rest_framework import mixins, viewsets
+from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.pagination import PageNumberPagination
@@ -651,7 +651,9 @@ class FavoriteViewSet(
         queryset = self.get_queryset()
         try:
             uuid.UUID(str(lookup))
-            obj = queryset.filter(Q(id=lookup) | Q(club__id=lookup)).first()
+            obj = queryset.filter(
+                Q(id=lookup) | Q(club__id=lookup) | Q(club__branches__id=lookup)
+            ).first()
             if obj:
                 return obj
         except (ValueError, TypeError):
@@ -665,6 +667,13 @@ class FavoriteViewSet(
         if self.action == "create":
             return FavoriteCreateSerializer
         return FavoriteSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        instance = serializer.save()
+        output_serializer = FavoriteSerializer(instance, context=self.get_serializer_context())
+        return Response(output_serializer.data, status=status.HTTP_201_CREATED)
 
 
 def manageable_club_filter(user, prefix=""):

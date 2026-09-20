@@ -182,3 +182,57 @@ class PublicClubsAPITests(TestCase):
         # First one is exactly at the requested coordinates (distance approx 0)
         self.assertEqual(response.data["results"][0]["name"], "Alpha Center")
 
+
+class FavoriteAPITests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user(
+            username="fav_user",
+            phone="+998901119999",
+        )
+        cls.city = City.objects.create(name="Toshkent", slug="toshkent-fav")
+        cls.club = Club.objects.create(
+            owner=cls.user,
+            name="Favorited Club",
+            status=Club.Status.ACTIVE,
+        )
+        cls.branch = Branch.objects.create(
+            club=cls.club,
+            city=cls.city,
+            name="Favorited Branch",
+            address="Navoiy 10",
+            latitude="41.31",
+            longitude="69.24",
+            status=Branch.Status.ACTIVE,
+        )
+
+    def test_favorite_crud_flow(self):
+        client = APIClient()
+        client.force_authenticate(self.user)
+
+        # 1. Add favorite via club ID
+        res = client.post("/api/v1/favorites/", {"club": str(self.club.id)}, format="json")
+        self.assertEqual(res.status_code, 201)
+        self.assertEqual(res.data["club"]["id"], str(self.club.id))
+
+        # 2. List favorites
+        res = client.get("/api/v1/favorites/")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data["count"], 1)
+        self.assertEqual(res.data["results"][0]["club"]["name"], "Favorited Club")
+
+        # 3. Delete favorite by club ID
+        res = client.delete(f"/api/v1/favorites/{self.club.id}/")
+        self.assertEqual(res.status_code, 204)
+
+        # 4. List favorites should be empty
+        res = client.get("/api/v1/favorites/")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data["count"], 0)
+
+        # 5. Add favorite via branch ID
+        res = client.post("/api/v1/favorites/", {"branch": str(self.branch.id)}, format="json")
+        self.assertEqual(res.status_code, 201)
+        self.assertEqual(res.data["club"]["id"], str(self.club.id))
+
+
