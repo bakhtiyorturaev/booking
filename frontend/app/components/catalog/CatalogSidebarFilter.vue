@@ -70,7 +70,6 @@ const searchPlaceholder = computed(() => {
 })
 
 const allCities = computed(() => [
-  { id: "", name: t("filter.all_regions") || "Barcha hududlar" },
   { id: "Toshkent", name: "Toshkent shahri" },
   { id: "Toshkent viloyati", name: "Toshkent viloyati" },
   { id: "Samarqand", name: "Samarqand" },
@@ -119,15 +118,19 @@ const sortOptions = computed(() => {
 })
 
 const selectSort = (val: string) => {
-  if (val === "distance") {
-    emit("locate")
+  if (localState.ordering === val) {
+    localState.ordering = ""
+  } else {
+    if (val === "distance") {
+      emit("locate")
+    }
+    localState.ordering = val
   }
-  localState.ordering = val
   emitUpdate()
 }
 
 const selectCity = (cityId: string) => {
-  localState.city = cityId
+  localState.city = localState.city === cityId ? "" : cityId
   emitUpdate()
 }
 
@@ -144,7 +147,7 @@ const selectStatus = (statusValue: string) => {
 const resetFilters = () => {
   localState.search = ""
   localState.city = ""
-  localState.ordering = "-rating"
+  localState.ordering = ""
   localState.service_type = ""
   localState.status = ""
   localState.min_rating = undefined
@@ -234,24 +237,6 @@ const resetFilters = () => {
       <div class="select-box-list">
         <label
           class="select-box-item"
-          :class="{ checked: !localState.status }"
-          @click.prevent="selectStatus('')"
-        >
-          <span class="custom-checkbox">
-            <svg
-              v-if="!localState.status"
-              class="check-icon"
-              viewBox="0 0 16 16"
-              fill="currentColor"
-            >
-              <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z" />
-            </svg>
-          </span>
-          <span class="select-box-label">{{ t("common.all") || "Barchasi" }}</span>
-        </label>
-
-        <label
-          class="select-box-item"
           :class="{ checked: localState.status === 'AVAILABLE' }"
           @click.prevent="selectStatus('AVAILABLE')"
         >
@@ -333,7 +318,7 @@ const resetFilters = () => {
           class="toggle-more-btn"
           @click="showAllRegions = !showAllRegions"
         >
-          {{ showAllRegions ? "Kamroq ko‘rsatish ↑" : `Barcha ${allCities.length - 1} ta viloyatni ko‘rsatish ↓` }}
+          {{ showAllRegions ? "Kamroq ko‘rsatish ↑" : `Barcha ${allCities.length} ta viloyatni ko‘rsatish ↓` }}
         </button>
       </div>
     </div>

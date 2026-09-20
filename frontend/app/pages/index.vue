@@ -34,7 +34,7 @@ useHead({
 const filterState = ref<FilterState>({
   search: "",
   city: "",
-  ordering: "-rating",
+  ordering: "",
   service_type: "",
   status: "",
 })
