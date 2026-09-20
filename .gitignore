@@ -81,3 +81,14 @@ Thumbs.db
 
 # Scratch & temporary artifacts
 scratch/
+
+# Translation dumps, fixtures & local seed data
+fixtures/
+dumps/
+dump/
+*.dump
+*.sql
+*.sql.gz
+*seed*.json
+*translation*.json
+*translations*.json

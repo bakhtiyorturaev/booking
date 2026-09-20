@@ -1762,26 +1762,49 @@ APP_TRANSLATIONS = (
 
 
 class Command(BaseCommand):
-    help = "Seed app translations"
+    help = "Seed app translations without overwriting existing database entries (unless --force is specified)"
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "--force",
+            action="store_true",
+            help="Overwrite existing translation values in the database",
+        )
 
     def handle(self, *args, **options):
+        force = options.get("force", False)
         created = 0
         updated = 0
+        skipped = 0
 
         with transaction.atomic():
             for item in APP_TRANSLATIONS:
-                _, is_created = AppTranslation.objects.update_or_create(
-                    code=item["code"],
-                    defaults={
-                        "text_uz": item["text_uz"],
-                        "text_ru": item["text_ru"],
-                        "text_en": item["text_en"],
-                    },
-                )
-                if is_created:
-                    created += 1
+                if force:
+                    _, is_created = AppTranslation.objects.update_or_create(
+                        code=item["code"],
+                        defaults={
+                            "text_uz": item["text_uz"],
+                            "text_ru": item["text_ru"],
+                            "text_en": item["text_en"],
+                        },
+                    )
+                    if is_created:
+                        created += 1
+                    else:
+                        updated += 1
                 else:
-                    updated += 1
+                    _, is_created = AppTranslation.objects.get_or_create(
+                        code=item["code"],
+                        defaults={
+                            "text_uz": item["text_uz"],
+                            "text_ru": item["text_ru"],
+                            "text_en": item["text_en"],
+                        },
+                    )
+                    if is_created:
+                        created += 1
+                    else:
+                        skipped += 1
 
         # Invalidate translations cache for all supported languages
         from django.core.cache import cache
@@ -1790,6 +1813,7 @@ class Command(BaseCommand):
 
         self.stdout.write(
             self.style.SUCCESS(
-                f"App translations seeded: {created} created, {updated} updated (cache cleared)",
+                f"App translations: {created} created, {updated} updated, {skipped} existing preserved (cache cleared)",
             ),
         )
+

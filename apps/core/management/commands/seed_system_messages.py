@@ -907,7 +907,15 @@ class Command(BaseCommand):
     help = "Tizim xabarlarini yaratadi yoki yangilaydi (snake_case formatda)."
 
     @transaction.atomic
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "--force",
+            action="store_true",
+            help="Overwrite existing system messages in the database",
+        )
+
     def handle(self, *args, **options):
+        force = options.get("force", False)
         # Eski raqamli (legacy numeric) xabar kodlarini tozalash
         deleted_numeric, _ = SystemMessage.objects.filter(code__regex=r"^[0-9]+$").delete()
         if deleted_numeric:
@@ -915,31 +923,48 @@ class Command(BaseCommand):
 
         created_count = 0
         updated_count = 0
+        skipped_count = 0
 
         for message_data in SYSTEM_MESSAGES:
             code = message_data["code"]
 
-            _, created = SystemMessage.objects.update_or_create(
-                code=code,
-                defaults={
-                    "text_uz": message_data["text_uz"],
-                    "text_ru": message_data["text_ru"],
-                    "text_en": message_data["text_en"],
-                    "is_active": True,
-                },
-            )
-
-            if created:
-                created_count += 1
+            if force:
+                _, created = SystemMessage.objects.update_or_create(
+                    code=code,
+                    defaults={
+                        "text_uz": message_data["text_uz"],
+                        "text_ru": message_data["text_ru"],
+                        "text_en": message_data["text_en"],
+                        "is_active": True,
+                    },
+                )
+                if created:
+                    created_count += 1
+                else:
+                    updated_count += 1
             else:
-                updated_count += 1
+                _, created = SystemMessage.objects.get_or_create(
+                    code=code,
+                    defaults={
+                        "text_uz": message_data["text_uz"],
+                        "text_ru": message_data["text_ru"],
+                        "text_en": message_data["text_en"],
+                        "is_active": True,
+                    },
+                )
+                if created:
+                    created_count += 1
+                else:
+                    skipped_count += 1
 
         self.stdout.write(
             self.style.SUCCESS(
                 (
-                    "SystemMessage tayyor: "
+                    "SystemMessage holati: "
                     f"{created_count} ta yaratildi, "
-                    f"{updated_count} ta yangilandi."
+                    f"{updated_count} ta yangilandi, "
+                    f"{skipped_count} ta mavjud saqlandi."
                 )
             )
         )
+
