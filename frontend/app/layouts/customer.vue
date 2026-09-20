@@ -66,29 +66,36 @@ const onAuthenticated = async () => {
       </nav>
 
       <div class="customer-actions">
-        <template v-if="auth.isAuthenticated.value">
-          <span
-            class="subscription-chip"
-            :class="{ paid: subscriptionState.isPaid.value }"
-            :title="subscriptionTitle"
-          >
-            <FontAwesomeIcon :icon="subscriptionState.isPaid.value ? faCrown : faLock" />
-            {{ t(subscriptionState.isPaid.value ? "profile.subscription_paid" : "profile.subscription_free") }}
-          </span>
-          <NuxtLink class="profile-trigger" to="/profile" :aria-label="t('nav.profile')">
-            <FontAwesomeIcon :icon="faUser" />
-          </NuxtLink>
-        </template>
-        <template v-else>
-          <button
-            type="button"
-            class="customer-login-link login-trigger-btn"
-            @click="showAuthModal = true"
-          >
-            <FontAwesomeIcon :icon="faRightToBracket" />
-            <span>{{ t("auth.login_tab") }}</span>
-          </button>
-        </template>
+        <span
+          v-if="auth.isAuthenticated.value"
+          class="subscription-chip"
+          :class="{ paid: subscriptionState.isPaid.value }"
+          :title="subscriptionTitle"
+        >
+          <FontAwesomeIcon :icon="subscriptionState.isPaid.value ? faCrown : faLock" />
+          {{ t(subscriptionState.isPaid.value ? "profile.subscription_paid" : "profile.subscription_free") }}
+        </span>
+
+        <!-- Profile icon: opens Telegram Login modal if unauthenticated, or navigates to /profile if authenticated -->
+        <button
+          v-if="!auth.isAuthenticated.value"
+          type="button"
+          class="profile-trigger"
+          :aria-label="t('auth.login_tab') || 'Kirish'"
+          :title="t('auth.login_tab') || 'Kirish'"
+          @click="showAuthModal = true"
+        >
+          <FontAwesomeIcon :icon="faUser" />
+        </button>
+        <NuxtLink
+          v-else
+          class="profile-trigger"
+          to="/profile"
+          :aria-label="t('nav.profile') || 'Profil'"
+          :title="t('nav.profile') || 'Profil'"
+        >
+          <FontAwesomeIcon :icon="faUser" />
+        </NuxtLink>
         <AppUiPreferences />
       </div>
     </header>
