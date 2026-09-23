@@ -685,7 +685,6 @@ def manageable_club_filter(user, prefix=""):
 
 class CabinetAccessMixin:
     club_path = "club"
-    managers_only = False
 
     def _club_from_validated_data(self, data):
         obj = data.get(self.club_path)
@@ -706,11 +705,7 @@ class CabinetAccessMixin:
                 club = serializer.instance.branch.club
             elif hasattr(serializer.instance, "zone"):
                 club = serializer.instance.zone.branch.club
-        if not can_manage_club(
-            self.request.user,
-            club,
-            managers_only=self.managers_only,
-        ):
+        if not can_manage_club(self.request.user, club):
             raise PermissionDenied("clubs.permission_denied", code="clubs.permission_denied")
 
     def perform_create(self, serializer):

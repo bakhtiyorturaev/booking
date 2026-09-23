@@ -70,6 +70,7 @@ def _overlaps(item, starts_at, ends_at):
 
 
 def get_branch_availability(branch, target_date, duration_minutes=None):
+    duration_minutes = duration_minutes or branch.minimum_booking_minutes
     version_key = f"branch_avail_ver:{branch.id}"
     version = cache.get(version_key)
     if version is None:
@@ -82,8 +83,8 @@ def get_branch_availability(branch, target_date, duration_minutes=None):
         return cached_data
 
     window = _schedule_window(branch, target_date)
-    duration_minutes = duration_minutes or branch.minimum_booking_minutes
     if not window:
+        cache.set(cache_key, [], timeout=30)
         return []
 
     opens_at, closes_at = window
@@ -324,6 +325,49 @@ def cancel_booking(user, booking_id, reason=""):
     )
     if booking.zone:
         invalidate_branch_availability(booking.zone.branch_id)
+    from telegram_bot.services import queue_booking_message, send_customer_booking_notification
+
+    try:
+        queue_booking_message(booking)
+    except Exception:
+        pass
+    send_customer_booking_notification(booking, Booking.Status.CANCELLED)
+    return booking
+
+
+@transaction.atomic
+def cancel_booking_for_operator(user, booking_id, reason=""):
+    """Klub egasi/admin mijoz bronini bekor qiladi (mijoz-scoped emas)."""
+    from apps.clubs.permissions import can_manage_club
+
+    booking = (
+        Booking.objects.select_for_update()
+        .select_related("zone__branch__club", "barber__club", "barber__branch")
+        .get(pk=booking_id)
+    )
+    club = (
+        booking.zone.branch.club
+        if (booking.zone and booking.zone.branch)
+        else (booking.barber.club if booking.barber else None)
+    )
+    if not club or not can_manage_club(user, club):
+        raise PermissionError("clubs.permission_denied")
+
+    if booking.status not in (
+        Booking.Status.PENDING_CONFIRMATION,
+        Booking.Status.CONFIRMED,
+    ):
+        raise ValidationError("bookings.only_confirmed_can_cancel", code="bookings.only_confirmed_can_cancel")
+
+    booking.transition_to(Booking.Status.CANCELLED)
+    Cancellation.objects.create(
+        booking=booking,
+        requested_by=user,
+        reason=reason,
+    )
+    if booking.zone:
+        invalidate_branch_availability(booking.zone.branch_id)
+
     from telegram_bot.services import queue_booking_message, send_customer_booking_notification
 
     try:

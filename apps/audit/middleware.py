@@ -2,6 +2,7 @@ import concurrent.futures
 import logging
 
 from django.conf import settings
+from django.db import connection
 from apps.audit.models import AuditLog
 
 
@@ -57,6 +58,18 @@ def _save_audit_log(
         logger.exception("Audit yozuvini saqlab bo‘lmadi.")
 
 
+def _save_audit_log_async(**kwargs):
+    """Worker-thread'da audit yozadi va ulanishni yopadi.
+
+    Aks holda thread-lokal DB ulanishi ochiq qolib "eskirib" ketadi va
+    (ayniqsa PostgreSQL'da) keyingi async yozuvlar jimgina yiqilishi mumkin.
+    """
+    try:
+        _save_audit_log(**kwargs)
+    finally:
+        connection.close()
+
+
 class AuditMiddleware:
     def __init__(self, get_response):
         self.get_response = get_response
@@ -79,7 +92,7 @@ class AuditMiddleware:
 
         if _should_use_async():
             _audit_executor.submit(
-                _save_audit_log,
+                _save_audit_log_async,
                 actor_id=actor_id,
                 method=request.method,
                 path=request.path[:500],

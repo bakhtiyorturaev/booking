@@ -11,6 +11,7 @@ from rest_framework import exceptions, serializers
 from apps.bookings.models import Booking, BookingHold
 from apps.bookings.services import (
     cancel_booking,
+    cancel_booking_for_operator,
     create_booking,
     create_hold,
     transition_booking_for_operator,
@@ -137,42 +138,72 @@ class BarberBookingCreateSerializer(serializers.Serializer):
         if ends_at <= starts_at:
             raise serializers.ValidationError({"ends_at": "Tugash vaqti boshlanishdan keyin bo'lishi kerak."})
 
-        # Check for overlaps with active bookings for this barber
-        overlap = Booking.objects.filter(
-            barber=barber,
-            status__in=[
-                Booking.Status.CONFIRMED,
-                Booking.Status.CHECKED_IN,
-                Booking.Status.PENDING_CONFIRMATION,
-            ],
-            starts_at__lt=ends_at,
-            ends_at__gt=starts_at,
-        ).exists()
+        # O'tgan vaqtga bron qilib bo'lmaydi
+        if starts_at <= timezone.now():
+            raise serializers.ValidationError({"starts_at": "O'tgan vaqtga bron qilib bo'lmaydi."})
 
-        if overlap:
-            raise serializers.ValidationError("Tanlangan vaqt allaqachon band qilingan.")
+        # Sartaroshning ish kuni / ish vaqti / real-time holati
+        local_tz = ZoneInfo(getattr(barber.branch, "timezone", None) or "Asia/Tashkent")
+        local_start = timezone.localtime(starts_at, local_tz)
+        local_end = timezone.localtime(ends_at, local_tz)
+
+        working_days = barber.working_days or [1, 2, 3, 4, 5, 6]
+        if local_start.isoweekday() not in working_days:
+            raise serializers.ValidationError("Sartaroshning dam olish kuni.")
+
+        if local_start.time() < barber.work_start_time:
+            raise serializers.ValidationError("Tanlangan vaqt sartaroshning ish vaqtida emas.")
+        if local_end.date() == local_start.date() and local_end.time() > barber.work_end_time:
+            raise serializers.ValidationError("Tanlangan vaqt sartaroshning ish vaqtidan tashqarida.")
+
+        now_local = timezone.localtime(timezone.now(), local_tz)
+        if local_start.date() == now_local.date() and barber.status in (
+            Barber.Status.DAY_OFF,
+            Barber.Status.NOT_AT_WORK,
+        ):
+            raise serializers.ValidationError("Sartarosh bugun band emas.")
 
         attrs["barber"] = barber
         attrs["ends_at"] = ends_at
         return attrs
 
     def create(self, validated_data):
+        from django.db import transaction
+        from apps.barbers.models import Barber
+
         user = self.context["request"].user
-        barber = validated_data["barber"]
+        barber_id = validated_data["barber"].id
         starts_at = validated_data["starts_at"]
         ends_at = validated_data["ends_at"]
 
-        booking = Booking.objects.create(
-            user=user,
-            barber=barber,
-            starts_at=starts_at,
-            ends_at=ends_at,
-            quantity=1,
-            unit_price_tiyin=0,
-            total_price_tiyin=0,
-            status=Booking.Status.CONFIRMED,
-            confirmed_at=timezone.now(),
-        )
+        # Sartaroshni qulflab, overlap'ni transaction ichida qayta tekshiramiz
+        # (bir vaqtdagi ikki so'rovdan double-booking'ni oldini olish).
+        with transaction.atomic():
+            barber = Barber.objects.select_for_update().get(pk=barber_id)
+            overlap = Booking.objects.filter(
+                barber=barber,
+                status__in=[
+                    Booking.Status.CONFIRMED,
+                    Booking.Status.CHECKED_IN,
+                    Booking.Status.PENDING_CONFIRMATION,
+                ],
+                starts_at__lt=ends_at,
+                ends_at__gt=starts_at,
+            ).exists()
+            if overlap:
+                raise serializers.ValidationError("Tanlangan vaqt allaqachon band qilingan.")
+
+            booking = Booking.objects.create(
+                user=user,
+                barber=barber,
+                starts_at=starts_at,
+                ends_at=ends_at,
+                quantity=1,
+                unit_price_tiyin=0,
+                total_price_tiyin=0,
+                status=Booking.Status.CONFIRMED,
+                confirmed_at=timezone.now(),
+            )
 
         from apps.barbers.services import send_barber_booking_notification
         send_barber_booking_notification(booking)
@@ -307,6 +338,22 @@ class CancellationSerializer(serializers.Serializer):
                 booking_id=self.context["booking_id"],
                 reason=self.validated_data.get("reason", ""),
             )
+        except (DjangoValidationError, ObjectDoesNotExist) as error:
+            _raise_service_error(error)
+
+
+class OperatorCancellationSerializer(serializers.Serializer):
+    reason = serializers.CharField(max_length=500, allow_blank=True, required=False)
+
+    def save(self, **kwargs):
+        try:
+            return cancel_booking_for_operator(
+                user=self.context["request"].user,
+                booking_id=self.context["booking_id"],
+                reason=self.validated_data.get("reason", ""),
+            )
+        except PermissionError as error:
+            raise exceptions.PermissionDenied("clubs.permission_denied", code="clubs.permission_denied") from error
         except (DjangoValidationError, ObjectDoesNotExist) as error:
             _raise_service_error(error)
 

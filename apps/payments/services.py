@@ -167,9 +167,11 @@ def apply_payment_webhook(payment_id, status, external_id=""):
     if status == "PAID":
         return mark_payment_paid(payment_id, external_id=external_id)
 
-    payment = Payment.objects.select_for_update().get(pk=payment_id)
-    if payment.status == Payment.Status.PAID:
-        return payment
+    try:
+        payment = Payment.objects.select_for_update().select_related("user").get(pk=payment_id)
+    except Payment.DoesNotExist as error:
+        raise ValidationError("payments.transaction_not_found", code="payments.transaction_not_found") from error
+
     status_map = {
         "FAILED": Payment.Status.FAILED,
         "CANCELLED": Payment.Status.CANCELLED,
@@ -177,6 +179,16 @@ def apply_payment_webhook(payment_id, status, external_id=""):
     }
     if status not in status_map:
         raise ValidationError("payments.invalid_status", code="payments.invalid_status")
+
+    if payment.status == Payment.Status.PAID:
+        # To'langan to'lovni faqat REFUND o'zgartira oladi va obunani bekor qiladi.
+        if status != "REFUNDED":
+            return payment
+        UserSubscription.objects.filter(user=payment.user).update(
+            status=UserSubscription.Status.CANCELLED,
+            updated_at=timezone.now(),
+        )
+
     payment.status = status_map[status]
     if external_id and not payment.external_id:
         payment.external_id = external_id

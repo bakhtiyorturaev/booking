@@ -9,7 +9,15 @@ from django.utils import timezone
 
 
 def generate_booking_number():
-    return str(secrets.randbelow(900_000_000_000) + 100_000_000_000)
+    from django.apps import apps
+
+    booking_model = apps.get_model("bookings", "Booking")
+    number = str(secrets.randbelow(900_000_000_000) + 100_000_000_000)
+    for _ in range(10):
+        if not booking_model.objects.filter(booking_number=number).exists():
+            return number
+        number = str(secrets.randbelow(900_000_000_000) + 100_000_000_000)
+    return number
 
 
 class ReservationBase(models.Model):

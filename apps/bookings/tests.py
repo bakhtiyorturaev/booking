@@ -1,11 +1,13 @@
 from datetime import datetime, time, timedelta
+from zoneinfo import ZoneInfo
 
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.utils import timezone
 
 from apps.accounts.models import User
-from apps.bookings.models import Booking, BookingHold
+from apps.barbers.models import Barber
+from apps.bookings.models import Booking, BookingHold, Cancellation
 from apps.bookings.services import (
     cancel_booking,
     create_booking,
@@ -426,3 +428,152 @@ class BookingModelTests(TestCase):
             response.data["results"][0]["zone"]["branch"]["club"]["name"],
             self.zone.branch.club.name,
         )
+
+
+class BookingFixRegressionTests(TestCase):
+    """Kod-tahlil davomida topilgan xatolarga regressiya testlari."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.owner = User.objects.create_user(username="fix_owner", phone="+998900000001")
+        cls.customer = User.objects.create_user(username="fix_customer", phone="+998900000002")
+        cls.other_owner = User.objects.create_user(username="fix_other", phone="+998900000003")
+        cls.club = Club.objects.create(owner=cls.owner, name="Fix Club", status=Club.Status.ACTIVE)
+        Club.objects.create(owner=cls.other_owner, name="Other Club", status=Club.Status.ACTIVE)
+        city = City.objects.create(name="Fix City", slug="fix-city")
+        cls.branch = Branch.objects.create(
+            club=cls.club,
+            city=city,
+            name="Fix Branch",
+            address="addr",
+            latitude=41,
+            longitude=69,
+            status=Branch.Status.ACTIVE,
+        )
+        cls.zone = Zone.objects.create(
+            branch=cls.branch,
+            name="Fix Zone",
+            capacity=5,
+            price_per_hour_tiyin=2_000_000,
+        )
+        # PER_ZONE zona: booking_capacity == unit_count (2), lekin capacity == 10.
+        cls.room = Zone.objects.create(
+            branch=cls.branch,
+            name="Fix Room",
+            capacity=10,
+            unit_count=2,
+            booking_type=Zone.BookingType.PER_ZONE,
+            price_per_hour_tiyin=3_000_000,
+        )
+        barber_user = User.objects.create_user(username="fix_barber", phone="+998900000004")
+        cls.barber = Barber.objects.create(
+            user=barber_user,
+            club=cls.club,
+            branch=cls.branch,
+            full_name="Usta Aka",
+            is_active=True,
+        )
+
+    def _make_customer_booking(self, status=Booking.Status.CONFIRMED):
+        starts = timezone.now() + timedelta(days=1)
+        return Booking.objects.create(
+            user=self.customer,
+            zone=self.zone,
+            starts_at=starts,
+            ends_at=starts + timedelta(hours=1),
+            quantity=1,
+            unit_price_tiyin=2_000_000,
+            total_price_tiyin=2_000_000,
+            status=status,
+            confirmed_at=timezone.now() if status == Booking.Status.CONFIRMED else None,
+        )
+
+    def _future_working_datetime(self, hour=10):
+        tz = ZoneInfo("Asia/Tashkent")
+        moment = timezone.localtime(timezone.now(), tz) + timedelta(days=2)
+        while moment.isoweekday() == 7:  # default ish kunlari 1-6 (yakshanba dam)
+            moment += timedelta(days=1)
+        return moment.replace(hour=hour, minute=0, second=0, microsecond=0)
+
+    # Fix #1 — operator mijoz bronini bekor qila oladi
+    def test_operator_can_cancel_customer_booking(self):
+        booking = self._make_customer_booking()
+        client = APIClient()
+        client.force_authenticate(self.owner)
+        response = client.post(
+            f"/api/v1/cabinet/bookings/{booking.id}/cancel/",
+            {"reason": "Klub yopiq"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        booking.refresh_from_db()
+        self.assertEqual(booking.status, Booking.Status.CANCELLED)
+        self.assertEqual(booking.cancellation.reason, "Klub yopiq")
+
+    def test_foreign_operator_cannot_cancel_customer_booking(self):
+        booking = self._make_customer_booking()
+        client = APIClient()
+        client.force_authenticate(self.other_owner)
+        response = client.post(
+            f"/api/v1/cabinet/bookings/{booking.id}/cancel/",
+            {},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 403)
+        booking.refresh_from_db()
+        self.assertEqual(booking.status, Booking.Status.CONFIRMED)
+
+    # Fix #2 — sartarosh broni validatsiyasi
+    def test_barber_booking_rejects_past_time(self):
+        client = APIClient()
+        client.force_authenticate(self.customer)
+        past = (timezone.now() - timedelta(hours=3)).isoformat()
+        response = client.post(
+            "/api/v1/bookings/barber/",
+            {"barber_id": str(self.barber.id), "starts_at": past},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(Booking.objects.filter(barber=self.barber).exists())
+
+    def test_barber_booking_rejects_outside_working_hours(self):
+        client = APIClient()
+        client.force_authenticate(self.customer)
+        moment = self._future_working_datetime(hour=3)  # 03:00 — ish vaqtidan tashqarida
+        response = client.post(
+            "/api/v1/bookings/barber/",
+            {"barber_id": str(self.barber.id), "starts_at": moment.isoformat()},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_barber_booking_happy_path(self):
+        client = APIClient()
+        client.force_authenticate(self.customer)
+        moment = self._future_working_datetime(hour=10)
+        response = client.post(
+            "/api/v1/bookings/barber/",
+            {"barber_id": str(self.barber.id), "starts_at": moment.isoformat()},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["status"], Booking.Status.CONFIRMED)
+
+    # Fix #4 — availability PER_ZONE uchun booking_capacity qaytaradi
+    def test_availability_capacity_uses_booking_capacity(self):
+        tz = ZoneInfo("Asia/Tashkent")
+        target_date = (timezone.localtime(timezone.now(), tz) + timedelta(days=1)).date()
+        OperatingHour.objects.create(
+            branch=self.branch,
+            weekday=target_date.weekday(),
+            opens_at="00:00",
+            closes_at="23:59",
+        )
+        response = APIClient().get(
+            f"/api/v1/branches/{self.branch.id}/availability/",
+            {"date": target_date.isoformat()},
+        )
+        self.assertEqual(response.status_code, 200)
+        room_data = next(z for z in response.data["zones"] if z["id"] == self.room.id)
+        self.assertEqual(room_data["capacity"], self.room.booking_capacity)
+        self.assertEqual(room_data["capacity"], 2)

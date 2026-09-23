@@ -32,7 +32,7 @@ def club_for_object(obj):
     return None
 
 
-def can_manage_club(user, club, managers_only=False):
+def can_manage_club(user, club):
     if not user or not user.is_authenticated or club is None:
         return False
     return is_platform_admin(user) or club.owner_id == user.id
@@ -47,8 +47,7 @@ class IsClubOperator(BasePermission):
 
     def has_object_permission(self, request, view, obj):
         club = club_for_object(obj)
-        managers_only = request.method == "DELETE"
-        return can_manage_club(request.user, club, managers_only=managers_only)
+        return can_manage_club(request.user, club)
 
 
 class IsOwnerOrPlatformAdmin(BasePermission):

@@ -20,6 +20,7 @@ from apps.bookings.serializers import (
     BookingOperatorTransitionSerializer,
     BookingSerializer,
     CancellationSerializer,
+    OperatorCancellationSerializer,
 )
 from apps.bookings.services import get_branch_availability
 from apps.clubs.models import Branch
@@ -66,7 +67,7 @@ class BranchAvailabilityAPIView(APIView):
                     {
                         "id": item["zone"].id,
                         "name": item["zone"].name,
-                        "capacity": item["zone"].capacity,
+                        "capacity": item["zone"].booking_capacity,
                         "booking_type": item["zone"].booking_type,
                         "unit_count": item["zone"].unit_count,
                         "price_per_hour_tiyin": item["zone"].price_per_hour_tiyin,
@@ -250,10 +251,10 @@ class CabinetBookingViewSet(
     def no_show(self, request, pk=None):
         return self._transition(request, pk, Booking.Status.NO_SHOW)
 
-    @extend_schema(tags=["Club Cabinet"], request=CancellationSerializer, responses=BookingSerializer)
+    @extend_schema(tags=["Club Cabinet"], request=OperatorCancellationSerializer, responses=BookingSerializer)
     @action(detail=True, methods=("post",))
     def cancel(self, request, pk=None):
-        serializer = CancellationSerializer(
+        serializer = OperatorCancellationSerializer(
             data=request.data,
             context={"request": request, "booking_id": pk},
         )

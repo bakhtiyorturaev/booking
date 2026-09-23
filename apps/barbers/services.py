@@ -53,11 +53,14 @@ def get_barber_available_slots(barber: Barber, target_date: datetime.date):
             "slots": [],
         }
 
-    # 3. Ish vaqti oralig'ida 1 soatlik slotlar generatsiyasi
+    # 3. Ish vaqti oralig'ida 1 soatlik slotlar generatsiyasi.
+    # Slot [h, h+1] to'liq ish vaqti ichida bo'lishi kerak, shuning uchun:
+    #  - boshlanish daqiqasi > 0 bo'lsa keyingi to'liq soatga suramiz (09:30 -> 10:00);
+    #  - tugash soati esa work_end_time.hour (masalan 20:00 -> oxirgi slot 19:00-20:00).
     start_hour = barber.work_start_time.hour
+    if barber.work_start_time.minute > 0:
+        start_hour += 1
     end_hour = barber.work_end_time.hour
-    if barber.work_end_time.minute > 0:
-        end_hour += 1
 
     # Band qilingan bronlar va holdlar
     day_start = timezone.make_aware(

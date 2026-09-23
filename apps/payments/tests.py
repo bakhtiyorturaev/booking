@@ -9,7 +9,7 @@ from rest_framework.test import APIClient
 
 from apps.accounts.models import User
 from apps.payments.models import Payment, SubscriptionPlan, UserSubscription
-from apps.payments.services import has_paid_access
+from apps.payments.services import apply_payment_webhook, has_paid_access, mark_payment_paid
 
 
 class SubscriptionTests(TestCase):
@@ -131,6 +131,39 @@ class PaymentAPITests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200, response.data)
+        payment.refresh_from_db()
+        self.assertEqual(payment.status, Payment.Status.PAID)
+        self.assertTrue(has_paid_access(self.user))
+
+    def test_refund_after_paid_revokes_subscription(self):
+        payment = Payment.objects.create(
+            user=self.user,
+            plan=self.plan,
+            provider="http",
+            idempotency_key="checkout-refund",
+            amount_tiyin=self.plan.price_tiyin,
+        )
+        mark_payment_paid(payment.id, external_id="provider-refund")
+        self.assertTrue(has_paid_access(self.user))
+
+        apply_payment_webhook(payment.id, "REFUNDED", external_id="provider-refund")
+
+        payment.refresh_from_db()
+        self.assertEqual(payment.status, Payment.Status.REFUNDED)
+        self.assertFalse(has_paid_access(self.user))
+
+    def test_failed_webhook_ignored_after_paid(self):
+        payment = Payment.objects.create(
+            user=self.user,
+            plan=self.plan,
+            provider="http",
+            idempotency_key="checkout-failed",
+            amount_tiyin=self.plan.price_tiyin,
+        )
+        mark_payment_paid(payment.id, external_id="provider-failed")
+
+        apply_payment_webhook(payment.id, "FAILED", external_id="provider-failed")
+
         payment.refresh_from_db()
         self.assertEqual(payment.status, Payment.Status.PAID)
         self.assertTrue(has_paid_access(self.user))
