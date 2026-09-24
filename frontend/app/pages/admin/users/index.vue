@@ -178,12 +178,12 @@ onMounted(() => {
               <td><code>@{{ u.username }}</code></td>
               <td>{{ u.phone || "—" }}</td>
               <td>
-                <span class="role-badge" :class="u.role.toLowerCase()">
+                <span class="role-badge" :class="u.role?.toLowerCase()">
                   {{ u.role }}
                 </span>
               </td>
               <td>
-                <span class="status-badge" :class="u.status.toLowerCase()">
+                <span class="status-badge" :class="u.status?.toLowerCase()">
                   {{ u.status }}
                 </span>
               </td>

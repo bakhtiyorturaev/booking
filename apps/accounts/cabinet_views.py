@@ -7,7 +7,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.accounts.models import User
-from apps.accounts.serializers import UserSerializer
+from apps.accounts.serializers import CabinetUserSerializer
 from apps.clubs.permissions import is_platform_admin
 from apps.core.responses import error_response, success_response
 
@@ -27,7 +27,7 @@ class CabinetUserViewSet(
     viewsets.GenericViewSet,
 ):
     permission_classes = [IsAuthenticated]
-    serializer_class = UserSerializer
+    serializer_class = CabinetUserSerializer
     pagination_class = CabinetUserPagination
     queryset = User.objects.all().select_related("profile").order_by("-created_at")
 
@@ -75,7 +75,7 @@ class CabinetUserViewSet(
         return success_response(
             "auth.status_updated",
             request,
-            data=UserSerializer(user).data,
+            data=CabinetUserSerializer(user).data,
         )
 
     @extend_schema(
@@ -96,5 +96,5 @@ class CabinetUserViewSet(
         return success_response(
             "auth.role_updated",
             request,
-            data=UserSerializer(user).data,
+            data=CabinetUserSerializer(user).data,
         )

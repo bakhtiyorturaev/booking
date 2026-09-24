@@ -84,6 +84,26 @@ class UserSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class CabinetUserSerializer(serializers.ModelSerializer):
+    profile = UserProfileSerializer(read_only=True)
+    is_phone_verified = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = User
+        fields = (
+            "id",
+            "username",
+            "phone",
+            "telegram_user_id",
+            "role",
+            "status",
+            "is_phone_verified",
+            "created_at",
+            "profile",
+        )
+        read_only_fields = fields
+
+
 class AuthUserSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(
         source="profile.full_name",
