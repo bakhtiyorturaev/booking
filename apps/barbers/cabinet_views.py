@@ -4,24 +4,30 @@ from rest_framework.response import Response
 
 from apps.barbers.models import Barber
 from apps.barbers.serializers import CabinetBarberSerializer
-from apps.clubs.permissions import is_platform_admin
+from apps.clubs.permissions import has_manageable_clubs, is_platform_admin
 
 
-class IsPlatformStaff(permissions.BasePermission):
+class CanManageBarbers(permissions.BasePermission):
+    """Platforma admini yoki muassasa egasi sartaroshlarni boshqara oladi."""
+
     def has_permission(self, request, view):
-        return request.user.is_authenticated and is_platform_admin(request.user)
+        return request.user.is_authenticated and has_manageable_clubs(request.user)
 
 
 class CabinetBarberViewSet(viewsets.ModelViewSet):
     """
-    Xodimlar admin paneli uchun sartaroshlarni boshqarish va arizalarni tasdiqlash.
+    Xodimlar admin paneli va egalar kabineti uchun sartaroshlarni boshqarish.
+    Egalar faqat o‘z muassasalaridagi sartaroshlarni ko‘radi va boshqaradi.
     """
-    permission_classes = [IsPlatformStaff]
+    permission_classes = [CanManageBarbers]
     serializer_class = CabinetBarberSerializer
     queryset = Barber.objects.all().select_related("user", "club", "branch").order_by("-created_at")
 
     def get_queryset(self):
         qs = super().get_queryset()
+        # Egalar faqat o‘z klublaridagi sartaroshlarni ko‘radi; platforma admini — hammasini.
+        if not is_platform_admin(self.request.user):
+            qs = qs.filter(club__owner=self.request.user)
         affiliation = self.request.query_params.get("affiliation_status")
         club_id = self.request.query_params.get("club_id")
         query = self.request.query_params.get("query")

@@ -14,6 +14,13 @@ export const useAdminApi = () => {
         headers: { "Accept-Language": language },
       }),
 
+    // Egalar kabineti dashboard'i — faqat foydalanuvchining o'z muassasalari bo'yicha.
+    getOwnerStats: (language = "uz") =>
+      client.get<any>("/api/cabinet/owner-stats/", {
+        local: true,
+        headers: { "Accept-Language": language },
+      }),
+
     getClubs: (params?: Record<string, any>, language = "uz") =>
       client.get<any>("/api/cabinet/clubs/", {
         local: true,

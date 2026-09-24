@@ -18,6 +18,7 @@ export interface AuthUser {
   phone?: string | null
   telegram_user_id?: number | null
   is_phone_verified?: boolean
+  is_club_owner?: boolean
   profile?: UserProfileData
 }
 

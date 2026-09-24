@@ -6,7 +6,7 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from apps.clubs.permissions import is_platform_admin
+from apps.clubs.permissions import has_manageable_clubs, is_platform_admin
 from apps.core.responses import error_response, success_response
 from apps.reviews.models import Review
 from apps.reviews.serializers import PublicReviewSerializer
@@ -36,11 +36,14 @@ class CabinetReviewViewSet(
 
     def initial(self, request, *args, **kwargs):
         super().initial(request, *args, **kwargs)
-        if not is_platform_admin(request.user):
+        if not has_manageable_clubs(request.user):
             self.permission_denied(request, message="clubs.permission_denied", code="clubs.permission_denied")
 
     def get_queryset(self):
         qs = super().get_queryset()
+        # Egalar faqat o‘z klublarining sharhlarini ko‘radi; platforma admini — hammasini.
+        if not is_platform_admin(self.request.user):
+            qs = qs.filter(club__owner=self.request.user)
         club_id = self.request.query_params.get("club_id")
         is_visible = self.request.query_params.get("is_visible")
         rating = self.request.query_params.get("rating")

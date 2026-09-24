@@ -69,6 +69,7 @@ class UserProfileUpdateSerializer(serializers.Serializer):
 class UserSerializer(serializers.ModelSerializer):
     profile = UserProfileSerializer(read_only=True)
     is_phone_verified = serializers.BooleanField(read_only=True)
+    is_club_owner = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -79,9 +80,16 @@ class UserSerializer(serializers.ModelSerializer):
             "telegram_user_id",
             "role",
             "is_phone_verified",
+            "is_club_owner",
             "profile",
         )
         read_only_fields = fields
+
+    def get_is_club_owner(self, obj):
+        # Lokal import: aylanma importdan saqlanish (clubs.permissions -> accounts.models).
+        from apps.clubs.permissions import is_club_owner
+
+        return is_club_owner(obj)
 
 
 class CabinetUserSerializer(serializers.ModelSerializer):
@@ -124,6 +132,7 @@ class AuthUserSerializer(serializers.ModelSerializer):
     is_phone_verified = serializers.BooleanField(
         read_only=True,
     )
+    is_club_owner = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -138,8 +147,15 @@ class AuthUserSerializer(serializers.ModelSerializer):
             "preferred_language",
             "is_phone_verified",
             "is_profile_completed",
+            "is_club_owner",
         )
         read_only_fields = fields
+
+    def get_is_club_owner(self, obj):
+        # Lokal import: clubs.permissions accounts.models'ni import qiladi (aylanma importdan saqlanish).
+        from apps.clubs.permissions import is_club_owner
+
+        return is_club_owner(obj)
 
 
 class RefreshTokenSerializer(serializers.Serializer):

@@ -16,6 +16,20 @@ def is_platform_admin(user):
     )
 
 
+def is_club_owner(user):
+    """Foydalanuvchi kamida bitta klub/muassasa egasimi (rol emas, Club.owner FK bo‘yicha)."""
+    return bool(
+        user
+        and user.is_authenticated
+        and Club.objects.filter(owner=user).exists()
+    )
+
+
+def has_manageable_clubs(user):
+    """Egalar kabinetiga kirish huquqi: platforma admini yoki muassasa egasi."""
+    return is_platform_admin(user) or is_club_owner(user)
+
+
 def club_for_object(obj):
     if isinstance(obj, Club):
         return obj

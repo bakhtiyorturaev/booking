@@ -1,10 +1,10 @@
 <script setup lang="ts">
 definePageMeta({
-  layout: "admin",
-  middleware: ["admin"],
+  layout: "owner",
+  middleware: ["owner"],
 })
 </script>
 
 <template>
-  <CabinetReviewsManager />
+  <CabinetBookingsManager />
 </template>

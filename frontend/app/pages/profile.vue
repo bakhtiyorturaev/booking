@@ -248,6 +248,15 @@ const favoriteBranches = computed(() => {
             {{ t("admin.dashboard") }}
           </NuxtLink>
 
+          <!-- Owner Cabinet Link if the user owns at least one club -->
+          <NuxtLink
+            v-if="user?.is_club_owner"
+            to="/cabinet"
+            class="admin-portal-link"
+          >
+            Egasi kabineti
+          </NuxtLink>
+
           <!-- Red Logout Button -->
           <button
             type="button"

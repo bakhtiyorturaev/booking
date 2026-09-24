@@ -1,4 +1,4 @@
-from django.db.models import Sum
+from django.db.models import Q, Sum
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema
 from rest_framework.permissions import IsAuthenticated
@@ -8,7 +8,7 @@ from rest_framework.views import APIView
 from apps.accounts.models import User
 from apps.bookings.models import Booking
 from apps.clubs.models import Branch, Club
-from apps.clubs.permissions import is_platform_admin
+from apps.clubs.permissions import is_club_owner, is_platform_admin
 from apps.payments.models import Payment
 from apps.reviews.models import Review
 from apps.core.responses import error_response
@@ -146,6 +146,154 @@ class AdminDashboardStatsAPIView(APIView):
                     "total": total_users,
                     "active": active_users,
                     "staff": staff_users,
+                },
+                "revenue": {
+                    "total_tiyin": total_revenue,
+                    "today_tiyin": today_revenue,
+                },
+                "recent_bookings": recent_bookings,
+                "recent_reviews": recent_reviews,
+            }
+        )
+
+
+def _serialize_recent_booking(b):
+    if b.zone and b.zone.branch:
+        club_name = b.zone.branch.club.name
+        branch_name = b.zone.branch.name
+        zone_name = b.zone.name
+    elif b.barber:
+        club_name = b.barber.club.name if b.barber.club else "-"
+        branch_name = b.barber.branch.name if b.barber.branch else "-"
+        zone_name = f"Sartarosh: {b.barber.full_name}"
+    else:
+        club_name = branch_name = zone_name = "-"
+    profile = getattr(b.user, "profile", None)
+    return {
+        "id": str(b.id),
+        "user_name": (profile.full_name if profile else "") or b.user.username,
+        "user_phone": b.user.phone or "",
+        "club_name": club_name,
+        "branch_name": branch_name,
+        "zone_name": zone_name,
+        "starts_at": b.starts_at.isoformat(),
+        "ends_at": b.ends_at.isoformat(),
+        "status": b.status,
+        "total_price_tiyin": b.total_price_tiyin,
+    }
+
+
+class OwnerDashboardStatsAPIView(APIView):
+    """Muassasa egasi kabineti uchun statistika — faqat egaga tegishli klublar bo‘yicha."""
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=["Club Cabinet"],
+        summary="Egasi kabineti statistikasi (o‘z muassasalari bo‘yicha)",
+    )
+    def get(self, request):
+        user = request.user
+        # Platforma admini ham o‘zi egasi bo‘lgan klublar bo‘yicha ko‘radi (aks holda 403).
+        if not (is_club_owner(user) or is_platform_admin(user)):
+            return error_response("clubs.permission_denied", request, status_code=403)
+
+        now = timezone.now()
+        today = now.date()
+
+        owned_clubs = Club.objects.filter(owner=user)
+        owned_branches = Branch.objects.filter(club__owner=user)
+        # Bron ega klubidagi zona yoki sartaroshga bog‘langan bo‘lishi mumkin.
+        owner_bookings = Booking.objects.filter(
+            Q(zone__branch__club__owner=user) | Q(barber__club__owner=user)
+        )
+        owner_reviews = Review.objects.filter(club__owner=user)
+
+        total_clubs = owned_clubs.count()
+        active_clubs = owned_clubs.filter(status=Club.Status.ACTIVE).count()
+        pending_clubs = owned_clubs.filter(status=Club.Status.PENDING).count()
+
+        total_branches = owned_branches.count()
+        active_branches = owned_branches.filter(status=Branch.Status.ACTIVE).count()
+
+        total_bookings_today = owner_bookings.filter(starts_at__date=today).count()
+        active_bookings_now = owner_bookings.filter(
+            status__in=[Booking.Status.CONFIRMED, Booking.Status.CHECKED_IN],
+            starts_at__lte=now,
+            ends_at__gte=now,
+        ).count()
+        pending_bookings = owner_bookings.filter(
+            status=Booking.Status.PENDING_CONFIRMATION
+        ).count()
+        completed_bookings = owner_bookings.filter(
+            status=Booking.Status.COMPLETED
+        ).count()
+        cancelled_bookings = owner_bookings.filter(
+            status=Booking.Status.CANCELLED
+        ).count()
+
+        # Egasi uchun "tushum" — Payment (obuna to‘lovlari platformaga) emas, balki
+        # yakunlangan bronlarning narxlari yig‘indisi.
+        completed_qs = owner_bookings.filter(status=Booking.Status.COMPLETED)
+        total_revenue = completed_qs.aggregate(total=Sum("total_price_tiyin"))["total"] or 0
+        today_revenue = (
+            completed_qs.filter(starts_at__date=today).aggregate(
+                total=Sum("total_price_tiyin")
+            )["total"]
+            or 0
+        )
+
+        total_reviews = owner_reviews.count()
+        visible_reviews = owner_reviews.filter(is_visible=True).count()
+
+        recent_bookings_qs = (
+            owner_bookings.select_related(
+                "user__profile",
+                "zone__branch__club",
+                "barber__club",
+                "barber__branch",
+            ).order_by("-created_at")[:6]
+        )
+        recent_bookings = [_serialize_recent_booking(b) for b in recent_bookings_qs]
+
+        recent_reviews_qs = (
+            owner_reviews.select_related("user__profile", "club").order_by("-created_at")[:6]
+        )
+        recent_reviews = [
+            {
+                "id": str(r.id),
+                "user_name": (getattr(r.user, "profile", None) and r.user.profile.full_name)
+                or r.user.username,
+                "club_name": r.club.name,
+                "rating": r.rating,
+                "comment": r.comment,
+                "is_visible": r.is_visible,
+                "created_at": r.created_at.isoformat(),
+            }
+            for r in recent_reviews_qs
+        ]
+
+        return Response(
+            {
+                "clubs": {
+                    "total": total_clubs,
+                    "active": active_clubs,
+                    "pending": pending_clubs,
+                },
+                "branches": {
+                    "total": total_branches,
+                    "active": active_branches,
+                },
+                "bookings": {
+                    "today": total_bookings_today,
+                    "active_now": active_bookings_now,
+                    "pending": pending_bookings,
+                    "completed": completed_bookings,
+                    "cancelled": cancelled_bookings,
+                },
+                "reviews": {
+                    "total": total_reviews,
+                    "visible": visible_reviews,
                 },
                 "revenue": {
                     "total_tiyin": total_revenue,
