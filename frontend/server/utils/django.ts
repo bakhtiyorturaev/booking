@@ -38,12 +38,12 @@ export const djangoRequest = <T>(
   event: ServerEvent,
   path: string,
   options: FetchOptions = {},
-) => {
+): Promise<T> => {
   const config = useRuntimeConfig()
   return $fetch<T>(path, {
     baseURL: config.djangoApiBaseUrl,
     ...options,
-  })
+  }) as Promise<T>
 }
 
 export const proxyDjangoError = (event: ServerEvent, error: unknown) => {

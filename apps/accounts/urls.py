@@ -5,6 +5,7 @@ from apps.accounts.cabinet_views import CabinetUserViewSet
 from apps.accounts.views import (
     CurrentUserAPIView,
     LogoutAPIView,
+    StaffPasswordLoginAPIView,
     TelegramAuthConfigAPIView,
     TelegramContactAPIView,
     TelegramLoginAPIView,
@@ -21,6 +22,7 @@ router.register("cabinet/users", CabinetUserViewSet, basename="cabinet-users")
 
 urlpatterns = [
     path("auth/telegram/config/", TelegramAuthConfigAPIView.as_view(), name="telegram-config"),
+    path("auth/staff-login/", StaffPasswordLoginAPIView.as_view(), name="staff-login"),
     path("auth/telegram/", TelegramLoginAPIView.as_view(), name="telegram-login"),
     path("auth/telegram-miniapp/", TelegramMiniAppLoginAPIView.as_view(), name="telegram-miniapp-login"),
     path("auth/telegram-miniapp/contact/", TelegramContactAPIView.as_view(), name="telegram-contact"),

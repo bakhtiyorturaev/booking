@@ -10,6 +10,7 @@ from apps.accounts.models import UserProfile
 from apps.accounts.serializers import (
     AuthUserSerializer,
     RefreshTokenSerializer,
+    StaffLoginSerializer,
     TelegramCodeExchangeSerializer,
     TelegramContactSerializer,
     TelegramMiniAppLoginSerializer,
@@ -18,6 +19,7 @@ from apps.accounts.serializers import (
 )
 from apps.accounts.services.auth_tokens import (
     AuthTokenError,
+    create_auth_tokens,
     public_auth_tokens,
     refresh_auth_tokens,
     revoke_user_session,
@@ -38,6 +40,7 @@ from apps.accounts.services.telegram_web_login import (
     init_web_login,
 )
 from apps.core.responses import (
+    error_response,
     serializer_error_response,
     service_error_response,
     success_response,
@@ -76,6 +79,58 @@ class TelegramMiniAppLoginAPIView(APIView):
                 "user": AuthUserSerializer(result["user"]).data,
                 "tokens": public_auth_tokens(result["tokens"]),
                 "is_new_user": result["is_new_user"],
+            },
+        )
+
+
+class StaffPasswordLoginAPIView(APIView):
+    """Admin/moderator xodimlar uchun username + parol bilan kirish."""
+
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "telegram_login"
+
+    @extend_schema(
+        tags=["Authentication"],
+        summary="Xodimlar (admin/moderator) uchun parol bilan kirish",
+        request=StaffLoginSerializer,
+        responses={200: OpenApiTypes.OBJECT},
+    )
+    def post(self, request):
+        from django.contrib.auth import authenticate
+
+        from apps.accounts.managers import normalize_username
+        from apps.clubs.permissions import is_platform_admin
+
+        serializer = StaffLoginSerializer(data=request.data)
+        if not serializer.is_valid():
+            return serializer_error_response(serializer, request)
+
+        username = normalize_username(serializer.validated_data["username"])
+        user = authenticate(
+            request,
+            username=username,
+            password=serializer.validated_data["password"],
+        )
+        if user is None or not is_platform_admin(user):
+            return error_response("auth.invalid_credentials", request, status_code=401)
+
+        try:
+            tokens = create_auth_tokens(
+                user,
+                device_name=serializer.validated_data.get("device_name", "") or "Admin panel",
+                ip_address=get_client_ip(request),
+            )
+        except AuthTokenError as error:
+            return service_error_response(error, request)
+
+        return success_response(
+            "auth.login_success",
+            request,
+            data={
+                "user": AuthUserSerializer(user).data,
+                "tokens": public_auth_tokens(tokens),
+                "is_new_user": False,
             },
         )
 

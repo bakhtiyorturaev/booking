@@ -71,24 +71,41 @@ class AdminDashboardStatsAPIView(APIView):
         )
 
         recent_bookings_qs = (
-            Booking.objects.select_related("user__profile", "zone__branch__club")
+            Booking.objects.select_related(
+                "user__profile",
+                "zone__branch__club",
+                "barber__club",
+                "barber__branch",
+            )
             .order_by("-created_at")[:6]
         )
-        recent_bookings = [
-            {
-                "id": str(b.id),
-                "user_name": b.user.profile.full_name or b.user.username,
-                "user_phone": b.user.phone or "",
-                "club_name": b.zone.branch.club.name,
-                "branch_name": b.zone.branch.name,
-                "zone_name": b.zone.name,
-                "starts_at": b.starts_at.isoformat(),
-                "ends_at": b.ends_at.isoformat(),
-                "status": b.status,
-                "total_price_tiyin": b.total_price_tiyin,
-            }
-            for b in recent_bookings_qs
-        ]
+        recent_bookings = []
+        for b in recent_bookings_qs:
+            if b.zone and b.zone.branch:
+                club_name = b.zone.branch.club.name
+                branch_name = b.zone.branch.name
+                zone_name = b.zone.name
+            elif b.barber:
+                club_name = b.barber.club.name if b.barber.club else "-"
+                branch_name = b.barber.branch.name if b.barber.branch else "-"
+                zone_name = f"Sartarosh: {b.barber.full_name}"
+            else:
+                club_name = branch_name = zone_name = "-"
+            profile = getattr(b.user, "profile", None)
+            recent_bookings.append(
+                {
+                    "id": str(b.id),
+                    "user_name": (profile.full_name if profile else "") or b.user.username,
+                    "user_phone": b.user.phone or "",
+                    "club_name": club_name,
+                    "branch_name": branch_name,
+                    "zone_name": zone_name,
+                    "starts_at": b.starts_at.isoformat(),
+                    "ends_at": b.ends_at.isoformat(),
+                    "status": b.status,
+                    "total_price_tiyin": b.total_price_tiyin,
+                }
+            )
 
         recent_reviews_qs = (
             Review.objects.select_related("user__profile", "club")

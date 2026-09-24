@@ -18,6 +18,16 @@ export const useAuthApi = () => {
   const api = useApiClient()
 
   return {
+    staffLogin: (username: string, password: string, language: Locale) =>
+      api.post<ApiSuccess<AuthResultData>>("/api/auth/staff-login", {
+        local: true,
+        body: {
+          username,
+          password,
+          device_name: typeof navigator !== "undefined" ? navigator.userAgent.slice(0, 120) : "",
+        },
+        headers: languageHeaders(language),
+      }),
     telegramMiniAppLogin: (initData: string, language: Locale) =>
       api.post<ApiSuccess<AuthResultData>>("/api/auth/telegram-miniapp", {
         local: true,

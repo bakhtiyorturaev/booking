@@ -134,6 +134,31 @@ class RefreshTokenSerializer(serializers.Serializer):
     )
 
 
+class StaffLoginSerializer(serializers.Serializer):
+    username = serializers.CharField(
+        max_length=150,
+        error_messages={
+            "required": "auth.invalid_credentials",
+            "blank": "auth.invalid_credentials",
+        },
+    )
+    password = serializers.CharField(
+        max_length=128,
+        trim_whitespace=False,
+        style={"input_type": "password"},
+        error_messages={
+            "required": "auth.invalid_credentials",
+            "blank": "auth.invalid_credentials",
+        },
+    )
+    device_name = serializers.CharField(
+        max_length=120,
+        required=False,
+        allow_blank=True,
+        default="",
+    )
+
+
 class TelegramMiniAppLoginSerializer(serializers.Serializer):
     init_data = serializers.CharField(
         required=True,

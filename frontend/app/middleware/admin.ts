@@ -4,7 +4,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
 
   if (!isAuthenticated.value) {
     return navigateTo({
-      path: "/login",
+      path: "/admin/login",
       query: to.fullPath && to.fullPath !== "/" ? { redirect: to.fullPath } : undefined,
     })
   }
