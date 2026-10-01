@@ -28,6 +28,12 @@ export const useAdminApi = () => {
         headers: { "Accept-Language": language },
       }),
 
+    getClub: (id: string, language = "uz") =>
+      client.get<any>(`/api/cabinet/clubs/${id}/`, {
+        local: true,
+        headers: { "Accept-Language": language },
+      }),
+
     createClub: (payload: any, language = "uz") =>
       client.post<any>("/api/cabinet/clubs/", {
         local: true,

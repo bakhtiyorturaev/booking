@@ -96,6 +96,23 @@ class Club(TimeStampedModel):
     phone = models.CharField(max_length=20, blank=True, help_text="Aloqa telefoni.")
     email = models.EmailField(blank=True, help_text="Aloqa emaili.")
     website = models.URLField(max_length=500, blank=True, help_text="Klub sayti.")
+    address = models.CharField(max_length=300, blank=True, help_text="Klub manzili (qo'lda kiritilgan).")
+    latitude = models.DecimalField(
+        max_digits=9,
+        decimal_places=6,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(-90), MaxValueValidator(90)],
+        help_text="Xarita kengligi.",
+    )
+    longitude = models.DecimalField(
+        max_digits=9,
+        decimal_places=6,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(-180), MaxValueValidator(180)],
+        help_text="Xarita uzunligi.",
+    )
     status = models.CharField(
         max_length=12,
         choices=Status.choices,

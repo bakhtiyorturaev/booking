@@ -6,5 +6,5 @@ definePageMeta({
 </script>
 
 <template>
-  <CabinetClubsManager base-path="/cabinet/clubs" />
+  <CabinetClubForm mode="create" base-path="/cabinet/clubs" />
 </template>

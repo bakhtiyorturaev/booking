@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { useAdminApi } from "~/api/admin"
 
+const { basePath = "/admin/clubs" } = defineProps<{ basePath?: string }>()
+
 useHead({
   title: "Klublar boshqaruvi",
 })
@@ -14,23 +16,6 @@ const selectedStatus = ref("")
 const selectedCategory = ref("")
 const totalCount = ref(0)
 const errorMessage = ref("")
-
-// Modal state
-const showModal = ref(false)
-const editingClub = ref<any>(null)
-const isSaving = ref(false)
-const modalError = ref("")
-
-const form = ref({
-  name: "",
-  category: "GAMING_CLUB",
-  description: "",
-  phone: "",
-  email: "",
-  website: "",
-  status: "ACTIVE",
-  is_verified: true,
-})
 
 const fetchClubs = async () => {
   isLoading.value = true
@@ -48,62 +33,6 @@ const fetchClubs = async () => {
     errorMessage.value = err?.message || "Server bilan bog'lanishda xatolik yuz berdi"
   } finally {
     isLoading.value = false
-  }
-}
-
-const openCreateModal = () => {
-  editingClub.value = null
-  form.value = {
-    name: "",
-    category: "GAMING_CLUB",
-    description: "",
-    phone: "",
-    email: "",
-    website: "",
-    status: "ACTIVE",
-    is_verified: true,
-  }
-  modalError.value = ""
-  showModal.value = true
-}
-
-const openEditModal = (club: any) => {
-  editingClub.value = club
-  form.value = {
-    name: club.name,
-    category: club.category || "GAMING_CLUB",
-    description: club.description || "",
-    phone: club.phone || "",
-    email: club.email || "",
-    website: club.website || "",
-    status: club.status || "ACTIVE",
-    is_verified: club.is_verified || false,
-  }
-  modalError.value = ""
-  showModal.value = true
-}
-
-const saveClub = async () => {
-  if (!form.value.name.trim()) {
-    modalError.value = "Klub nomini kiriting"
-    return
-  }
-
-  isSaving.value = true
-  modalError.value = ""
-
-  try {
-    if (editingClub.value) {
-      await adminApi.updateClub(editingClub.value.id, form.value)
-    } else {
-      await adminApi.createClub(form.value)
-    }
-    showModal.value = false
-    await fetchClubs()
-  } catch (err: any) {
-    modalError.value = err?.data?.message || err?.message || "Saqlashda xatolik yuz berdi"
-  } finally {
-    isSaving.value = false
   }
 }
 
@@ -140,9 +69,9 @@ onMounted(() => {
         <h1 class="page-title">Klublar boshqaruvi</h1>
         <p class="page-subtitle">Barcha o'yin klublarini boshqarish va yangi klub qo'shish</p>
       </div>
-      <button type="button" class="primary-button create-btn" @click="openCreateModal">
+      <NuxtLink :to="`${basePath}/new`" class="primary-button create-btn">
         <span>➕ Klub qo'shish</span>
-      </button>
+      </NuxtLink>
     </div>
 
     <!-- Filters Bar -->
@@ -239,14 +168,13 @@ onMounted(() => {
               <td>⭐ {{ Number(c.rating || 0).toFixed(1) }} ({{ c.review_count || 0 }})</td>
               <td>
                 <div class="table-actions">
-                  <button
-                    type="button"
+                  <NuxtLink
+                    :to="`${basePath}/${c.id}/edit`"
                     class="action-btn edit"
                     title="Tahrirlash"
-                    @click="openEditModal(c)"
                   >
                     ✏️
-                  </button>
+                  </NuxtLink>
                   <button
                     type="button"
                     class="action-btn delete"
@@ -263,83 +191,6 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- Create/Edit Modal -->
-    <Teleport to="body">
-      <div v-if="showModal" class="modal-backdrop" @click.self="showModal = false">
-        <div class="modal-card">
-          <div class="modal-header">
-            <h3>{{ editingClub ? "Muassasani tahrirlash" : "Yangi muassasa qo'shish" }}</h3>
-            <button type="button" class="modal-close-btn" @click="showModal = false">✕</button>
-          </div>
-
-          <form class="modal-form" @submit.prevent="saveClub">
-            <p v-if="modalError" class="form-error">{{ modalError }}</p>
-
-            <div class="form-row">
-              <div class="form-group">
-                <label>Nomi *</label>
-                <input v-model="form.name" type="text" placeholder="Masalan: Galaxy Gaming / Gentleman Salon" required>
-              </div>
-              <div class="form-group">
-                <label>Toifa *</label>
-                <select v-model="form.category" required>
-                  <option value="GAMING_CLUB">🎮 O'yin klubi (Gaming Club)</option>
-                  <option value="BARBERSHOP">💈 Sartaroshxona (Barbershop)</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label>Tavsif</label>
-              <textarea v-model="form.description" rows="3" placeholder="Klub haqida qisqacha ma'lumot..." />
-            </div>
-
-            <div class="form-row">
-              <div class="form-group">
-                <label>Telefon</label>
-                <input v-model="form.phone" type="tel" placeholder="+998 90 123 45 67">
-              </div>
-              <div class="form-group">
-                <label>Email</label>
-                <input v-model="form.email" type="email" placeholder="info@club.uz">
-              </div>
-            </div>
-
-            <div class="form-row">
-              <div class="form-group">
-                <label>Vebsayt</label>
-                <input v-model="form.website" type="url" placeholder="https://club.uz">
-              </div>
-              <div class="form-group">
-                <label>Holat</label>
-                <select v-model="form.status">
-                  <option value="ACTIVE">ACTIVE (Faol)</option>
-                  <option value="DRAFT">DRAFT (Qoralama)</option>
-                  <option value="PENDING">PENDING (Kutilmoqda)</option>
-                  <option value="SUSPENDED">SUSPENDED (Muzlatilgan)</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="form-checkbox">
-              <label>
-                <input v-model="form.is_verified" type="checkbox">
-                <span>Tekshiruvdan o'tgan deb belgilash (Verified badge)</span>
-              </label>
-            </div>
-
-            <div class="modal-actions">
-              <button type="button" class="secondary-button" @click="showModal = false">
-                Bekor qilish
-              </button>
-              <button type="submit" class="primary-button" :disabled="isSaving">
-                {{ isSaving ? "Saqlanmoqda..." : "Saqlash" }}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </Teleport>
   </div>
 </template>
 
@@ -539,102 +390,4 @@ onMounted(() => {
   color: var(--muted);
 }
 
-/* Modal */
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  display: grid;
-  place-items: center;
-  padding: 16px;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(8px);
-}
-
-.modal-card {
-  width: min(100%, 540px);
-  padding: 24px;
-  background: var(--surface);
-  border: 1px solid var(--panel-border);
-  border-radius: 20px;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
-}
-
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 20px;
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 750;
-}
-
-.modal-close-btn {
-  background: none;
-  border: none;
-  font-size: 16px;
-  color: var(--muted);
-  cursor: pointer;
-}
-
-.modal-form {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  flex: 1;
-}
-
-.form-group label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--muted);
-}
-
-.form-group input, .form-group textarea, .form-group select {
-  padding: 10px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--control);
-  color: var(--text);
-  font-size: 13px;
-}
-
-.form-row {
-  display: flex;
-  gap: 12px;
-}
-
-.form-checkbox label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.form-error {
-  margin: 0;
-  padding: 10px;
-  border-radius: 8px;
-  background: rgba(239, 68, 68, 0.15);
-  color: #ef4444;
-  font-size: 12px;
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 10px;
-}
 </style>
