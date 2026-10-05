@@ -21,7 +21,7 @@ class TelegramWebLoginError(Exception):
         super().__init__(self.code)
 
 
-def get_effective_bot_username():
+def get_effective_bot_username(strict=False):
     bot_username = getattr(settings, "TELEGRAM_BOT_USERNAME", "").strip()
     if bot_username:
         return bot_username.lstrip("@")
@@ -38,6 +38,8 @@ def get_effective_bot_username():
             return cached
     except Exception:
         pass
+    if strict:
+        raise TelegramWebLoginError("auth.telegram_not_configured", "Telegram bot username sozlanmagan.")
     return "RezervUz_bot"
 
 

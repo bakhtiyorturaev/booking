@@ -6,6 +6,7 @@ from django.utils import timezone
 
 from apps.barbers.models import Barber
 from apps.bookings.models import Booking, BookingHold
+from apps.clubs.models import Branch, Club
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +17,17 @@ def get_barber_available_slots(barber: Barber, target_date: datetime.date):
     """
     Sartaroshning ko'rsatilgan sanadagi 1 soatlik bo'sh vaqt slotlarini hisoblaydi.
     """
-    now_local = timezone.localtime(timezone.now(), TASHKENT_TZ)
+    from apps.payments.venue_billing import branch_accepts_bookings
+    from apps.payments.barber_billing import barber_accepts_bookings
+    club = barber.branch.club if barber.branch_id else barber.club
+    if not barber.is_active or not barber_accepts_bookings(barber) or (club is not None and (club.status != Club.Status.ACTIVE)) or (barber.branch_id and (barber.branch.status != Branch.Status.ACTIVE or not branch_accepts_bookings(barber.branch))) or (club is not None and barber.affiliation_status != Barber.AffiliationStatus.APPROVED):
+        return {
+            "barber_id": str(barber.id), "target_date": target_date.isoformat(),
+            "is_available": False, "status": barber.status,
+            "reason": "Muassasa hozir yangi bron qabul qilmayapti.", "slots": [],
+        }
+    local_timezone = ZoneInfo(barber.branch.timezone) if barber.branch_id else TASHKENT_TZ
+    now_local = timezone.localtime(timezone.now(), local_timezone)
     is_today = (target_date == now_local.date())
 
     # 1. Agar sartarosh bugun ishlamasa yoki dam olish kuni bo'lsa
@@ -53,20 +64,28 @@ def get_barber_available_slots(barber: Barber, target_date: datetime.date):
             "slots": [],
         }
 
-    # 3. Ish vaqti oralig'ida 1 soatlik slotlar generatsiyasi
-    start_hour = barber.work_start_time.hour
-    end_hour = barber.work_end_time.hour
-    if barber.work_end_time.minute > 0:
-        end_hour += 1
+    opens_at = timezone.make_aware(datetime.datetime.combine(target_date, barber.work_start_time), local_timezone)
+    closes_at = timezone.make_aware(datetime.datetime.combine(target_date, barber.work_end_time), local_timezone)
+    if closes_at <= opens_at:
+        closes_at += datetime.timedelta(days=1)
+    if barber.branch_id:
+        from apps.bookings.services import _schedule_window
+        window = _schedule_window(barber.branch, target_date)
+        if window is None:
+            return {"barber_id": str(barber.id), "target_date": target_date.isoformat(), "is_available": False, "status": barber.status, "reason": "Filial bu kuni yopiq.", "slots": []}
+        opens_at = max(opens_at, window[0])
+        closes_at = min(closes_at, window[1])
+        if target_date > now_local.date() + datetime.timedelta(days=barber.branch.advance_booking_days):
+            return {"barber_id": str(barber.id), "target_date": target_date.isoformat(), "is_available": False, "status": barber.status, "reason": "Bron sanasi ruxsat etilgan muddatdan tashqarida.", "slots": []}
 
     # Band qilingan bronlar va holdlar
     day_start = timezone.make_aware(
         datetime.datetime.combine(target_date, datetime.time.min),
-        TASHKENT_TZ,
+        local_timezone,
     )
     day_end = timezone.make_aware(
-        datetime.datetime.combine(target_date, datetime.time.max),
-        TASHKENT_TZ,
+        datetime.datetime.combine(target_date + datetime.timedelta(days=1), datetime.time.max),
+        local_timezone,
     )
 
     active_bookings = Booking.objects.filter(
@@ -91,13 +110,10 @@ def get_barber_available_slots(barber: Barber, target_date: datetime.date):
     occupied_intervals = list(active_bookings) + list(active_holds)
 
     slots = []
-    for hour in range(start_hour, end_hour):
-        slot_start_dt = timezone.make_aware(
-            datetime.datetime.combine(target_date, datetime.time(hour=hour, minute=0)),
-            TASHKENT_TZ,
-        )
+    slot_start_dt = opens_at
+    while slot_start_dt + datetime.timedelta(hours=1) <= closes_at:
         slot_end_dt = slot_start_dt + datetime.timedelta(hours=1)
-
+        hour = slot_start_dt.hour
         # O'tgan vaqt tekshiruvi
         is_past = slot_start_dt < now_local
 
@@ -113,12 +129,13 @@ def get_barber_available_slots(barber: Barber, target_date: datetime.date):
         slots.append({
             "starts_at": slot_start_dt.isoformat(),
             "ends_at": slot_end_dt.isoformat(),
-            "time_label": f"{hour:02d}:00 - {hour+1:02d}:00",
+            "time_label": f"{slot_start_dt:%H:%M} - {slot_end_dt:%H:%M}",
             "hour": hour,
             "is_available": is_slot_available,
             "is_past": is_past,
             "is_occupied": is_occupied,
         })
+        slot_start_dt = slot_end_dt
 
     return {
         "barber_id": str(barber.id),

@@ -8,6 +8,7 @@ from apps.clubs.views import (
     CabinetResourceBlockViewSet,
     CabinetSpecialScheduleViewSet,
     CabinetZoneViewSet,
+    ServiceTypeViewSet,
     CityViewSet,
     DistrictViewSet,
     FavoriteViewSet,
@@ -17,6 +18,7 @@ from apps.clubs.views import (
 
 
 router = DefaultRouter()
+router.register("cabinet/service-types", ServiceTypeViewSet, basename="service-types")
 router.register("clubs", PublicClubViewSet, basename="clubs")
 router.register("branches", PublicBranchViewSet, basename="branches")
 router.register("locations/cities", CityViewSet, basename="cities")

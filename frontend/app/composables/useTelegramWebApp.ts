@@ -68,9 +68,9 @@ declare global {
 }
 
 export const useTelegramWebApp = () => {
-  const { user, load, setUser } = useAuth()
+  const { user, load, setUser } = useAuth("customer")
   const { locale } = useTranslations()
-  const authApi = useAuthApi()
+  const authApi = useAuthApi("customer")
 
   const isTMA = computed(() => {
     if (import.meta.server) return false

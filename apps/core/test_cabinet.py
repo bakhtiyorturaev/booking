@@ -113,6 +113,40 @@ class CabinetStaffApiTestCase(TestCase):
         self.customer_user.refresh_from_db()
         self.assertEqual(self.customer_user.role, User.Role.MODERATOR)
 
+    def test_moderator_cannot_grant_admin_role(self):
+        self.client.force_authenticate(user=self.moderator_user)
+        for target in (self.moderator_user, self.customer_user):
+            response = self.client.post(
+                f"/api/v1/cabinet/users/{target.id}/set-role/",
+                {"role": "ADMIN"},
+                format="json",
+            )
+            self.assertEqual(response.status_code, 403)
+            target.refresh_from_db()
+            self.assertNotEqual(target.role, User.Role.ADMIN)
+
+    def test_moderator_cannot_block_administrator(self):
+        self.client.force_authenticate(user=self.moderator_user)
+        response = self.client.post(
+            f"/api/v1/cabinet/users/{self.admin_user.id}/toggle-status/"
+        )
+        self.assertEqual(response.status_code, 403)
+        self.admin_user.refresh_from_db()
+        self.assertEqual(self.admin_user.status, User.Status.ACTIVE)
+
+    def test_administrator_cannot_change_own_role(self):
+        self.client.force_authenticate(user=self.admin_user)
+        response = self.client.post(
+            f"/api/v1/cabinet/users/{self.admin_user.id}/set-role/",
+            {"role": "CUSTOMER"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_customer_cannot_list_cabinet_users(self):
+        self.client.force_authenticate(user=self.customer_user)
+        self.assertEqual(self.client.get("/api/v1/cabinet/users/").status_code, 403)
+
     def test_cabinet_reviews_moderation(self):
         # Create a booking and review
         now = timezone.now()

@@ -24,6 +24,8 @@ def barber_photo_upload_to(instance, filename):
 
 
 class Barber(models.Model):
+    is_free = models.BooleanField(default=True, help_text="Platformadan bepul foydalanish.")
+
     class Status(models.TextChoices):
         AVAILABLE = "AVAILABLE", "Ishda"
         BREAK = "BREAK", "Tanaffusda"
@@ -59,6 +61,8 @@ class Barber(models.Model):
         related_name="barbers",
         help_text="Sartaroshxona filiali.",
     )
+    billing_city = models.ForeignKey("clubs.City", on_delete=models.PROTECT, null=True, blank=True, related_name="billing_barbers")
+    billing_district = models.ForeignKey("clubs.District", on_delete=models.PROTECT, null=True, blank=True, related_name="billing_barbers")
     affiliation_status = models.CharField(
         max_length=15,
         choices=AffiliationStatus.choices,

@@ -1,276 +1,77 @@
 <script setup lang="ts">
-import { useAuth } from "~/composables/useAuth"
-import { useTelegramWebApp } from "~/composables/useTelegramWebApp"
 import { useAuthApi } from "~/api/auth"
-import { useTranslations } from "~/composables/useTranslations"
-
-const props = defineProps<{
-  modelValue: boolean
-  title?: string
-  description?: string
-}>()
-
-const emit = defineEmits<{
-  (e: "update:modelValue", value: boolean): void
-  (e: "authenticated" | "close"): void
-}>()
-
-const { isTMA, initTMA, haptic } = useTelegramWebApp()
-const { load, user, setUser } = useAuth()
-const { locale, load: loadTranslations, t } = useTranslations()
-const authApi = useAuthApi()
-
-await loadTranslations()
-if (["auth.telegram_quick_login", "auth.telegram_login_subtitle", "auth.telegram_qr_instruction", "auth.open_in_telegram", "auth.waiting_bot_confirmation", "auth.connecting_telegram"].some(code => t(code) === code)) {
-  await loadTranslations(locale.value, true).catch(() => undefined)
-}
-
+const props = defineProps<{ modelValue: boolean; title?: string; description?: string }>()
+const emit = defineEmits<{ (event: "update:modelValue", value: boolean): void; (event: "authenticated" | "close"): void }>()
+const { setUser } = useAuth("customer")
+const { locale, t } = useTranslations()
+const api = useAuthApi("customer")
+const { isTMA, initTMA } = useTelegramWebApp()
+const session = ref("")
 const deepLink = ref("")
-const token = ref("")
-const isLoading = ref(false)
-const isPolling = ref(false)
-const isChecking = ref(false)
-const errorMessage = ref("")
-let pollInterval: ReturnType<typeof setInterval> | null = null
-
-const qrCodeUrl = computed(() => {
-  if (!deepLink.value) return ""
-  return `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(deepLink.value)}&margin=8`
-})
-
-const formattedErrorMessage = computed(() => {
-  if (!errorMessage.value) return ""
-  if (/^[a-z0-9_]+(?:\.[a-z0-9_]+)+$/.test(errorMessage.value)) {
-    return t(errorMessage.value)
-  }
-  return errorMessage.value
-})
-
-const startWebLogin = async () => {
-  isLoading.value = true
-  errorMessage.value = ""
+const code = ref("")
+const loading = ref(false)
+const verifying = ref(false)
+const error = ref("")
+const close = () => { if (!verifying.value) { emit("update:modelValue", false); emit("close") } }
+const opened = computed(() => props.modelValue)
+useDialogFocus(opened, "#telegram-code-dialog", close)
+const start = async () => {
+  if (loading.value) return
+  loading.value = true; error.value = ""; code.value = ""
   try {
-    const response = await authApi.initTelegramWebLogin(locale.value)
-    token.value = response.data.token
-    deepLink.value = response.data.deep_link
-    if (!import.meta.server) {
-      try {
-        sessionStorage.setItem("tg_web_login_token", response.data.token)
-      } catch {
-        // Ignored
-      }
+    if (isTMA.value) {
+      await initTMA()
+      const { user } = useAuth("customer")
+      if (user.value) { emit("authenticated"); emit("update:modelValue", false); return }
+      throw new Error("Telegram orqali kirib bo‘lmadi. Qayta urinib ko‘ring.")
     }
-    startPolling()
-  } catch (error: any) {
-    const code = error?.data?.code || error?.code || error?.message || "common.backend_unavailable"
-    errorMessage.value = code
-  } finally {
-    isLoading.value = false
-  }
+    const response = await api.initTelegramCodeLogin(locale.value)
+    session.value = response.data.session_id
+    deepLink.value = response.data.bot_url
+  } catch { error.value = "Telegram bilan bog‘lanib bo‘lmadi. Qayta urinib ko‘ring." }
+  finally { loading.value = false }
 }
-
-const checkNow = async () => {
-  if (!token.value || isChecking.value) return
-  isChecking.value = true
-
+const verify = async () => {
+  if (verifying.value || !/^[0-9]{5}$/.test(code.value)) return
+  verifying.value = true; error.value = ""
   try {
-    const response = await authApi.checkTelegramWebLogin(token.value, locale.value)
-    if (response.data?.status === "SUCCESS") {
-      stopPolling()
-      if (!import.meta.server) {
-        try {
-          sessionStorage.removeItem("tg_web_login_token")
-        } catch {
-          // Ignored
-        }
-      }
-      if (response.data.user) {
-        setUser(response.data.user)
-      }
-      await load(true).catch(() => undefined)
-      haptic("success")
-      useToast().success(t("auth.login_success") || "Tizimga muvaffaqiyatli kirdingiz!")
-      emit("authenticated")
-      emit("update:modelValue", false)
-    }
-  } catch (error: any) {
-    if (error?.data?.code === "auth.session_expired") {
-      if (!import.meta.server) {
-        try {
-          sessionStorage.removeItem("tg_web_login_token")
-        } catch {
-          // Ignored
-        }
-      }
-    }
-  } finally {
-    isChecking.value = false
-  }
+    const response = await api.verifyTelegramCode({ code: code.value, session_id: session.value }, locale.value)
+    setUser(response.data.user)
+    emit("authenticated"); emit("update:modelValue", false)
+  } catch { error.value = "Kod noto‘g‘ri yoki eskirgan. Telegram’dan yangi kod oling." }
+  finally { verifying.value = false }
 }
-
-const onFocus = () => {
-  if (isPolling.value) void checkNow()
-}
-
-const onVisibilityChange = () => {
-  if (document.visibilityState === "visible" && isPolling.value) {
-    void checkNow()
-  }
-}
-
-const startPolling = () => {
-  stopPolling()
-  if (!token.value) return
-  isPolling.value = true
-
-  pollInterval = setInterval(() => {
-    void checkNow()
-  }, 1200)
-
-  if (!import.meta.server) {
-    window.addEventListener("focus", onFocus)
-    document.addEventListener("visibilitychange", onVisibilityChange)
-  }
-}
-
-const stopPolling = () => {
-  if (pollInterval) {
-    clearInterval(pollInterval)
-    pollInterval = null
-  }
-  if (!import.meta.server) {
-    window.removeEventListener("focus", onFocus)
-    document.removeEventListener("visibilitychange", onVisibilityChange)
-  }
-  isPolling.value = false
-}
-
-const handleTmaLogin = async () => {
-  isLoading.value = true
-  try {
-    await initTMA()
-    if (user.value) {
-      emit("authenticated")
-      emit("update:modelValue", false)
-    }
-  } finally {
-    isLoading.value = false
-  }
-}
-
-const openTelegramLink = () => {
-  if (deepLink.value) {
-    window.open(deepLink.value, "_blank")
-  }
-}
-
-const close = () => {
-  stopPolling()
-  emit("update:modelValue", false)
-  emit("close")
-}
-
-watch(
-  () => props.modelValue,
-  (isOpen) => {
-    if (isOpen) {
-      if (isTMA.value) {
-        void handleTmaLogin()
-      } else {
-        void startWebLogin()
-      }
-    } else {
-      stopPolling()
-    }
-  },
-  { immediate: true },
-)
-
-onUnmounted(() => {
-  stopPolling()
-})
+watch(() => props.modelValue, visible => { if (visible) void start(); else { code.value = ""; session.value = "" } }, { immediate: true })
 </script>
-
 <template>
   <Teleport to="body">
-    <div
-      v-if="modelValue"
-      class="tg-modal-backdrop"
-      @click.self="close"
-    >
+    <div v-if="modelValue" id="telegram-code-dialog" class="tg-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="telegram-code-title" tabindex="-1" @click.self="close">
       <div class="tg-modal-card">
-        <!-- Close Button -->
-        <button
-          type="button"
-          class="tg-modal-close"
-          aria-label="Close"
-          @click="close"
-        >
-          ✕
-        </button>
-
-        <!-- Header -->
-        <div class="tg-modal-header">
-          <div class="tg-icon-bubble">
-            <svg class="tg-svg-mark" viewBox="0 0 24 24" width="28" height="28" fill="currentColor">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.75-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z" />
-            </svg>
-          </div>
-          <h2 class="tg-modal-title">
-            {{ title || t("auth.telegram_quick_login") }}
-          </h2>
-          <p class="tg-modal-description">
-            {{ description || t("auth.telegram_login_subtitle") }}
-          </p>
-        </div>
-
-        <!-- Body State Handling -->
-        <div v-if="isLoading" class="tg-modal-status">
-          <span class="auth-spinner" />
-          <p>{{ t("auth.connecting_telegram") }}</p>
-        </div>
-
-        <div v-else-if="errorMessage" class="tg-modal-status">
-          <p class="form-message" role="alert">{{ formattedErrorMessage }}</p>
-          <button type="button" class="secondary-button" @click="startWebLogin">
-            {{ t("common.retry") }}
-          </button>
-        </div>
-
-        <div v-else class="tg-modal-content">
-          <!-- QR Code for Desktop -->
-          <div class="tg-qr-box">
-            <div class="tg-qr-inner">
-              <img
-                v-if="qrCodeUrl"
-                :src="qrCodeUrl"
-                alt="Telegram Login QR"
-                class="tg-qr-img"
-              >
-            </div>
-            <p class="tg-qr-text">
-              {{ t("auth.telegram_qr_instruction") }}
-            </p>
-          </div>
-
-          <!-- Direct Deep Link Button -->
-          <button
-            type="button"
-            class="primary-button tg-submit-btn"
-            @click="openTelegramLink"
-          >
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.75-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z" />
-            </svg>
-            <span>{{ t("auth.open_in_telegram") || "Telegram orqali kirish" }}</span>
-          </button>
-        </div>
+        <button type="button" class="tg-modal-close" aria-label="Yopish" :disabled="verifying" @click="close">✕</button>
+        <div class="tg-modal-header"><h2 id="telegram-code-title" class="tg-modal-title">{{ title || t("auth.login_tab") || 'Kirish' }}</h2><p class="tg-modal-description">{{ description || 'Botda Start tugmasini bosing. Keyin 5 xonali kodni shu yerga kiriting.' }}</p></div>
+        <p v-if="error" class="form-message" role="alert">{{ error }}</p>
+        <div v-if="loading" class="tg-modal-status"><span class="auth-spinner" /><p>Yuklanmoqda…</p></div>
+        <template v-else>
+          <a v-if="deepLink" :href="deepLink" target="_blank" rel="noopener noreferrer" class="primary-button tg-submit-btn">Telegram orqali kirish</a>
+          <form v-if="session" class="telegram-code-form" @submit.prevent="verify">
+            <label for="telegram-login-code">Telegram kodi</label>
+            <input id="telegram-login-code" v-model="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{5}" minlength="5" maxlength="5" placeholder="12345" required :disabled="verifying">
+            <small>Kod berilganidan boshlab 1 daqiqa amal qiladi.</small>
+            <button type="submit" class="primary-button" :disabled="verifying || code.length !== 5">{{ verifying ? 'Tekshirilmoqda…' : 'Kirish' }}</button>
+          </form>
+          <button type="button" class="secondary-button" :disabled="verifying" @click="start">Yangi kod olish</button>
+        </template>
       </div>
     </div>
   </Teleport>
 </template>
-
 <style scoped>
+.telegram-code-form { display: grid; gap: 12px; margin: 20px 0; }
+.telegram-code-form input { width: 100%; min-height: 52px; text-align: center; font-size: 24px; letter-spacing: 8px; color: var(--text); background: var(--control); border: 1px solid var(--panel-border); border-radius: 10px; }
+.telegram-code-form small { color: var(--muted); line-height: 1.5; }
+.tg-submit-btn { text-decoration: none; justify-content: center; }
+.tg-modal-card { max-height: calc(100dvh - 32px); overflow-y: auto; }
+
 .tg-modal-backdrop {
   position: fixed;
   inset: 0;

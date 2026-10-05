@@ -2,9 +2,7 @@
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome"
 import {
   faCalendarCheck,
-  faCrown,
   faHouse,
-  faLock,
   faRightToBracket,
   faShieldHalved,
   faUser,
@@ -12,33 +10,15 @@ import {
 import TelegramAuthModal from "~/components/auth/TelegramAuthModal.vue"
 
 const { locale, load: loadTranslations, t } = useTranslations()
-const subscriptionState = useSubscription()
-const auth = useAuth()
+const auth = useAuth("customer")
 const showAuthModal = ref(false)
 
 await loadTranslations()
 if (["auth.login_tab", "profile.subscription_paid"].some(code => t(code) === code)) await loadTranslations(locale.value, true)
 await auth.load().catch(() => null)
-if (auth.isAuthenticated.value) {
-  await subscriptionState.load().catch(() => null)
-}
-
-const subscriptionTitle = computed(() => {
-  const value = subscriptionState.subscription.value
-  if (!subscriptionState.isPaid.value || !value?.expires_at) return t("profile.no_subscription")
-  const date = new Intl.DateTimeFormat(locale.value, {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(new Date(value.expires_at))
-  return t("profile.subscription_active_until", { date })
-})
-
 const onAuthenticated = async () => {
   await auth.load(true)
-  if (auth.isAuthenticated.value) {
-    await subscriptionState.load(true).catch(() => null)
-  }
+
 }
 </script>
 
@@ -58,7 +38,7 @@ const onAuthenticated = async () => {
         </NuxtLink>
         <NuxtLink
           v-if="auth.isAuthenticated.value && ['ADMIN', 'MODERATOR'].includes(auth.user.value?.role || '')"
-          to="/admin"
+          to="/cabinet"
           class="admin-portal-link"
         >
           <span>⚡ Admin</span>
@@ -66,16 +46,6 @@ const onAuthenticated = async () => {
       </nav>
 
       <div class="customer-actions">
-        <span
-          v-if="auth.isAuthenticated.value"
-          class="subscription-chip"
-          :class="{ paid: subscriptionState.isPaid.value }"
-          :title="subscriptionTitle"
-        >
-          <FontAwesomeIcon :icon="subscriptionState.isPaid.value ? faCrown : faLock" />
-          {{ t(subscriptionState.isPaid.value ? "profile.subscription_paid" : "profile.subscription_free") }}
-        </span>
-
         <!-- Profile icon: opens Telegram Login modal if unauthenticated, or navigates to /profile if authenticated -->
         <button
           v-if="!auth.isAuthenticated.value"

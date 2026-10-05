@@ -65,6 +65,8 @@ export interface BarberProfile {
 }
 
 export interface CabinetBarberItem {
+  is_free: boolean
+  billing: import("~/types/venueBilling").VenueBillingStatus
   id: string
   user_id: string
   user_phone: string

@@ -30,10 +30,12 @@ export default defineNuxtConfig({
   css: [
     "@fortawesome/fontawesome-svg-core/styles.css",
     "~/assets/css/main.css",
+    "~/assets/css/cabinet.css",
   ],
-  devtools: { enabled: true },
+  devtools: { enabled: process.env.NUXT_DEVTOOLS === "true" },
   modules: ["@nuxt/eslint"],
   runtimeConfig: {
+    trustProxyHeaders: process.env.NUXT_TRUST_PROXY_HEADERS || "false",
     djangoApiBaseUrl: process.env.NUXT_DJANGO_API_BASE_URL || "http://127.0.0.1:8000/api/v1",
     public: {
       apiBaseUrl: process.env.NUXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000/api/v1",

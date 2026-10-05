@@ -16,6 +16,7 @@ from apps.accounts.validators import (
 class User(AbstractBaseUser, PermissionsMixin):
     class Role(models.TextChoices):
         CUSTOMER = "CUSTOMER", "Customer"
+        CLIENT = "CLIENT", "Client"
         MODERATOR = "MODERATOR", "Moderator"
         ADMIN = "ADMIN", "Administrator"
 
@@ -32,6 +33,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.CUSTOMER)
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.ACTIVE)
     last_login = models.DateTimeField(null=True, blank=True, db_column="last_login_at")
+    password_changed_at = models.DateTimeField(null=True, blank=True)
     is_staff = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -55,6 +57,22 @@ class User(AbstractBaseUser, PermissionsMixin):
     @property
     def is_phone_verified(self):
         return bool(self.phone and self.telegram_verified_at)
+
+    @property
+    def is_password_expired(self):
+        if not self.has_usable_password():
+            return False
+        from datetime import timedelta
+        from django.utils import timezone
+        last_changed = self.password_changed_at or self.created_at
+        if not last_changed:
+            return False
+        return timezone.now() > last_changed + timedelta(days=30)
+
+    def set_password(self, raw_password):
+        super().set_password(raw_password)
+        from django.utils import timezone
+        self.password_changed_at = timezone.now()
 
     def save(self, *args, **kwargs):
         self.username = normalize_username(self.username)
@@ -140,3 +158,14 @@ class UserSession(models.Model):
         if self.revoked_at is None:
             self.revoked_at = timezone.now()
             self.save(update_fields=["revoked_at"])
+
+
+class TelegramLoginChallenge(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    session_hash = models.CharField(max_length=64, unique=True)
+    code_hash = models.CharField(max_length=64, blank=True)
+    user_info = models.JSONField(default=dict)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    expires_at = models.DateTimeField(db_index=True)
+    used_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)

@@ -17,7 +17,7 @@ from apps.clubs.models import (
     SpecialSchedule,
     Zone,
 )
-from apps.payments.services import require_paid_access
+from apps.payments.venue_billing import require_branch_access, branch_accepts_bookings
 
 
 BLOCKING_BOOKING_STATUSES = (
@@ -70,6 +70,8 @@ def _overlaps(item, starts_at, ends_at):
 
 
 def get_branch_availability(branch, target_date, duration_minutes=None):
+    if not branch_accepts_bookings(branch):
+        return []
     version_key = f"branch_avail_ver:{branch.id}"
     version = cache.get(version_key)
     if version is None:
@@ -180,7 +182,6 @@ def _validate_window(zone, starts_at, ends_at, quantity):
 
 @transaction.atomic
 def create_hold(user, zone_id, starts_at, ends_at, quantity=1):
-    require_paid_access(user)
     get_user_model().objects.select_for_update().get(pk=user.pk)
     zone = Zone.objects.select_for_update().select_related("branch", "branch__club").get(
         pk=zone_id
@@ -192,6 +193,7 @@ def create_hold(user, zone_id, starts_at, ends_at, quantity=1):
     ):
         raise ValidationError("bookings.zone_not_available", code="bookings.zone_not_available")
 
+    require_branch_access(zone.branch)
     _validate_window(zone, starts_at, ends_at, quantity)
     now = timezone.now()
     BookingHold.objects.filter(
@@ -254,7 +256,7 @@ def create_booking(user, hold_id):
     expired = False
     with transaction.atomic():
         get_user_model().objects.select_for_update().get(pk=user.pk)
-        hold = BookingHold.objects.select_for_update().select_related("zone").get(
+        hold = BookingHold.objects.select_for_update().select_related("zone__branch__club").get(
             pk=hold_id,
             user=user,
         )
@@ -271,6 +273,7 @@ def create_booking(user, hold_id):
         ).exists():
             raise ValidationError("bookings.active_booking_exists", code="bookings.active_booking_exists")
         else:
+            require_branch_access(hold.zone.branch)
             booking = Booking.objects.create(
                 hold=hold,
                 user=user,
@@ -337,7 +340,7 @@ def cancel_booking(user, booking_id, reason=""):
 @transaction.atomic
 def transition_booking_for_operator(user, booking_id, target_status):
     """Move a booking through the on-site lifecycle for an authorized club owner."""
-    from apps.clubs.permissions import can_manage_club
+    from apps.clubs.permissions import can_manage_club, is_platform_admin
 
     booking = (
         Booking.objects.select_for_update()
@@ -349,7 +352,7 @@ def transition_booking_for_operator(user, booking_id, target_status):
         if (booking.zone and booking.zone.branch)
         else (booking.barber.club if booking.barber else None)
     )
-    if not club or not can_manage_club(user, club):
+    if not (is_platform_admin(user) or (club and can_manage_club(user, club)) or (booking.barber_id and booking.barber.user_id == user.pk)):
         raise PermissionError("clubs.permission_denied")
 
     now = timezone.now()
@@ -406,3 +409,31 @@ def process_booking_lifecycle(now=None):
         except Booking.DoesNotExist:
             continue
     return {"confirmed": confirmed, "no_shows": no_shows}
+
+
+@transaction.atomic
+def create_barber_booking(user, barber_id, starts_at, ends_at):
+    from apps.barbers.models import Barber
+    from apps.barbers.services import get_barber_available_slots
+    from apps.payments.barber_billing import require_barber_access
+    get_user_model().objects.select_for_update().get(pk=user.pk)
+    barber = Barber.objects.select_for_update().select_related("branch__club", "club", "billing").get(pk=barber_id)
+    require_barber_access(barber)
+    if starts_at <= timezone.now() or ends_at - starts_at != timedelta(hours=1):
+        raise ValidationError("bookings.invalid_time_range", code="bookings.invalid_time_range")
+    local_timezone = ZoneInfo(barber.branch.timezone) if barber.branch_id else ZoneInfo("Asia/Tashkent")
+    target_date = timezone.localtime(starts_at, local_timezone).date()
+    result = get_barber_available_slots(barber, target_date)
+    matching = any(datetime.fromisoformat(slot["starts_at"]) == starts_at and datetime.fromisoformat(slot["ends_at"]) == ends_at and slot["is_available"] for slot in result["slots"])
+    if not matching:
+        raise ValidationError("bookings.zone_not_available", code="bookings.zone_not_available")
+    if Booking.objects.filter(user=user, status__in=BLOCKING_BOOKING_STATUSES, ends_at__gt=timezone.now()).exists():
+        raise ValidationError("bookings.active_booking_exists", code="bookings.active_booking_exists")
+    booking = Booking.objects.create(user=user, barber=barber, starts_at=starts_at, ends_at=ends_at, quantity=1, unit_price_tiyin=0, total_price_tiyin=0, status=Booking.Status.CONFIRMED, confirmed_at=timezone.now())
+    def notify():
+        from apps.barbers.services import send_barber_booking_notification
+        from telegram_bot.services import send_customer_booking_notification
+        send_barber_booking_notification(booking)
+        send_customer_booking_notification(booking, Booking.Status.CONFIRMED)
+    transaction.on_commit(notify)
+    return booking

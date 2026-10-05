@@ -6,7 +6,7 @@ import type {
 } from "~/types/club"
 
 export interface BranchListParams {
-  category?: "GAMING_CLUB" | "BARBERSHOP"
+  category?: "GAMING_CLUB" | "BARBERSHOP" | "BILLIARDS" | "OTHER"
   club?: string
   city?: string
   district?: string

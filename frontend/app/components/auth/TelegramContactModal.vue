@@ -59,7 +59,7 @@ const handleTmaRequestContact = () => {
 }
 
 const submitPhone = async (phoneToSubmit?: string) => {
-  let raw = (phoneToSubmit || phoneInput.value).replace(/\s+/g, "").replace(/-/g, "").replace(/\(/g, "").replace(/\)/g, "").trim()
+  const raw = (phoneToSubmit || phoneInput.value).replace(/\s+/g, "").replace(/-/g, "").replace(/\(/g, "").replace(/\)/g, "").trim()
   if (!raw) {
     errorMessage.value = t("auth.phone_number")
     return

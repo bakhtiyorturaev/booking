@@ -16,7 +16,7 @@ from telegram_bot.models import TelegramBotSettings
 
 
 class TelegramMiniAppAuthTests(APITestCase):
-    BOT_TOKEN = "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+    BOT_TOKEN = "123456789:TEST_TOKEN_FOR_UNIT_TESTS_ONLY_0000"
 
     def setUp(self):
         TelegramBotSettings.objects.update_or_create(
@@ -186,3 +186,235 @@ class TelegramMiniAppAuthTests(APITestCase):
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {tokens['access']}")
         logout_resp = self.client.post("/api/v1/auth/logout/", format="json")
         self.assertEqual(logout_resp.status_code, 200)
+
+
+class StaffPasswordAuthTests(APITestCase):
+    def setUp(self):
+        from datetime import timedelta
+        self.staff_user = User.objects.create_user(
+            username="test_admin",
+            phone="+998901234599",
+            password="InitialPassword123!",
+            role=User.Role.ADMIN,
+            is_staff=True,
+        )
+
+    def test_staff_login_success_with_jwt_tokens(self):
+        response = self.client.post(
+            "/api/v1/auth/login/",
+            {"login": "test_admin", "password": "InitialPassword123!"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["success"])
+        self.assertIn("tokens", response.data["data"])
+        self.assertIn("access", response.data["data"]["tokens"])
+        self.assertIn("refresh", response.data["data"]["tokens"])
+        self.assertFalse(response.data["data"]["password_expired"])
+
+    def test_staff_login_with_phone_number(self):
+        response = self.client.post(
+            "/api/v1/auth/login/",
+            {"login": "+998 90 123 45 99", "password": "InitialPassword123!"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["success"])
+
+    def test_staff_login_with_wrong_password(self):
+        response = self.client.post(
+            "/api/v1/auth/login/",
+            {"login": "test_admin", "password": "WrongPassword!"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_customer_cannot_use_staff_login(self):
+        User.objects.create_user(
+            username="customer_user",
+            phone="+998909876543",
+            password="CustomerPass123!",
+            role=User.Role.CUSTOMER,
+            is_staff=False,
+        )
+        response = self.client.post(
+            "/api/v1/auth/login/",
+            {"login": "customer_user", "password": "CustomerPass123!"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["code"], "auth.staff_access_denied")
+
+    def test_client_cannot_use_staff_portal(self):
+        User.objects.create_user(
+            username="venue_owner",
+            phone="+998901234580",
+            password="OwnerPassword123!",
+            role=User.Role.CLIENT,
+        )
+        response = self.client.post(
+            "/api/v1/auth/login/",
+            {"login": "venue_owner", "password": "OwnerPassword123!", "login_type": "staff"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["code"], "auth.staff_access_denied")
+
+    def test_client_can_use_client_portal(self):
+        User.objects.create_user(
+            username="venue_owner",
+            phone="+998901234580",
+            password="OwnerPassword123!",
+            role=User.Role.CLIENT,
+        )
+        response = self.client.post(
+            "/api/v1/auth/login/",
+            {"login": "venue_owner", "password": "OwnerPassword123!", "login_type": "client"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_invalid_login_type_is_rejected(self):
+        response = self.client.post(
+            "/api/v1/auth/login/",
+            {"login": "test_admin", "password": "InitialPassword123!", "login_type": "invalid"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_password_expired_after_30_days(self):
+        from datetime import timedelta
+        self.staff_user.password_changed_at = timezone.now() - timedelta(days=31)
+        self.staff_user.save()
+
+        response = self.client.post(
+            "/api/v1/auth/login/",
+            {"login": "test_admin", "password": "InitialPassword123!"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["data"]["password_expired"])
+
+    def test_change_password_resets_expiry(self):
+        from datetime import timedelta
+        self.staff_user.password_changed_at = timezone.now() - timedelta(days=31)
+        self.staff_user.save()
+
+        tokens = create_auth_tokens(self.staff_user)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {tokens['access']}")
+
+        response = self.client.post(
+            "/api/v1/auth/password/change/",
+            {
+                "old_password": "InitialPassword123!",
+                "new_password": "NewSecurePassword456!",
+                "confirm_password": "NewSecurePassword456!",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["success"])
+
+        self.staff_user.refresh_from_db()
+        self.assertTrue(self.staff_user.check_password("NewSecurePassword456!"))
+        self.assertFalse(self.staff_user.is_password_expired)
+
+
+@override_settings(TELEGRAM_BOT_USERNAME="rezervuz_test_bot")
+class TelegramCodeAuthTests(APITestCase):
+    def setUp(self):
+        TelegramBotSettings.objects.update_or_create(
+            pk=1,
+            defaults={
+                "is_enabled": True,
+                "bot_token": "123456789:TEST_TOKEN_FOR_UNIT_TESTS_ONLY_0000",
+                "bot_username": "rezervuz_test_bot",
+            },
+        )
+
+    def test_telegram_code_init_returns_bot_url_and_session(self):
+        response = self.client.post("/api/v1/auth/telegram/code/init/")
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["success"])
+        data = response.data["data"]
+        self.assertIn("session_id", data)
+        self.assertIn("bot_url", data)
+        self.assertTrue(data["bot_url"].startswith("https://t.me/rezervuz_test_bot?start=auth_"))
+
+    def test_telegram_code_generate_and_verify_success(self):
+        from apps.accounts.services.telegram_code_auth import generate_telegram_code_for_user
+
+        init_resp = self.client.post("/api/v1/auth/telegram/code/init/")
+        session_id = init_resp.data["data"]["session_id"]
+
+        user_info = {
+            "id": 99887766,
+            "first_name": "Aziz",
+            "last_name": "Rahimov",
+            "username": "aziz_r",
+            "language_code": "uz",
+        }
+        code = generate_telegram_code_for_user(user_info, session_id=session_id)
+        self.assertEqual(len(code), 5)
+        self.assertTrue(code.isdigit())
+
+        # Verify
+        verify_resp = self.client.post(
+            "/api/v1/auth/telegram/code/verify/",
+            {"code": code, "session_id": session_id, "device_name": "Web Browser"},
+            format="json",
+        )
+        self.assertEqual(verify_resp.status_code, 200)
+        self.assertTrue(verify_resp.data["success"])
+        self.assertIn("access", verify_resp.data["data"]["tokens"])
+        self.assertEqual(verify_resp.data["data"]["user"]["telegram_user_id"], 99887766)
+
+    def test_telegram_code_invalid_fails(self):
+        response = self.client.post(
+            "/api/v1/auth/telegram/code/verify/",
+            {"code": "00000", "session_id": "nonexistent_session"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["code"], "auth.code_expired_or_invalid")
+
+    def test_code_is_bound_to_browser_session_and_can_only_be_used_once(self):
+        from apps.accounts.services.telegram_code_auth import generate_telegram_code_for_user
+        first = self.client.post("/api/v1/auth/telegram/code/init/").data["data"]["session_id"]
+        second = self.client.post("/api/v1/auth/telegram/code/init/").data["data"]["session_id"]
+        code = generate_telegram_code_for_user({"id": 88881111, "first_name": "Tester"}, first)
+        self.assertEqual(self.client.post("/api/v1/auth/telegram/code/verify/", {"code": code, "session_id": second}).status_code, 400)
+        self.assertEqual(self.client.post("/api/v1/auth/telegram/code/verify/", {"code": code, "session_id": first}).status_code, 200)
+        self.assertEqual(self.client.post("/api/v1/auth/telegram/code/verify/", {"code": code, "session_id": first}).status_code, 400)
+
+    def test_code_expires_from_generation_and_failed_attempts_persist(self):
+        from apps.accounts.services.telegram_code_auth import generate_telegram_code_for_user, session_hash
+        from apps.accounts.models import TelegramLoginChallenge
+        from datetime import timedelta
+        session = self.client.post("/api/v1/auth/telegram/code/init/").data["data"]["session_id"]
+        code = generate_telegram_code_for_user({"id": 88881112}, session)
+        wrong = "00000"
+        for _ in range(5):
+            self.assertEqual(self.client.post("/api/v1/auth/telegram/code/verify/", {"code": wrong, "session_id": session}).status_code, 400)
+        challenge = TelegramLoginChallenge.objects.get(session_hash=session_hash(session))
+        self.assertEqual(challenge.attempts, 5)
+        self.assertEqual(self.client.post("/api/v1/auth/telegram/code/verify/", {"code": code, "session_id": session}).status_code, 400)
+        new_session = self.client.post("/api/v1/auth/telegram/code/init/").data["data"]["session_id"]
+        new_code = generate_telegram_code_for_user({"id": 88881112}, new_session)
+        TelegramLoginChallenge.objects.filter(session_hash=session_hash(new_session)).update(expires_at=timezone.now() - timedelta(seconds=1))
+        self.assertEqual(self.client.post("/api/v1/auth/telegram/code/verify/", {"code": new_code, "session_id": new_session}).status_code, 400)
+
+    def test_bot_start_sends_code_only_in_private_chat(self):
+        from telegram_bot.handlers import handle_message
+        from apps.accounts.models import TelegramLoginChallenge
+        session = self.client.post("/api/v1/auth/telegram/code/init/").data["data"]["session_id"]
+        client = Mock()
+        message = {"chat": {"id": 88881114, "type": "private"}, "from": {"id": 88881114}, "text": "/start auth_" + session}
+        handle_message(client, message)
+        self.assertTrue(client.send_message.called)
+        self.assertIn("<code>", str(client.send_message.call_args))
+        challenge = TelegramLoginChallenge.objects.get()
+        self.assertTrue(challenge.code_hash)
+        second = self.client.post("/api/v1/auth/telegram/code/init/").data["data"]["session_id"]
+        handle_message(client, {**message, "chat": {"id": -1001234, "type": "group"}, "text": "/start auth_" + second})
+        self.assertEqual(TelegramLoginChallenge.objects.exclude(code_hash="").count(), 1)

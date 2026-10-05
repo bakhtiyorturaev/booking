@@ -361,7 +361,7 @@ class BookingModelTests(TestCase):
         self.assertTrue(first.booking_number.isdigit())
         self.assertNotEqual(first.booking_number, second.booking_number)
 
-    def test_free_user_cannot_create_hold(self):
+    def test_customer_without_personal_subscription_can_create_hold(self):
         self.subscription.delete()
         target_date = timezone.localdate() + timedelta(days=1)
         OperatingHour.objects.create(
@@ -384,10 +384,10 @@ class BookingModelTests(TestCase):
             format="json",
         )
 
-        self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.data["code"], "payments.active_paid_subscription_required")
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertTrue(BookingHold.objects.filter(user=self.user).exists())
 
-    def test_free_user_sees_active_booking_and_last_three_history_items(self):
+    def test_customer_without_personal_subscription_sees_complete_history(self):
         self.subscription.delete()
         for day in range(1, 6):
             hold = self.make_hold(
@@ -420,7 +420,7 @@ class BookingModelTests(TestCase):
         response = client.get("/api/v1/bookings/")
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["count"], 4)
+        self.assertEqual(response.data["count"], 6)
         self.assertEqual(response.data["results"][0]["zone"]["name"], self.zone.name)
         self.assertEqual(
             response.data["results"][0]["zone"]["branch"]["club"]["name"],

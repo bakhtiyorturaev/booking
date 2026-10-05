@@ -7,7 +7,7 @@ export const useFavoritesApi = () => {
     list: (query?: Record<string, any>) =>
       api.get<PaginatedResponse<FavoriteItem>>("/api/favorites", { local: true, query }),
     add: (clubId: string) =>
-      api.post<FavoriteItem>("/api/favorites", { club: clubId }, { local: true }),
+      api.post<FavoriteItem>("/api/favorites", { local: true, body: { club: clubId } }),
     remove: (clubIdOrFavoriteId: string) =>
       api.delete(`/api/favorites/${encodeURIComponent(clubIdOrFavoriteId)}`, { local: true }),
   }

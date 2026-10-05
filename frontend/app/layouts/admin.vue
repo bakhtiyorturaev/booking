@@ -1,548 +1,251 @@
 <script setup lang="ts">
+import VenueBillingBadge from "~/components/cabinet/VenueBillingBadge.vue"
+import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome"
+import { faBolt, faBorderAll, faBuilding, faCodeBranch, faScissors, faCalendarCheck, faCreditCard, faUsers, faArrowUpRightFromSquare, faBars, faXmark, faSun, faMoon, faKey, faArrowRightFromBracket, faChevronRight, faShieldHalved } from "@fortawesome/free-solid-svg-icons"
+import ChangePasswordModal from "~/components/auth/ChangePasswordModal.vue"
 import { useAuth } from "~/composables/useAuth"
 import { useTheme } from "~/composables/useTheme"
+import { useAdminApi } from "~/api/admin"
+import { billingAlertLevel } from "~/composables/useVenueBillingStatus"
+import type { BillingVenue, VenueBillingStatus } from "~/types/venueBilling"
 
+const cabinetPath = useCabinetPath()
 const { user, logout } = useAuth()
 const { mode: theme, toggle: toggleTheme } = useTheme()
 const route = useRoute()
-
 const isSidebarOpen = ref(false)
-
-const navLinks = [
-  {
-    to: "/admin",
-    label: "Boshqaruv paneli",
-    icon: "dashboard",
-    exact: true,
-  },
-  {
-    to: "/admin/clubs",
-    label: "Muassasalar (Klub & Salon)",
-    icon: "clubs",
-  },
-  {
-    to: "/admin/branches",
-    label: "Filiallar & Zonalar",
-    icon: "branches",
-  },
-  {
-    to: "/admin/barbers",
-    label: "Sartaroshlar",
-    icon: "barbers",
-  },
-  {
-    to: "/admin/bookings",
-    label: "Bronlar",
-    icon: "bookings",
-  },
-  {
-    to: "/admin/payments",
-    label: "To'lovlar",
-    icon: "payments",
-  },
-  {
-    to: "/admin/reviews",
-    label: "Sharhlar",
-    icon: "reviews",
-  },
-  {
-    to: "/admin/users",
-    label: "Foydalanuvchilar",
-    icon: "users",
-  },
-]
-
-const isActive = (item: { to: string, exact?: boolean }) => {
-  if (item.exact) {
-    return route.path === item.to
-  }
-  return route.path.startsWith(item.to)
+const showChangePasswordModal = ref(false)
+const isLoggingOut = ref(false)
+const showProfileMenu = ref(false)
+const profileMenu = ref<HTMLElement | null>(null)
+const closeProfileMenu = (event: MouseEvent) => { if (!profileMenu.value?.contains(event.target as Node)) showProfileMenu.value = false }
+onMounted(() => document.addEventListener("click", closeProfileMenu))
+onBeforeUnmount(() => document.removeEventListener("click", closeProfileMenu))
+watch(() => route.fullPath, () => { showProfileMenu.value = false })
+const sidebar = ref<HTMLElement | null>(null)
+const menuButton = ref<HTMLButtonElement | null>(null)
+const roleLabel = computed(() => ({ ADMIN: "Administrator", MODERATOR: "Moderator", CLIENT: "Muassasa egasi" })[user.value?.role || ""] || "Xodim")
+const displayName = computed(() => user.value?.full_name || user.value?.profile?.full_name || user.value?.username || "Xodim")
+const isStaff = computed(() => user.value?.is_staff || user.value?.is_superuser || ["ADMIN", "MODERATOR"].includes(user.value?.role || ""))
+const billingClock = useState<number>("venue-billing-clock", () => Date.now())
+const clientVenues = ref<BillingVenue[]>([])
+const billingStatuses = useState<Record<string, VenueBillingStatus>>("venue-billing-statuses", () => ({}))
+const billingNotices = computed(() => clientVenues.value.filter(venue => billingAlertLevel(venue, billingClock.value) !== "NONE"))
+const billingApi = useAdminApi()
+let billingTimer: ReturnType<typeof setInterval> | undefined
+const refreshClientBilling = async () => {
+  const ownerId = user.value?.id
+  if (isStaff.value || user.value?.role !== "CLIENT" || !ownerId) { clientVenues.value = []; billingStatuses.value = {}; return }
+  try {
+    const venues: BillingVenue[] = []
+    let page = 1
+    let hasNext = true
+    while (hasNext) {
+      const response = await billingApi.getVenueBilling({ page: page++, page_size: 100 })
+      venues.push(...response.results)
+      hasNext = Boolean(response.next)
+    }
+    if (user.value?.id === ownerId && !isStaff.value) {
+      clientVenues.value = venues
+      billingStatuses.value = Object.fromEntries(venues.map(venue => [venue.id, venue]))
+    }
+  } catch { /* The venue list still displays its billing status if the notice refresh fails. */ }
 }
-
+onMounted(() => {
+  billingClock.value = Date.now()
+  void refreshClientBilling()
+  billingTimer = setInterval(() => { billingClock.value = Date.now(); void refreshClientBilling() }, 60000)
+})
+watch(() => user.value?.id, () => { clientVenues.value = []; billingStatuses.value = {}; void refreshClientBilling() })
+onBeforeUnmount(() => { if (billingTimer) clearInterval(billingTimer) })
+const navGroups = computed(() => [
+  { label: "Ish maydoni", items: [
+    { to: cabinetPath(''), label: "Umumiy ko‘rinish", icon: faBorderAll, exact: true },
+    { to: cabinetPath('/bookings'), label: "Bronlar", icon: faCalendarCheck },
+    { to: cabinetPath('/payments'), label: "To‘lovlar", icon: faCreditCard },
+  ] },
+  { label: "Boshqaruv", items: [
+    { to: cabinetPath('/clubs'), label: "Muassasalar", icon: faBuilding },
+    { to: cabinetPath('/branches'), label: "Filiallar va zonalar", icon: faCodeBranch },
+    { to: cabinetPath('/barbers'), label: "Sartaroshlar", icon: faScissors },
+    { to: cabinetPath('/users'), label: "Mijozlar", icon: faUsers },
+  ] },
+].map(group => ({ ...group, items: group.items.filter(item => isStaff.value || ![cabinetPath(''), cabinetPath('/users'), cabinetPath('/payments')].includes(item.to)) })))
+const isActive = (item: { to: string; exact?: boolean }) => item.exact ? route.path === item.to : route.path.startsWith(`${item.to}/`) || route.path === item.to
+const currentPage = computed(() => navGroups.value.flatMap(group => group.items).find(isActive)?.label || "Kabinet")
+const closeSidebar = () => {
+  isSidebarOpen.value = false
+  menuButton.value?.focus()
+}
+const onSidebarKeydown = (event: KeyboardEvent) => {
+  if (!isSidebarOpen.value) return
+  if (event.key === "Escape") closeSidebar()
+  if (event.key !== "Tab") return
+  const items = sidebar.value?.querySelectorAll<HTMLElement>('a[href], button:not([disabled])')
+  if (!items?.length) return
+  const first = items[0]
+  const last = items[items.length - 1]
+  if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus() }
+  else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
+}
+let previousOverflow = ""
+watch(isSidebarOpen, async (open) => {
+  if (!import.meta.client) return
+  if (open) {
+    previousOverflow = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    await nextTick()
+    sidebar.value?.querySelector<HTMLElement>(".sidebar-close")?.focus()
+  } else document.body.style.overflow = previousOverflow
+})
+watch(() => route.fullPath, () => { isSidebarOpen.value = false })
+const onResize = () => { if (window.innerWidth >= 1024) isSidebarOpen.value = false }
+onMounted(() => window.addEventListener("resize", onResize))
+onBeforeUnmount(() => {
+  window.removeEventListener("resize", onResize)
+  if (isSidebarOpen.value) document.body.style.overflow = previousOverflow
+})
 const handleLogout = async () => {
-  await logout()
-  await navigateTo("/login")
+  if (isLoggingOut.value) return
+  isLoggingOut.value = true
+  const loginPath = route.path.startsWith("/site/client/") ? "/site/client/login" : "/site/staff/login"
+  try { await logout(); await navigateTo(loginPath) }
+  catch { useToast().error("Chiqib bo‘lmadi. Qayta urinib ko‘ring.") }
+  finally { isLoggingOut.value = false }
 }
 </script>
 
 <template>
-  <div class="admin-layout">
-    <!-- Sidebar Overlay for mobile -->
-    <div
-      v-if="isSidebarOpen"
-      class="admin-sidebar-overlay"
-      @click="isSidebarOpen = false"
-    />
-
-    <!-- Sidebar -->
-    <aside class="admin-sidebar" :class="{ 'is-open': isSidebarOpen }">
-      <div class="sidebar-header">
-        <NuxtLink to="/admin" class="sidebar-brand">
-          <div class="brand-logo-badge">⚡</div>
-          <div class="brand-text">
-            <span class="brand-title">Rezerv<span style="color: #6366f1;">UZ</span></span>
-            <span class="brand-subtitle">Xodimlar Kabineti</span>
-          </div>
+  <div class="cabinet-shell" :class="{ 'cabinet-dark': theme === 'dark' }">
+    <a href="#cabinet-content" class="cabinet-skip">Asosiy sahifaga o‘tish</a>
+    <div v-if="isSidebarOpen" class="cabinet-overlay" aria-hidden="true" @click="closeSidebar" />
+    <aside id="cabinet-navigation" ref="sidebar" class="cabinet-sidebar" :class="{ 'is-open': isSidebarOpen }" :role="isSidebarOpen ? 'dialog' : undefined" :aria-modal="isSidebarOpen ? true : undefined" aria-label="Kabinet menyusi" @keydown="onSidebarKeydown">
+      <div class="cabinet-brand-row">
+        <NuxtLink :to="cabinetPath('')" class="cabinet-brand" aria-label="RezervUZ boshqaruv paneli">
+          <span class="cabinet-logo"><FontAwesomeIcon :icon="faBolt" /></span>
+          <span>Rezerv<span class="cabinet-brand-accent">UZ</span><small>Boshqaruv</small></span>
         </NuxtLink>
-        <button
-          type="button"
-          class="sidebar-close-btn"
-          aria-label="Menyuni yopish"
-          @click="isSidebarOpen = false"
-        >
-          ✕
-        </button>
+        <button type="button" class="cabinet-icon-button sidebar-close" aria-label="Menyuni yopish" @click="closeSidebar"><FontAwesomeIcon :icon="faXmark" /></button>
       </div>
-
-      <nav class="sidebar-nav">
-        <NuxtLink
-          v-for="item in navLinks"
-          :key="item.to"
-          :to="item.to"
-          class="sidebar-link"
-          :class="{ 'is-active': isActive(item) }"
-          @click="isSidebarOpen = false"
-        >
-          <span class="link-icon">
-            <svg v-if="item.icon === 'dashboard'" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
-            <svg v-else-if="item.icon === 'clubs'" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-            <svg v-else-if="item.icon === 'branches'" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>
-            <svg v-else-if="item.icon === 'barbers'" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
-            <svg v-else-if="item.icon === 'bookings'" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="m9 16 2 2 4-4"/></svg>
-            <svg v-else-if="item.icon === 'payments'" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
-            <svg v-else-if="item.icon === 'reviews'" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-            <svg v-else-if="item.icon === 'users'" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-          </span>
-          <span class="link-label">{{ item.label }}</span>
-        </NuxtLink>
+      <div class="cabinet-workspace"><span class="workspace-mark"><FontAwesomeIcon :icon="faBuilding" /></span><div><strong>RezervUZ</strong><span>{{ isStaff ? "Xodimlar kabineti" : "Muassasa kabineti" }}</span></div><FontAwesomeIcon :icon="faShieldHalved" class="workspace-shield" /></div>
+      <nav class="cabinet-nav" aria-label="Asosiy navigatsiya">
+        <div v-for="group in navGroups" :key="group.label" class="cabinet-nav-group">
+          <p class="cabinet-nav-label">{{ group.label }}</p>
+          <NuxtLink v-for="item in group.items" :key="item.to" :to="item.to" class="cabinet-nav-link" :class="{ 'is-active': isActive(item) }" :aria-current="isActive(item) ? 'page' : undefined">
+            <FontAwesomeIcon :icon="item.icon" /><span>{{ item.label }}</span><FontAwesomeIcon v-if="isActive(item)" :icon="faChevronRight" class="nav-arrow" />
+          </NuxtLink>
+        </div>
       </nav>
-
-      <div class="sidebar-footer">
-        <NuxtLink to="/" class="back-to-site-link">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-          <span>Saytga qaytish</span>
-        </NuxtLink>
+      <div class="cabinet-sidebar-bottom">
+        <NuxtLink to="/" class="cabinet-site-link"><FontAwesomeIcon :icon="faArrowUpRightFromSquare" /><span>Saytni ochish</span></NuxtLink>
+        <div class="cabinet-sidebar-user"><span class="cabinet-avatar">{{ displayName.slice(0, 1).toUpperCase() }}</span><div><strong>{{ displayName }}</strong><span>{{ roleLabel }}</span></div></div>
       </div>
     </aside>
-
-    <!-- Main Wrapper -->
-    <div class="admin-wrapper">
-      <!-- Top Header -->
-      <header class="admin-topbar">
-        <div class="topbar-left">
-          <button
-            type="button"
-            class="topbar-menu-btn"
-            aria-label="Menyuni ochish"
-            @click="isSidebarOpen = true"
-          >
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-          </button>
-          <div class="topbar-badge">
-            <span class="live-dot" />
-            <span>Xodimlar Portali</span>
-          </div>
-        </div>
-
-        <div class="topbar-right">
-          <!-- Theme Toggle -->
-          <button
-            type="button"
-            class="theme-toggle-btn"
-            :title="theme === 'dark' ? 'Yorug\' rejim' : 'Qorong\'i rejim'"
-            @click="toggleTheme"
-          >
-            <span v-if="theme === 'dark'">☀️</span>
-            <span v-else>🌙</span>
-          </button>
-
-          <!-- User Badge -->
-          <div class="staff-user-card">
-            <div class="staff-avatar">
-              {{ (user?.full_name || user?.username || "A").slice(0, 1).toUpperCase() }}
-            </div>
-            <div class="staff-meta">
-              <span class="staff-name">{{ user?.full_name || user?.username }}</span>
-              <span class="staff-role" :class="user?.role?.toLowerCase()">{{ user?.role }}</span>
+    <div class="cabinet-workarea" :inert="isSidebarOpen || undefined">
+      <header class="cabinet-topbar">
+        <div class="cabinet-breadcrumb"><button ref="menuButton" type="button" class="cabinet-icon-button cabinet-menu-button" aria-label="Menyuni ochish" aria-controls="cabinet-navigation" :aria-expanded="isSidebarOpen" @click="isSidebarOpen = true"><FontAwesomeIcon :icon="faBars" /></button><span class="breadcrumb-root">Kabinet</span><span class="breadcrumb-divider"><FontAwesomeIcon :icon="faChevronRight" /></span><span class="breadcrumb-current">{{ currentPage }}</span></div>
+        <div class="cabinet-topbar-actions">
+          <button type="button" class="cabinet-icon-button" :aria-label="theme === 'dark' ? 'Yorug‘ rejim' : 'Qorong‘i rejim'" :title="theme === 'dark' ? 'Yorug‘ rejim' : 'Qorong‘i rejim'" @click="toggleTheme"><FontAwesomeIcon :icon="theme === 'dark' ? faSun : faMoon" /></button>
+          <div ref="profileMenu" class="profile-menu" @keydown.esc="showProfileMenu = false" @focusout="event => { if (!profileMenu?.contains(event.relatedTarget as Node)) showProfileMenu = false }">
+            <button type="button" class="cabinet-avatar profile-trigger" aria-label="Profil" :aria-expanded="showProfileMenu" aria-controls="profile-actions" @click="showProfileMenu = !showProfileMenu">{{ displayName.slice(0, 1).toUpperCase() }}</button>
+            <div v-if="showProfileMenu" id="profile-actions" class="profile-actions">
+              <strong>{{ displayName }}</strong><small>{{ roleLabel }}</small>
+              <button type="button" @click="showProfileMenu = false; showChangePasswordModal = true"><FontAwesomeIcon :icon="faKey" />Parolni yangilash</button>
+              <button type="button" :disabled="isLoggingOut" @click="showProfileMenu = false; handleLogout()"><FontAwesomeIcon :icon="faArrowRightFromBracket" />Chiqish</button>
             </div>
           </div>
-
-          <!-- Logout Button -->
-          <button
-            type="button"
-            class="logout-icon-btn"
-            title="Chiqish"
-            @click="handleLogout"
-          >
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-          </button>
         </div>
       </header>
-
-      <!-- Main Slot Area -->
-      <main class="admin-main">
-        <slot />
-      </main>
+      <div v-if="user?.password_expired" class="cabinet-password-notice"><FontAwesomeIcon :icon="faShieldHalved" /><span>Parolingizni yangilang.</span><button type="button" @click="showChangePasswordModal = true">Yangilash</button></div>
+      <div v-if="!isStaff && billingNotices.length" class="billing-notices" aria-live="polite">
+        <NuxtLink v-for="venue in billingNotices" :key="venue.id" :to="cabinetPath('/clubs')" class="billing-notice" :class="billingAlertLevel(venue, billingClock).toLowerCase()"><span><strong>{{ venue.name }}</strong><small>To‘lov muddati</small></span><VenueBillingBadge :billing="venue" :club-id="venue.id" /></NuxtLink>
+      </div>
+      <main id="cabinet-content" class="cabinet-main" tabindex="-1"><slot /></main>
+      <footer class="cabinet-footer"><span>RezervUZ</span><span>{{ roleLabel }}</span></footer>
     </div>
+    <ChangePasswordModal v-model="showChangePasswordModal" :force="Boolean(user?.password_expired)" title="Parolni yangilash" @success="showChangePasswordModal = false" />
   </div>
 </template>
 
 <style scoped>
-.admin-layout {
-  display: flex;
-  min-height: 100vh;
-  background: var(--page);
-  color: var(--text);
-  font-family: inherit;
+.profile-menu { position: relative; }
+.profile-trigger { border: 0; cursor: pointer; min-width: 44px; min-height: 44px; }
+.profile-actions { position: absolute; z-index: 90; top: calc(100% + 12px); right: 0; width: min(260px, calc(100vw - 32px)); background: var(--surface); border: 1px solid var(--panel-border); border-radius: 12px; box-shadow: 0 12px 36px #0002; padding: 12px; }
+.profile-actions strong, .profile-actions small { display: block; padding: 4px 8px; overflow-wrap: anywhere; }
+.profile-actions small { color: var(--muted); margin-bottom: 8px; }
+.profile-actions button { width: 100%; display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 10px 8px; background: transparent; color: var(--text); border: 0; border-radius: 8px; cursor: pointer; text-align: left; }
+.profile-actions button:hover { background: var(--control); }
+
+.billing-notices { display: grid; gap: 10px; padding: 20px 32px 0; }
+.billing-notice { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 18px; border-radius: 10px; border: 1px solid currentColor; text-decoration: none; color: var(--warning); background: var(--warning-soft); }
+.billing-notice:is(.critical, .expired) { color: var(--danger); background: var(--danger-soft); }
+.billing-notice > span { min-width: 0; }
+.billing-notice > span strong { display: block; font-size: 13px; overflow-wrap: anywhere; }
+.billing-notice > span small { display: block; margin-top: 5px; font-size: 11px; }
+@media (max-width: 700px) { .billing-notices { padding: 16px 16px 0; } .billing-notice { padding: 12px; gap: 10px; flex-wrap: wrap; } }
+.cabinet-shell { display: flex; min-height: 100dvh; color: var(--text); background: var(--page); }
+.cabinet-sidebar { position: fixed; inset: 0 auto 0 0; width: 248px; display: flex; flex-direction: column; background: var(--surface); border-right: 1px solid var(--panel-border); z-index: 70; }
+.cabinet-brand-row { display: flex; align-items: center; justify-content: space-between; height: 88px; padding: 20px 24px; }
+.cabinet-brand { display: flex; align-items: center; gap: 11px; font-size: 22px; font-weight: 750; letter-spacing: -.7px; color: var(--text); text-decoration: none; }
+.cabinet-logo { display: grid; place-items: center; width: 36px; height: 40px; border-radius: 11px; background: var(--accent); color: white; font-size: 17px; }
+.cabinet-brand-accent { color: var(--accent); }
+.cabinet-brand small { display: block; font-size: 10px; letter-spacing: 1.8px; text-transform: uppercase; margin-top: 2px; color: var(--muted); font-weight: 600; }
+.cabinet-workspace { display: flex; align-items: center; gap: 10px; padding: 13px 12px; margin: 8px 16px 20px; background: var(--control); border: 1px solid var(--panel-border); border-radius: 10px; }
+.workspace-mark { display: grid; place-items: center; width: 32px; height: 32px; background: var(--surface); border: 1px solid var(--panel-border); border-radius: 8px; color: var(--muted); font-size: 13px; }
+.cabinet-workspace strong, .cabinet-sidebar-user strong { display: block; font-size: 13px; font-weight: 650; }
+.cabinet-workspace div > span, .cabinet-sidebar-user div > span { display: block; color: var(--muted); font-size: 11px; margin-top: 3px; }
+.workspace-shield { margin-left: auto; color: var(--muted); font-size: 12px; }
+.cabinet-nav { flex: 1; overflow-y: auto; padding: 0 14px; }
+.cabinet-nav-group + .cabinet-nav-group { margin-top: 27px; }
+.cabinet-nav-label { margin: 0 12px 9px; font-size: 10px; font-weight: 650; letter-spacing: 1.3px; text-transform: uppercase; color: var(--muted); }
+.cabinet-nav-link { display: flex; align-items: center; gap: 12px; padding: 12px; margin: 3px 0; border-radius: 8px; text-decoration: none; color: var(--muted); font-size: 13px; font-weight: 550; transition: background .15s, color .15s; }
+.cabinet-nav-link > svg { width: 17px; font-size: 15px; }
+.cabinet-nav-link:hover { background: var(--control); color: var(--text); }
+.cabinet-nav-link.is-active { color: var(--accent); background: var(--accent-soft); }
+.cabinet-nav-link .nav-arrow { margin-left: auto; width: 8px; font-size: 10px; }
+.cabinet-sidebar-bottom { padding: 16px; }
+.cabinet-site-link { display: flex; gap: 12px; align-items: center; padding: 12px; color: var(--muted); text-decoration: none; font-size: 12px; }
+.cabinet-sidebar-user { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 16px 8px 0; border-top: 1px solid var(--panel-border); }
+.cabinet-sidebar-user div { min-width: 0; }
+.cabinet-sidebar-user strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cabinet-avatar { display: grid; place-items: center; flex-shrink: 0; width: 35px; height: 35px; background: var(--accent-soft); color: var(--accent); border: 1px solid var(--panel-border); border-radius: 50%; font-size: 13px; font-weight: 700; }
+.cabinet-workarea { display: flex; flex: 1; min-width: 0; flex-direction: column; margin-left: 248px; }
+.cabinet-topbar { position: sticky; top: 0; height: 68px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 32px; background: var(--surface); border-bottom: 1px solid var(--panel-border); z-index: 40; }
+.cabinet-breadcrumb { display: flex; align-items: center; gap: 14px; min-width: 0; font-size: 12px; }
+.breadcrumb-root, .breadcrumb-divider { color: var(--muted); }
+.breadcrumb-divider { font-size: 8px; }
+.breadcrumb-current { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+.cabinet-topbar-actions { display: flex; align-items: center; gap: 6px; }
+.cabinet-icon-button { display: grid; place-items: center; flex-shrink: 0; width: 36px; height: 36px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; font-size: 14px; }
+.cabinet-icon-button:hover { color: var(--text); background: var(--control); border-color: var(--panel-border); }
+.cabinet-logout:hover { color: var(--danger); }
+.cabinet-icon-button:disabled { opacity: .5; cursor: wait; }
+.topbar-separator { height: 22px; width: 1px; background: var(--panel-border); margin: 0 7px; }
+.cabinet-main { flex: 1; width: 100%; max-width: 1600px; margin: 0 auto; padding: 32px; min-width: 0; outline: none; }
+.cabinet-footer { display: flex; justify-content: space-between; padding: 18px 32px; font-size: 11px; color: var(--muted); }
+.cabinet-password-notice { display: flex; align-items: center; gap: 10px; padding: 12px 32px; background: var(--warning-soft); color: var(--warning); font-size: 13px; }
+.cabinet-password-notice button { margin-left: auto; border: 0; color: inherit; background: transparent; font-weight: 700; cursor: pointer; min-height: 36px; }
+.cabinet-menu-button, .sidebar-close { display: none; }
+.cabinet-skip { position: fixed; top: -80px; left: 16px; z-index: 200; padding: 14px; background: var(--surface); color: var(--text); border: 2px solid var(--accent); border-radius: 8px; }
+.cabinet-skip:focus { top: 12px; }
+@media (max-width: 1023px) {
+  .cabinet-sidebar { transform: translateX(-100%); visibility: hidden; transition: transform .2s, visibility .2s; box-shadow: var(--cabinet-shadow); width: 280px; max-width: calc(100vw - 48px); }
+  .cabinet-sidebar.is-open { transform: translateX(0); visibility: visible; }
+  .cabinet-overlay { position: fixed; inset: 0; z-index: 60; background: #0b122980; backdrop-filter: blur(3px); }
+  .cabinet-workarea { margin-left: 0; }
+  .cabinet-menu-button, .sidebar-close { display: grid; }
+  .cabinet-topbar { padding: 0 24px; }
+  .cabinet-main { padding: 24px; }
 }
-
-.admin-sidebar {
-  width: 260px;
-  min-height: 100vh;
-  background: var(--surface);
-  border-right: 1px solid var(--panel-border);
-  display: flex;
-  flex-direction: column;
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  transition: transform 0.25s ease;
+@media (max-width: 600px) {
+  .cabinet-topbar { height: 64px; padding: 0 12px; gap: 4px; }
+  .cabinet-breadcrumb { gap: 8px; }
+  .breadcrumb-root, .breadcrumb-divider, .topbar-avatar, .topbar-separator { display: none; }
+  .cabinet-topbar-actions { gap: 0; }
+  .cabinet-icon-button { width: 40px; height: 44px; }
+  .cabinet-main { padding: 22px 16px; }
+  .cabinet-footer { padding: 16px; }
+  .cabinet-password-notice { padding: 10px 16px; font-size: 12px; }
 }
-
-.sidebar-header {
-  padding: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid var(--panel-border);
-}
-
-.sidebar-brand {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  text-decoration: none;
-  color: inherit;
-}
-
-.brand-logo-badge {
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, var(--accent) 0%, #0088cc 100%);
-  display: grid;
-  place-items: center;
-  font-size: 20px;
-  color: #fff;
-  box-shadow: 0 4px 12px rgba(32, 199, 244, 0.3);
-}
-
-.brand-text {
-  display: flex;
-  flex-direction: column;
-}
-
-.brand-title {
-  font-size: 16px;
-  font-weight: 750;
-  letter-spacing: -0.02em;
-}
-
-.brand-subtitle {
-  font-size: 11px;
-  color: var(--muted);
-  font-weight: 500;
-}
-
-.sidebar-close-btn {
-  display: none;
-  background: none;
-  border: none;
-  color: var(--muted);
-  font-size: 18px;
-  cursor: pointer;
-}
-
-.sidebar-nav {
-  flex: 1;
-  padding: 16px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.sidebar-link {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
-  border-radius: 10px;
-  color: var(--muted);
-  text-decoration: none;
-  font-size: 14px;
-  font-weight: 500;
-  transition: all 0.15s ease;
-}
-
-.sidebar-link:hover {
-  color: var(--text);
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
-}
-
-.sidebar-link.is-active {
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-  font-weight: 650;
-}
-
-.link-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.sidebar-footer {
-  padding: 16px;
-  border-top: 1px solid var(--panel-border);
-}
-
-.back-to-site-link {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  border-radius: 8px;
-  font-size: 13px;
-  color: var(--muted);
-  text-decoration: none;
-  border: 1px solid var(--border);
-  transition: all 0.15s ease;
-}
-
-.back-to-site-link:hover {
-  color: var(--text);
-  border-color: var(--accent);
-}
-
-.admin-wrapper {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.admin-topbar {
-  height: 68px;
-  padding: 0 24px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--panel-border);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  position: sticky;
-  top: 0;
-  z-index: 90;
-}
-
-.topbar-left {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.topbar-menu-btn {
-  display: none;
-  background: none;
-  border: none;
-  color: var(--text);
-  cursor: pointer;
-  padding: 4px;
-}
-
-.topbar-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 10px;
-  border-radius: 20px;
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  color: var(--accent);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.live-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 8px var(--accent);
-}
-
-.topbar-right {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.lang-switcher {
-  display: flex;
-  gap: 2px;
-  background: var(--control);
-  padding: 3px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-}
-
-.lang-pill {
-  padding: 4px 8px;
-  border-radius: 6px;
-  border: none;
-  background: transparent;
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.lang-pill.is-active {
-  background: var(--accent);
-  color: #fff;
-}
-
-.theme-toggle-btn {
-  width: 36px;
-  height: 36px;
-  display: grid;
-  place-items: center;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--control);
-  cursor: pointer;
-}
-
-.staff-user-card {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 4px 10px 4px 4px;
-  background: var(--control);
-  border: 1px solid var(--border);
-  border-radius: 24px;
-}
-
-.staff-avatar {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent) 0%, #0088cc 100%);
-  color: #fff;
-  display: grid;
-  place-items: center;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.staff-meta {
-  display: flex;
-  flex-direction: column;
-}
-
-.staff-name {
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.staff-role {
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.staff-role.admin {
-  color: #ef4444;
-}
-
-.staff-role.moderator {
-  color: #3b82f6;
-}
-
-.logout-icon-btn {
-  width: 36px;
-  height: 36px;
-  display: grid;
-  place-items: center;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--control);
-  color: var(--muted);
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.logout-icon-btn:hover {
-  color: #ef4444;
-  border-color: #ef4444;
-}
-
-.admin-main {
-  flex: 1;
-  padding: 24px;
-  min-width: 0;
-}
-
-@media (max-width: 900px) {
-  .admin-sidebar {
-    position: fixed;
-    top: 0;
-    bottom: 0;
-    left: 0;
-    transform: translateX(-100%);
-    box-shadow: 12px 0 32px rgba(0, 0, 0, 0.3);
-  }
-
-  .admin-sidebar.is-open {
-    transform: translateX(0);
-  }
-
-  .sidebar-close-btn {
-    display: block;
-  }
-
-  .topbar-menu-btn {
-    display: block;
-  }
-
-  .admin-sidebar-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 95;
-    background: rgba(0, 0, 0, 0.6);
-    backdrop-filter: blur(4px);
-  }
-
-  .staff-meta {
-    display: none;
-  }
-
-  .admin-main {
-    padding: 16px;
-  }
-}
-
-@media (max-width: 560px) {
-  .admin-topbar {
-    padding: 0 12px;
-    min-height: 56px;
-  }
-
-  .topbar-badge span:last-child {
-    display: none;
-  }
-
-  .staff-user-card {
-    padding: 3px;
-  }
-}
+@media (prefers-reduced-motion: reduce) { .cabinet-sidebar, .cabinet-nav-link { transition: none; } }
 </style>

@@ -11,6 +11,9 @@ export interface AuthUser {
   id: string
   username: string
   role: string
+  is_staff?: boolean
+  has_barber_profile?: boolean
+  is_superuser?: boolean
   full_name?: string
   avatar_url?: string
   preferred_language?: Locale
@@ -18,6 +21,7 @@ export interface AuthUser {
   phone?: string | null
   telegram_user_id?: number | null
   is_phone_verified?: boolean
+  password_expired?: boolean
   profile?: UserProfileData
 }
 
@@ -38,9 +42,23 @@ export interface ProfileUpdatePayload {
   preferred_language?: Locale
 }
 
+export interface LoginPayload {
+  login: string
+  password: string
+  device_name?: string
+  login_type?: string
+}
+
+export interface ChangePasswordPayload {
+  old_password: string
+  new_password: string
+  confirm_password: string
+}
+
 export interface AuthResultData {
   user: AuthUser
   is_new_user: boolean
+  password_expired?: boolean
 }
 
 export interface AuthTokens {
@@ -71,4 +89,17 @@ export interface TelegramWebLoginCheckData {
 
 export interface TelegramContactPayload {
   phone: string
+}
+
+export interface TelegramCodeInitData {
+  session_id: string
+  bot_username: string
+  bot_url: string
+  expires_in: number
+}
+
+export interface TelegramCodeVerifyPayload {
+  code: string
+  session_id?: string
+  device_name?: string
 }

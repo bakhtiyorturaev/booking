@@ -1,4 +1,4 @@
-from django.db.models import Q, Subquery
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from drf_spectacular.types import OpenApiTypes
@@ -24,7 +24,6 @@ from apps.bookings.serializers import (
 from apps.bookings.services import get_branch_availability
 from apps.clubs.models import Branch
 from apps.clubs.permissions import IsClubOperator, is_platform_admin
-from apps.payments.services import has_paid_access
 
 
 class BookingPagination(PageNumberPagination):
@@ -116,17 +115,6 @@ class BookingViewSet(
         queryset = self.queryset.filter(user=self.request.user).select_related(
             "zone__branch__city", "zone__branch__district", "zone__branch__club", "barber__club", "barber__branch", "cancellation"
         )
-        if not has_paid_access(self.request.user):
-            active = Q(
-                status__in=(
-                    Booking.Status.PENDING_CONFIRMATION,
-                    Booking.Status.CONFIRMED,
-                    Booking.Status.CHECKED_IN,
-                ),
-                ends_at__gt=timezone.now(),
-            )
-            history = queryset.exclude(active).order_by("-starts_at").values("pk")[:3]
-            queryset = queryset.filter(active | Q(pk__in=Subquery(history)))
         booking_status = query.validated_data.get("status")
         if booking_status:
             queryset = queryset.filter(status=booking_status)
@@ -184,6 +172,15 @@ class CabinetBookingViewSet(
     pagination_class = BookingPagination
     queryset = Booking.objects.none()
 
+    def create(self, request):
+        if not is_platform_admin(request.user):
+            self.permission_denied(request)
+        from apps.bookings.serializers import CabinetBookingCreateSerializer
+        serializer = CabinetBookingCreateSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        booking = serializer.save()
+        return Response(BookingSerializer(booking, context={"request": request}).data, status=201)
+
     def get_queryset(self):
         queryset = Booking.objects.select_related(
             "user__profile", "zone__branch__club", "barber__club", "barber__branch", "cancellation"
@@ -192,6 +189,7 @@ class CabinetBookingViewSet(
             queryset = queryset.filter(
                 Q(zone__branch__club__owner=self.request.user)
                 | Q(barber__club__owner=self.request.user)
+                | Q(barber__user=self.request.user)
             )
         booking_status = self.request.query_params.get("status")
         if booking_status in Booking.Status.values:

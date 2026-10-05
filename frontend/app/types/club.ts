@@ -23,7 +23,8 @@ export interface BranchSummary {
 export interface ClubBrief {
   id: string
   name: string
-  category?: "GAMING_CLUB" | "BARBERSHOP"
+  category?: "GAMING_CLUB" | "BARBERSHOP" | "BILLIARDS" | "OTHER"
+  service_name?: string
   category_display?: string
   slug: string
   logo: string | null
@@ -82,7 +83,8 @@ export interface BranchDetail extends BranchSummary {
 export interface ClubSummary {
   id: string
   name: string
-  category?: "GAMING_CLUB" | "BARBERSHOP"
+  category?: "GAMING_CLUB" | "BARBERSHOP" | "BILLIARDS" | "OTHER"
+  service_name?: string
   category_display?: string
   slug: string
   description: string

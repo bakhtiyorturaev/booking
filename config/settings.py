@@ -1,7 +1,6 @@
 import os
 from datetime import timedelta
 from pathlib import Path
-
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -46,30 +45,25 @@ SECURE_SSL_REDIRECT = env_bool("DJANGO_SECURE_SSL_REDIRECT", not DEBUG)
 SESSION_COOKIE_SECURE = env_bool("DJANGO_SESSION_COOKIE_SECURE", not DEBUG)
 CSRF_COOKIE_SECURE = env_bool("DJANGO_CSRF_COOKIE_SECURE", not DEBUG)
 SECURE_HSTS_SECONDS = int(os.getenv("DJANGO_SECURE_HSTS_SECONDS", "0"))
-SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool(
-    "DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS",
-    False,
-)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool("DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS", False,)
 SECURE_HSTS_PRELOAD = env_bool("DJANGO_SECURE_HSTS_PRELOAD", False)
 if env_bool("DJANGO_USE_X_FORWARDED_PROTO", False):
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 AUDIT_ASYNC = env_bool("DJANGO_AUDIT_ASYNC", True)
 
 INSTALLED_APPS = [
-    #"admin_interface",
-    #"colorfield",
+    "admin_interface",
+    "colorfield",
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-
     "rest_framework",
     "rest_framework_simplejwt",
     "drf_spectacular",
     "corsheaders",
-
     "apps.accounts.apps.AccountsConfig",
     "apps.clubs.apps.ClubsConfig",
     "apps.barbers.apps.BarbersConfig",
@@ -117,13 +111,13 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.locale.LocaleMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     "apps.audit.middleware.AuditMiddleware",
-
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -293,6 +287,13 @@ MEDIA_ROOT = BASE_DIR / "media"
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_BOT_USERNAME = os.getenv("TELEGRAM_BOT_USERNAME", "")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000").strip().rstrip("/")
 TELEGRAM_MINIAPP_URL = os.getenv("TELEGRAM_MINIAPP_URL", "https://rezervuz.uz")
 
 
+
+# Django administration uses its own cookies, isolated from Nuxt JWT contexts.
+SESSION_COOKIE_NAME = "rezerv_superuser_session"
+SESSION_COOKIE_PATH = "/site/superuser/admin/"
+CSRF_COOKIE_NAME = "rezerv_superuser_csrf"
+CSRF_COOKIE_PATH = "/site/superuser/admin/"

@@ -1,9 +1,14 @@
+from decimal import Decimal
+
+from django.db import transaction
 from django.db.models import Min
+from apps.accounts.models import User
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from apps.clubs.models import (
+    ServiceType,
     Branch,
     BranchImage,
     City,
@@ -208,6 +213,7 @@ class PublicClubListSerializer(serializers.ModelSerializer):
             "id",
             "name",
             "category",
+            "service_name",
             "category_display",
             "slug",
             "description",
@@ -301,14 +307,89 @@ class PublicBranchDetailSerializer(serializers.ModelSerializer):
 
 
 class ClubManagementSerializer(CleanModelSerializer):
+    owner = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), required=False, allow_null=True)
+    owner_details = serializers.SerializerMethodField()
+    monthly_price = serializers.DecimalField(max_digits=14, decimal_places=2, min_value=Decimal("0.01"), required=False, write_only=True)
+    service_type_name = serializers.CharField(source="service_type.name", read_only=True)
+    billing = serializers.SerializerMethodField()
+
+    def validate(self, attrs):
+        if self.instance is None:
+            attrs["owner"] = attrs.get("owner") or self.context["request"].user
+        if self.instance and self.instance.service_type_id and "service_type" in attrs and attrs["service_type"] is None:
+            raise serializers.ValidationError({"service_type": "Xizmat turini tanlash shart."})
+        service = attrs.get("service_type", self.instance.service_type if self.instance else None)
+        if service:
+            if not service.is_active and (not self.instance or self.instance.service_type_id != service.pk):
+                raise serializers.ValidationError({"service_type": "Xizmat turi faol emas."})
+            attrs["category"] = service.code if service.code in Club.Category.values else Club.Category.OTHER
+            attrs["service_name"] = service.name
+        city = attrs.get("billing_city", self.instance.billing_city if self.instance else None)
+        district = attrs.get("billing_district", self.instance.billing_district if self.instance else None)
+        if district and district.city_id != (city.pk if city else None):
+            raise serializers.ValidationError({"billing_district": "Tuman tanlangan shaharga tegishli emas."})
+        user = self.context["request"].user
+        if self.instance and not is_platform_admin(user) and any(key in attrs and attrs[key] != getattr(self.instance, key) for key in ("service_type", "billing_city", "billing_district")):
+            raise serializers.ValidationError("clubs.permission_denied")
+        category = attrs.get("category", self.instance.category if self.instance else Club.Category.GAMING_CLUB)
+        service_name = attrs.get("service_name", self.instance.service_name if self.instance else "")
+        if category == Club.Category.OTHER and not service_name.strip():
+            raise serializers.ValidationError({"service_name": "clubs.service_name_required"})
+        return super().validate(attrs)
+
+    def get_owner_details(self, obj):
+        profile = getattr(obj.owner, "profile", None)
+        return {"id": str(obj.owner_id), "username": obj.owner.username, "full_name": profile.full_name if profile else ""}
+
+    def get_billing(self, obj):
+        from apps.payments.venue_billing import venue_billing_status
+        return venue_billing_status(obj)
+
+    def validate_owner(self, value):
+        user = self.context["request"].user
+        if not is_platform_admin(user) and value is not None and value.pk != user.pk:
+            raise serializers.ValidationError("clubs.permission_denied")
+        if value and value.pk != user.pk and (not self.instance or value.pk != self.instance.owner_id):
+            if value.role != User.Role.CLIENT or not value.is_active:
+                raise serializers.ValidationError("auth.client_required")
+        return value
+
+    def validate_monthly_price(self, value):
+        raise serializers.ValidationError("Tarif faqat Django admin orqali belgilanadi.")
+
+    @transaction.atomic
+    def create(self, validated_data):
+        validated_data.pop("monthly_price", None)
+        validated_data["owner"] = validated_data.get("owner") or self.context["request"].user
+        validated_data["billing_required"] = True
+        instance = super().create(validated_data)
+        return instance
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        validated_data.pop("monthly_price", None)
+        if validated_data.get("owner", True) is None:
+            validated_data.pop("owner")
+        instance = super().update(instance, validated_data)
+        return instance
+
     class Meta:
         model = Club
         fields = (
             "id",
             "name",
             "category",
+            "service_name",
+            "service_type",
+            "service_type_name",
+            "billing_city",
+            "billing_district",
             "slug",
             "description",
+            "owner",
+            "owner_details",
+            "monthly_price",
+            "billing",
             "logo",
             "cover",
             "phone",
@@ -342,11 +423,11 @@ class ClubManagementSerializer(CleanModelSerializer):
 class BranchManagementSerializer(CleanModelSerializer):
     class Meta:
         model = Branch
-        fields = ("id","club","name","description","address","city","district","landmark","latitude","longitude",
+        fields = ("id","is_free","club","name","description","address","city","district","landmark","latitude","longitude",
                   "phone","timezone","status","slot_interval_minutes","minimum_booking_minutes",
                   "maximum_booking_minutes","booking_hold_minutes","advance_booking_days","free_cancellation_minutes",
                   "no_show_grace_minutes","auto_confirm_booking","is_24_hours",)
-        read_only_fields = ("id",)
+        read_only_fields = ("id", "is_free")
 
     def validate_city(self, value):
         if not value.is_active:

@@ -1,6 +1,7 @@
 from django.contrib import admin
 
 from apps.clubs.models import (
+    ServiceType,
     Branch,
     BranchImage,
     City,
@@ -79,3 +80,18 @@ class FavoriteAdmin(admin.ModelAdmin):
 admin.site.register(BranchImage)
 admin.site.register(OperatingHour)
 admin.site.register(SpecialSchedule)
+
+
+@admin.register(ServiceType)
+class ServiceTypeAdmin(admin.ModelAdmin):
+    list_display = ("name", "code", "is_active", "sort_order")
+    search_fields = ("name", "code")
+
+    def has_add_permission(self, request):
+        return request.user.is_superuser
+
+    def has_change_permission(self, request, obj=None):
+        return request.user.is_superuser
+
+    def has_delete_permission(self, request, obj=None):
+        return request.user.is_superuser

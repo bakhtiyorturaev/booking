@@ -53,6 +53,22 @@ class TimeStampedModel(models.Model):
         abstract = True
 
 
+class ServiceType(TimeStampedModel):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    code = models.SlugField(max_length=50, unique=True)
+    name = models.CharField(max_length=100)
+    is_active = models.BooleanField(default=True)
+    sort_order = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ("sort_order", "name")
+        verbose_name = "Xizmat turi"
+        verbose_name_plural = "Xizmat turlari"
+
+    def __str__(self):
+        return self.name
+
+
 class Club(TimeStampedModel):
     class Status(models.TextChoices):
         DRAFT = "DRAFT", "Draft"
@@ -64,6 +80,8 @@ class Club(TimeStampedModel):
     class Category(models.TextChoices):
         GAMING_CLUB = "GAMING_CLUB", "Gaming Club"
         BARBERSHOP = "BARBERSHOP", "Barbershop"
+        BILLIARDS = "BILLIARDS", "Billiards"
+        OTHER = "OTHER", "Other"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     owner = models.ForeignKey(
@@ -79,6 +97,11 @@ class Club(TimeStampedModel):
         default=Category.GAMING_CLUB,
         help_text="Muassasa toifasi.",
     )
+    service_type = models.ForeignKey(ServiceType, on_delete=models.PROTECT, null=True, blank=True)
+    billing_city = models.ForeignKey("City", on_delete=models.PROTECT, null=True, blank=True, related_name="billing_clubs")
+    billing_district = models.ForeignKey("District", on_delete=models.PROTECT, null=True, blank=True, related_name="billing_clubs")
+    billing_required = models.BooleanField(default=False, editable=False)
+    service_name = models.CharField(max_length=100, blank=True, help_text="Boshqa xizmat nomi.")
     slug = models.SlugField(max_length=210, unique=True, help_text="URL uchun nom.")
     description = models.TextField(blank=True, help_text="Klub tavsifi.")
     logo = models.ImageField(
@@ -125,7 +148,17 @@ class Club(TimeStampedModel):
     def __str__(self):
         return self.name
 
+    def clean(self):
+        super().clean()
+        if self.billing_district_id and self.billing_city_id != self.billing_district.city_id:
+            raise ValidationError({"billing_district": "Tuman tanlangan shaharga tegishli emas."})
+
     def save(self, *args, **kwargs):
+        if self.service_type_id:
+            self.category = self.service_type.code if self.service_type.code in self.Category.values else self.Category.OTHER
+            self.service_name = self.service_type.name
+            if kwargs.get("update_fields"):
+                kwargs["update_fields"] = set(kwargs["update_fields"]) | {"category", "service_name"}
         if not self.slug:
             base = slugify(self.name) or "club"
             candidate = base
@@ -220,6 +253,8 @@ class District(TimeStampedModel):
 
 
 class Branch(TimeStampedModel):
+    is_free = models.BooleanField(default=True, help_text="Platformadan bepul foydalanish.")
+
     class Status(models.TextChoices):
         DRAFT = "DRAFT", "Draft"
         ACTIVE = "ACTIVE", "Active"
@@ -483,9 +518,10 @@ class SpecialSchedule(TimeStampedModel):
 class Zone(TimeStampedModel):
     class BookingType(models.TextChoices):
         PER_SEAT = "PER_SEAT", "Har bir joy uchun"
-        PER_ZONE = "PER_ZONE", "Butun xona uchun"
+        PER_ZONE = "PER_ZONE", "Butun resurs uchun"
 
     class ResourceType(models.TextChoices):
+        GENERAL = "GENERAL", "Resurs"
         COMPUTER = "COMPUTER", "Computer"
         PLAYSTATION = "PLAYSTATION", "PlayStation"
 
@@ -512,7 +548,7 @@ class Zone(TimeStampedModel):
     resource_type = models.CharField(
         max_length=12,
         choices=ResourceType.choices,
-        default=ResourceType.COMPUTER,
+        default=ResourceType.GENERAL,
         help_text="O‘yin qurilmasi turi.",
     )
     capacity = models.PositiveSmallIntegerField(

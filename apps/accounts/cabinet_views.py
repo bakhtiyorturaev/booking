@@ -6,6 +6,7 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from apps.accounts.client_serializers import ClientCreateSerializer
 from apps.accounts.models import User
 from apps.accounts.serializers import UserSerializer
 from apps.clubs.permissions import is_platform_admin
@@ -15,6 +16,7 @@ from apps.core.responses import error_response, success_response
 class CabinetUserPagination(PageNumberPagination):
     page_size = 20
     max_page_size = 100
+    page_size_query_param = "page_size"
 
 
 @extend_schema_view(
@@ -35,6 +37,12 @@ class CabinetUserViewSet(
         super().initial(request, *args, **kwargs)
         if not is_platform_admin(request.user):
             self.permission_denied(request, message="clubs.permission_denied", code="clubs.permission_denied")
+
+    def create(self, request):
+        serializer = ClientCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -65,6 +73,11 @@ class CabinetUserViewSet(
         user = self.get_object()
         if user.id == request.user.id:
             return error_response("auth.cannot_block_self", request, status_code=400)
+        if user.is_superuser or (
+            (user.is_staff or user.role in {User.Role.ADMIN, User.Role.MODERATOR})
+            and not (request.user.is_superuser or request.user.role == User.Role.ADMIN)
+        ):
+            self.permission_denied(request, message="clubs.permission_denied", code="clubs.permission_denied")
 
         if user.status == User.Status.ACTIVE:
             user.status = User.Status.BLOCKED
@@ -85,7 +98,11 @@ class CabinetUserViewSet(
     )
     @action(detail=True, methods=["post"], url_path="set-role")
     def set_role(self, request, pk=None):
+        if not (request.user.is_superuser or request.user.role == User.Role.ADMIN):
+            self.permission_denied(request, message="clubs.permission_denied", code="clubs.permission_denied")
         user = self.get_object()
+        if user.id == request.user.id or user.is_superuser:
+            self.permission_denied(request, message="clubs.permission_denied", code="clubs.permission_denied")
         new_role = request.data.get("role")
         if new_role not in User.Role.values:
             return error_response("auth.invalid_role", request, status_code=400)

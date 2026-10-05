@@ -57,14 +57,10 @@ const bookingsApi = useBookingsApi()
 const reviewsApi = useReviewsApi()
 const barbersApi = useBarbersApi()
 const auth = useAuth()
-const subscriptionState = useSubscription()
 const { locale, load, t } = useTranslations()
 await load()
 if (["clubs.all_clubs", "branches.title", "branches.zones_title", "reviews.title", "auth.unauthorized"].some(code => t(code) === code)) await load(locale.value, true)
 await auth.load().catch(() => null)
-if (auth.isAuthenticated.value) {
-  await subscriptionState.load().catch(() => null)
-}
 
 const selectedBarber = ref<BarberItem | null>(null)
 const showBarberModal = ref(false)

@@ -119,10 +119,40 @@ class CabinetBarberSerializer(serializers.ModelSerializer):
         read_only=True,
     )
 
+    billing = serializers.SerializerMethodField()
+
+    def get_billing(self, obj):
+        from apps.payments.barber_billing import barber_billing_status
+        return barber_billing_status(obj)
+
+    def validate(self, attrs):
+        user = attrs.get("user", self.instance.user if self.instance else None)
+        if user and (not user.is_active or user.role not in {"CUSTOMER", "CLIENT"}):
+            raise serializers.ValidationError({"user": "Faol mijoz yoki sartarosh akkauntini tanlang."})
+        days = attrs.get("working_days", self.instance.working_days if self.instance else [])
+        if not isinstance(days, list) or any(type(day) is not int or day < 1 or day > 7 for day in days):
+            raise serializers.ValidationError({"working_days": "Hafta kunlari 1 dan 7 gacha bo‘lishi kerak."})
+        city = attrs.get("billing_city", self.instance.billing_city if self.instance else None)
+        district = attrs.get("billing_district", self.instance.billing_district if self.instance else None)
+        if district and district.city_id != (city.pk if city else None):
+            raise serializers.ValidationError({"billing_district": "Tuman tanlangan shaharga tegishli emas."})
+        club = attrs.get("club", self.instance.club if self.instance else None)
+        branch = attrs.get("branch", self.instance.branch if self.instance else None)
+        if branch and (not club or branch.club_id != club.pk):
+            raise serializers.ValidationError({"branch": "Filial tanlangan muassasaga tegishli emas."})
+        if club and club.category != "BARBERSHOP":
+            raise serializers.ValidationError({"club": "Sartaroshxona tanlang."})
+        return attrs
+
     class Meta:
         model = Barber
+        read_only_fields = ("is_free", "rating", "review_count", "created_at", "updated_at")
         fields = (
             "id",
+            "is_free",
+            "billing_city",
+            "billing_district",
+            "billing",
             "user",
             "user_username",
             "full_name",

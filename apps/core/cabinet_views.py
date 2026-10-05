@@ -9,8 +9,7 @@ from apps.accounts.models import User
 from apps.bookings.models import Booking
 from apps.clubs.models import Branch, Club
 from apps.clubs.permissions import is_platform_admin
-from apps.payments.models import Payment
-from apps.reviews.models import Review
+from apps.payments.models import ManualVenuePayment
 from apps.core.responses import error_response
 
 
@@ -26,7 +25,7 @@ class AdminDashboardStatsAPIView(APIView):
             return error_response("clubs.permission_denied", request, status_code=403)
 
         now = timezone.now()
-        today = now.date()
+        today = timezone.localdate()
 
         total_clubs = Club.objects.count()
         active_clubs = Club.objects.filter(status=Club.Status.ACTIVE).count()
@@ -58,53 +57,36 @@ class AdminDashboardStatsAPIView(APIView):
         ).count()
 
         total_revenue = (
-            Payment.objects.filter(status=Payment.Status.PAID).aggregate(
+            ManualVenuePayment.objects.aggregate(
                 total=Sum("amount_tiyin")
             )["total"]
             or 0
         )
         today_revenue = (
-            Payment.objects.filter(
-                status=Payment.Status.PAID, paid_at__date=today
+            ManualVenuePayment.objects.filter(
+                created_at__date=today
             ).aggregate(total=Sum("amount_tiyin"))["total"]
             or 0
         )
 
         recent_bookings_qs = (
-            Booking.objects.select_related("user__profile", "zone__branch__club")
+            Booking.objects.select_related("user__profile", "zone__branch__club", "barber__club", "barber__branch")
             .order_by("-created_at")[:6]
         )
         recent_bookings = [
             {
                 "id": str(b.id),
-                "user_name": b.user.profile.full_name or b.user.username,
+                "user_name": getattr(getattr(b.user, "profile", None), "full_name", "") or b.user.username,
                 "user_phone": b.user.phone or "",
-                "club_name": b.zone.branch.club.name,
-                "branch_name": b.zone.branch.name,
-                "zone_name": b.zone.name,
+                "club_name": b.zone.branch.club.name if b.zone_id else (b.barber.club.name if b.barber_id and b.barber.club_id else "—"),
+                "branch_name": b.zone.branch.name if b.zone_id else (b.barber.branch.name if b.barber_id and b.barber.branch_id else "—"),
+                "zone_name": b.zone.name if b.zone_id else (b.barber.full_name if b.barber_id else "—"),
                 "starts_at": b.starts_at.isoformat(),
                 "ends_at": b.ends_at.isoformat(),
                 "status": b.status,
                 "total_price_tiyin": b.total_price_tiyin,
             }
             for b in recent_bookings_qs
-        ]
-
-        recent_reviews_qs = (
-            Review.objects.select_related("user__profile", "club")
-            .order_by("-created_at")[:6]
-        )
-        recent_reviews = [
-            {
-                "id": str(r.id),
-                "user_name": r.user.profile.full_name or r.user.username,
-                "club_name": r.club.name,
-                "rating": r.rating,
-                "comment": r.comment,
-                "is_visible": r.is_visible,
-                "created_at": r.created_at.isoformat(),
-            }
-            for r in recent_reviews_qs
         ]
 
         return Response(
@@ -135,6 +117,5 @@ class AdminDashboardStatsAPIView(APIView):
                     "today_tiyin": today_revenue,
                 },
                 "recent_bookings": recent_bookings,
-                "recent_reviews": recent_reviews,
             }
         )

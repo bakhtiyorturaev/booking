@@ -2,6 +2,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from apps.core.models import SystemMessage
+from apps.payments.billing_messages import VENUE_BILLING_MESSAGES
 
 
 SYSTEM_MESSAGES = [
@@ -901,6 +902,9 @@ SYSTEM_MESSAGES = [
         "text_en": 'The Telegram cancellation reason is invalid.',
     },
 ]
+
+
+SYSTEM_MESSAGES.extend({"code": code, "text_uz": uz, "text_ru": ru, "text_en": en} for code, uz, ru, en in VENUE_BILLING_MESSAGES)
 
 
 class Command(BaseCommand):

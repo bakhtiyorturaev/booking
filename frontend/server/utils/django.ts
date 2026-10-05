@@ -40,9 +40,14 @@ export const djangoRequest = <T>(
   options: FetchOptions = {},
 ) => {
   const config = useRuntimeConfig()
+  const trustProxy = String(config.trustProxyHeaders) === "true"
+  const headers = new Headers(options.headers)
+  headers.set("X-Forwarded-For", getRequestIP(event, { xForwardedFor: trustProxy }) || "127.0.0.1")
+  headers.set("X-Forwarded-Proto", getRequestProtocol(event, { xForwardedProto: trustProxy }))
   return $fetch<T>(path, {
     baseURL: config.djangoApiBaseUrl,
     ...options,
+    headers,
   })
 }
 

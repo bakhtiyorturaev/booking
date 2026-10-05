@@ -70,6 +70,11 @@ class UserSerializer(serializers.ModelSerializer):
     profile = UserProfileSerializer(read_only=True)
     is_phone_verified = serializers.BooleanField(read_only=True)
 
+    has_barber_profile = serializers.SerializerMethodField()
+
+    def get_has_barber_profile(self, obj):
+        return hasattr(obj, "barber_profile")
+
     class Meta:
         model = User
         fields = (
@@ -78,6 +83,10 @@ class UserSerializer(serializers.ModelSerializer):
             "phone",
             "telegram_user_id",
             "role",
+            "status",
+            "is_staff",
+            "is_superuser",
+            "has_barber_profile",
             "is_phone_verified",
             "profile",
         )
@@ -104,6 +113,15 @@ class AuthUserSerializer(serializers.ModelSerializer):
     is_phone_verified = serializers.BooleanField(
         read_only=True,
     )
+    password_expired = serializers.BooleanField(
+        source="is_password_expired",
+        read_only=True,
+    )
+
+    has_barber_profile = serializers.SerializerMethodField()
+
+    def get_has_barber_profile(self, obj):
+        return hasattr(obj, "barber_profile")
 
     class Meta:
         model = User
@@ -115,11 +133,87 @@ class AuthUserSerializer(serializers.ModelSerializer):
             "full_name",
             "avatar_url",
             "role",
+            "is_staff",
+            "is_superuser",
+            "has_barber_profile",
             "preferred_language",
             "is_phone_verified",
             "is_profile_completed",
+            "password_expired",
         )
         read_only_fields = fields
+
+
+class StaffPasswordLoginSerializer(serializers.Serializer):
+    login_type = serializers.ChoiceField(choices=["", "staff", "client"], required=False, default="")
+    login = serializers.CharField(
+        required=True,
+        allow_blank=False,
+        error_messages={
+            "required": "auth.login_required",
+            "blank": "auth.login_required",
+        },
+    )
+    password = serializers.CharField(
+        required=True,
+        allow_blank=False,
+        write_only=True,
+        error_messages={
+            "required": "auth.password_required",
+            "blank": "auth.password_required",
+        },
+    )
+    device_name = serializers.CharField(
+        max_length=120,
+        required=False,
+        allow_blank=True,
+        default="",
+    )
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    old_password = serializers.CharField(
+        required=True,
+        allow_blank=False,
+        write_only=True,
+        error_messages={
+            "required": "auth.old_password_required",
+            "blank": "auth.old_password_required",
+        },
+    )
+    new_password = serializers.CharField(
+        required=True,
+        allow_blank=False,
+        min_length=6,
+        write_only=True,
+        error_messages={
+            "required": "auth.new_password_required",
+            "blank": "auth.new_password_required",
+            "min_length": "auth.password_too_short",
+        },
+    )
+    confirm_password = serializers.CharField(
+        required=True,
+        allow_blank=False,
+        write_only=True,
+        error_messages={
+            "required": "auth.confirm_password_required",
+            "blank": "auth.confirm_password_required",
+        },
+    )
+
+    def validate(self, attrs):
+        if attrs["new_password"] != attrs["confirm_password"]:
+            raise serializers.ValidationError(
+                {"confirm_password": "auth.password_mismatch"},
+                code="auth.password_mismatch",
+            )
+        if attrs["old_password"] == attrs["new_password"]:
+            raise serializers.ValidationError(
+                {"new_password": "auth.password_same_as_old"},
+                code="auth.password_same_as_old",
+            )
+        return attrs
 
 
 class RefreshTokenSerializer(serializers.Serializer):
@@ -179,3 +273,27 @@ class TelegramCodeExchangeSerializer(serializers.Serializer):
     code_verifier = serializers.CharField(required=True, allow_blank=False, max_length=256)
     redirect_uri = serializers.URLField(required=True, allow_blank=False)
     device_name = serializers.CharField(required=False, allow_blank=True, max_length=120, default="")
+
+
+class TelegramCodeVerifySerializer(serializers.Serializer):
+    code = serializers.CharField(
+        required=True,
+        allow_blank=False,
+        max_length=10,
+        trim_whitespace=True,
+        error_messages={
+            "required": "auth.code_required",
+            "blank": "auth.code_required",
+        },
+    )
+    session_id = serializers.CharField(
+        max_length=64,
+        required=True,
+        allow_blank=False,
+    )
+    device_name = serializers.CharField(
+        max_length=120,
+        required=False,
+        allow_blank=True,
+        default="",
+    )

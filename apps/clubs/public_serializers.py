@@ -12,7 +12,7 @@ class PublicClubBriefSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Club
-        fields = ("id", "name", "category", "category_display", "slug", "logo", "rating", "review_count")
+        fields = ("id", "name", "category", "service_name", "category_display", "slug", "logo", "rating", "review_count")
         read_only_fields = fields
 
 

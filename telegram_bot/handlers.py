@@ -167,6 +167,23 @@ def handle_message(client, message):
             safe_send_message(client, chat_id, success_text, default_keyboard)
             return
 
+    if text.split()[0:1] == ["/start"] and len(text.split()) == 2 and text.split()[1].startswith("auth_"):
+        from apps.accounts.services.telegram_code_auth import generate_telegram_code_for_user, TelegramCodeAuthError
+        if message.get("chat", {}).get("type") != "private":
+            return
+        session_id = text.split()[1][5:]
+        try:
+            code = generate_telegram_code_for_user(user, session_id=session_id)
+            messages = {
+                "uz": f"Kirish kodi: <code>{code}</code>\n\nKod 1 daqiqa amal qiladi. Saytga qaytib kodni kiriting. Kodni hech kimga bermang.",
+                "ru": f"Код входа: <code>{code}</code>\n\nДействует 1 минуту. Вернитесь на сайт и введите код. Никому не сообщайте код.",
+                "en": f"Login code: <code>{code}</code>\n\nValid for 1 minute. Return to the website and enter the code. Do not share it.",
+            }
+            safe_send_message(client, chat_id, messages[language], build_user_keyboard(language, site_url=get_safe_frontend_url() + "/login"))
+        except TelegramCodeAuthError:
+            safe_send_message(client, chat_id, "Kirish havolasi eskirgan. Saytdan yangi kod so‘rang.", default_keyboard)
+        return
+
     # 2. Agar web login deep-link bo'lsa: /start login_<token>
     if text.startswith("/start") and "login_" in text:
         parts = text.split()

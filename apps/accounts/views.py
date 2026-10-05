@@ -9,8 +9,11 @@ from rest_framework.views import APIView
 from apps.accounts.models import UserProfile
 from apps.accounts.serializers import (
     AuthUserSerializer,
+    ChangePasswordSerializer,
     RefreshTokenSerializer,
+    StaffPasswordLoginSerializer,
     TelegramCodeExchangeSerializer,
+    TelegramCodeVerifySerializer,
     TelegramContactSerializer,
     TelegramMiniAppLoginSerializer,
     UserSerializer,
@@ -21,6 +24,16 @@ from apps.accounts.services.auth_tokens import (
     public_auth_tokens,
     refresh_auth_tokens,
     revoke_user_session,
+)
+from apps.accounts.services.telegram_code_auth import (
+    TelegramCodeAuthError,
+    init_telegram_code_session,
+    verify_telegram_code,
+)
+from apps.accounts.services.password_auth import (
+    PasswordAuthError,
+    change_user_password,
+    login_with_password,
 )
 from apps.accounts.services.telegram_auth import (
     TelegramAuthError,
@@ -283,3 +296,134 @@ class LogoutAPIView(APIView):
             return service_error_response(error, request)
 
         return success_response(message_code="auth.logout_success", request=request)
+
+
+class StaffPasswordLoginAPIView(APIView):
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "telegram_login"
+
+    @extend_schema(
+        tags=["Authentication"],
+        summary="Xodimlar va operatorlar uchun login/parol orqali kirish (JWT)",
+        request=StaffPasswordLoginSerializer,
+        responses={200: OpenApiTypes.OBJECT},
+    )
+    def post(self, request):
+        serializer = StaffPasswordLoginSerializer(data=request.data)
+        if not serializer.is_valid():
+            return serializer_error_response(serializer, request)
+
+        try:
+            result = login_with_password(
+                login=serializer.validated_data["login"],
+                password=serializer.validated_data["password"],
+                device_name=serializer.validated_data.get("device_name", ""),
+                ip_address=get_client_ip(request),
+                login_type=serializer.validated_data.get("login_type", ""),
+            )
+        except (PasswordAuthError, AuthTokenError) as error:
+            return service_error_response(error, request)
+
+        return success_response(
+            "auth.login_success",
+            request,
+            data={
+                "user": AuthUserSerializer(result["user"]).data,
+                "tokens": public_auth_tokens(result["tokens"]),
+                "password_expired": result["password_expired"],
+                "is_new_user": False,
+            },
+        )
+
+
+class ChangePasswordAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=["Authentication"],
+        summary="Parolni o'zgartirish (har 1 oyda talab qilinadi)",
+        request=ChangePasswordSerializer,
+        responses={200: OpenApiTypes.OBJECT},
+    )
+    def post(self, request):
+        serializer = ChangePasswordSerializer(data=request.data)
+        if not serializer.is_valid():
+            return serializer_error_response(serializer, request)
+
+        try:
+            result = change_user_password(
+                user=request.user,
+                old_password=serializer.validated_data["old_password"],
+                new_password=serializer.validated_data["new_password"],
+                device_name=request.META.get("HTTP_USER_AGENT", "")[:120],
+                ip_address=get_client_ip(request),
+            )
+        except (PasswordAuthError, AuthTokenError) as error:
+            return service_error_response(error, request)
+
+        return success_response(
+            "auth.password_changed_success",
+            request,
+            data={
+                "user": AuthUserSerializer(result["user"]).data,
+                "tokens": public_auth_tokens(result["tokens"]),
+                "password_expired": False,
+            },
+        )
+
+
+class TelegramCodeInitAPIView(APIView):
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "telegram_login"
+
+    @extend_schema(
+        tags=["Authentication"],
+        summary="Telegram 5-talik kod orqali kirish sessiyasini boshlash",
+        request=None,
+        responses={200: OpenApiTypes.OBJECT},
+    )
+    def post(self, request):
+        try:
+            data = init_telegram_code_session()
+        except TelegramCodeAuthError as error:
+            return service_error_response(error, request)
+        return success_response("auth.code_session_started", request, data=data)
+
+
+class TelegramCodeVerifyAPIView(APIView):
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "telegram_login"
+
+    @extend_schema(
+        tags=["Authentication"],
+        summary="Telegramdan olingan 5-talik kodni tasdiqlash va kirish",
+        request=TelegramCodeVerifySerializer,
+        responses={200: OpenApiTypes.OBJECT},
+    )
+    def post(self, request):
+        serializer = TelegramCodeVerifySerializer(data=request.data)
+        if not serializer.is_valid():
+            return serializer_error_response(serializer, request)
+
+        try:
+            result = verify_telegram_code(
+                code=serializer.validated_data["code"],
+                session_id=serializer.validated_data.get("session_id"),
+                device_name=serializer.validated_data.get("device_name", "") or request.META.get("HTTP_USER_AGENT", "")[:120],
+                ip_address=get_client_ip(request),
+            )
+        except (TelegramCodeAuthError, AuthTokenError) as error:
+            return service_error_response(error, request)
+
+        return success_response(
+            "auth.login_success",
+            request,
+            data={
+                "user": AuthUserSerializer(result["user"]).data,
+                "tokens": public_auth_tokens(result["tokens"]),
+                "is_new_user": result["is_new_user"],
+            },
+        )

@@ -36,6 +36,7 @@ class BarberTests(APITestCase):
             latitude="41.311081",
             longitude="69.240562",
             status=Branch.Status.ACTIVE,
+            is_24_hours=True,
         )
 
         self.barber_user = User.objects.create_user(

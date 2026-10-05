@@ -46,6 +46,8 @@ class IsClubOperator(BasePermission):
         return bool(request.user and request.user.is_authenticated)
 
     def has_object_permission(self, request, view, obj):
+        if getattr(obj, "barber_id", None) and obj.barber.user_id == request.user.pk:
+            return True
         club = club_for_object(obj)
         managers_only = request.method == "DELETE"
         return can_manage_club(request.user, club, managers_only=managers_only)

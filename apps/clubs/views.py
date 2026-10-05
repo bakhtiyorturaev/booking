@@ -742,6 +742,7 @@ class CabinetClubViewSet(viewsets.ModelViewSet):
             qs = Club.objects.all()
         else:
             qs = Club.objects.filter(owner=user)
+        qs = qs.select_related("owner__profile", "billing")
         status_param = self.request.query_params.get("status")
         if status_param and status_param in Club.Status.values:
             qs = qs.filter(status=status_param)
@@ -750,6 +751,19 @@ class CabinetClubViewSet(viewsets.ModelViewSet):
             qs = qs.filter(
                 Q(name__icontains=query) | Q(slug__icontains=query) | Q(phone__icontains=query)
             )
+        category = self.request.query_params.get("category")
+        if category in Club.Category.values:
+            qs = qs.filter(category=category)
+        service_type = self.request.query_params.get("service_type")
+        if service_type:
+            from rest_framework.serializers import UUIDField
+            from apps.clubs.models import ServiceType
+            service_id = UUIDField().run_validation(service_type)
+            service = ServiceType.objects.filter(pk=service_id).first()
+            scope = Q(service_type_id=service_id)
+            if service and service.code in Club.Category.values:
+                scope |= Q(service_type__isnull=True, category=service.code)
+            qs = qs.filter(scope)
         return qs.order_by("-created_at")
 
     def get_permissions(self):
@@ -762,7 +776,7 @@ class CabinetClubViewSet(viewsets.ModelViewSet):
             "status",
             Club.Status.ACTIVE if is_platform_admin(self.request.user) else Club.Status.DRAFT,
         )
-        serializer.save(owner=self.request.user, status=initial_status)
+        serializer.save(status=initial_status)
 
     def perform_destroy(self, instance):
         instance.status = Club.Status.ARCHIVED
@@ -933,3 +947,22 @@ class CabinetResourceBlockViewSet(CabinetAccessMixin, viewsets.ModelViewSet):
             .select_related("zone__branch__club")
             .distinct()
         )
+
+
+class ServiceTypeViewSet(viewsets.ReadOnlyModelViewSet):
+    permission_classes = [IsAuthenticated]
+    pagination_class = None
+
+    def get_queryset(self):
+        from apps.clubs.models import ServiceType
+        return ServiceType.objects.filter(is_active=True)
+
+    def get_serializer_class(self):
+        from apps.clubs.models import ServiceType
+        from rest_framework import serializers
+
+        class ServiceTypeSerializer(serializers.ModelSerializer):
+            class Meta:
+                model = ServiceType
+                fields = ("id", "code", "name")
+        return ServiceTypeSerializer

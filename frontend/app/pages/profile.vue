@@ -2,7 +2,6 @@
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome"
 import {
   faCalendar,
-  faCrown,
   faHeart,
   faLocationDot,
   faPen,
@@ -13,7 +12,6 @@ import {
 } from "@fortawesome/free-solid-svg-icons"
 
 import { useAuthApi } from "~/api/auth"
-import { useSubscription } from "~/composables/useSubscription"
 import { useFavorites } from "~/composables/useFavorites"
 import BranchCard from "~/components/catalog/BranchCard.vue"
 import { ApiRequestError } from "~/types/api"
@@ -26,7 +24,6 @@ definePageMeta({
 
 const auth = useAuth()
 const authApi = useAuthApi()
-const subscriptionState = useSubscription()
 const favorites = useFavorites()
 const { user } = auth
 const { locale, load, t } = useTranslations()
@@ -34,7 +31,6 @@ const { locale, load, t } = useTranslations()
 await load()
 await Promise.all([
   favorites.load(true).catch(() => null),
-  subscriptionState.load().catch(() => null),
 ])
 
 const profileCodes = [
@@ -81,7 +77,7 @@ const userInitials = computed(() => {
   if (!name) return ""
   const parts = name.split(/\s+/).filter(Boolean)
   if (parts.length >= 2) {
-    return (parts[0][0] + parts[1][0]).toUpperCase()
+    return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase()
   }
   return name.slice(0, 2).toUpperCase()
 })
@@ -231,18 +227,10 @@ const favoriteBranches = computed(() => {
 
         <!-- Tariff & Actions Area -->
         <div class="profile-user-actions">
-          <!-- Current Tariff Status Badge -->
-          <div class="profile-tariff-badge" :class="{ 'is-premium': subscriptionState.isPaid.value }">
-            <FontAwesomeIcon :icon="faCrown" class="tariff-crown-icon" />
-            <strong class="tariff-value">
-              {{ subscriptionState.isPaid.value ? (t("profile.subscription_paid") || "Premium") : (t("profile.subscription_free") || "Bepul") }}
-            </strong>
-          </div>
-
           <!-- Admin Link if Admin/Mod -->
           <NuxtLink
             v-if="['ADMIN', 'MODERATOR'].includes(user?.role || '')"
-            to="/admin"
+            to="/cabinet"
             class="admin-portal-link"
           >
             {{ t("admin.dashboard") }}

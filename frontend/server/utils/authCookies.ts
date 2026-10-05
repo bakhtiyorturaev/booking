@@ -4,10 +4,16 @@ import type { ApiErrorData } from "~~/app/types/api"
 import type { ApiSuccess, AuthTokens } from "~~/app/types/auth"
 import { djangoRequest, requestLanguage } from "~~/server/utils/django"
 
+import type { AuthScope } from "~~/shared/authScope"
+
 type ServerEvent = Parameters<typeof getCookie>[0]
 
-const ACCESS_COOKIE = "access_token"
-const REFRESH_COOKIE = "refresh_token"
+export const requestAuthScope = (event: ServerEvent): AuthScope => {
+  const scope = getRequestHeader(event, "x-auth-scope") || "customer"
+  if (!["customer", "staff", "client"].includes(scope)) throw createError({ statusCode: 400, statusMessage: "Invalid auth scope" })
+  return scope as AuthScope
+}
+const cookieName = (scope: AuthScope, kind: string) => `rezerv_${scope}_${kind}`
 const TERMINAL_AUTH_CODES = new Set([
   "auth.user_inactive",
   "auth.user_blocked",
@@ -25,23 +31,23 @@ const cookieOptions = {
   path: "/",
 }
 
-export const getAccessToken = (event: ServerEvent) => getCookie(event, ACCESS_COOKIE)
-export const getRefreshToken = (event: ServerEvent) => getCookie(event, REFRESH_COOKIE)
+export const getAccessToken = (event: ServerEvent) => getCookie(event, cookieName(requestAuthScope(event), "access"))
+export const getRefreshToken = (event: ServerEvent) => getCookie(event, cookieName(requestAuthScope(event), "refresh"))
 
-export const setAuthCookies = (event: ServerEvent, tokens: AuthTokens) => {
-  setCookie(event, ACCESS_COOKIE, tokens.access, {
+export const setAuthCookies = (event: ServerEvent, tokens: AuthTokens, scope = requestAuthScope(event)) => {
+  setCookie(event, cookieName(scope, "access"), tokens.access, {
     ...cookieOptions,
     maxAge: 60 * 15,
   })
-  setCookie(event, REFRESH_COOKIE, tokens.refresh, {
+  setCookie(event, cookieName(scope, "refresh"), tokens.refresh, {
     ...cookieOptions,
     maxAge: 60 * 60 * 24 * 30,
   })
 }
 
 export const clearAuthCookies = (event: ServerEvent) => {
-  deleteCookie(event, ACCESS_COOKIE, cookieOptions)
-  deleteCookie(event, REFRESH_COOKIE, cookieOptions)
+  deleteCookie(event, cookieName(requestAuthScope(event), "access"), cookieOptions)
+  deleteCookie(event, cookieName(requestAuthScope(event), "refresh"), cookieOptions)
 }
 
 export const isTerminalAuthError = (error: unknown) => {

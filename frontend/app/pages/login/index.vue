@@ -12,7 +12,8 @@ const route = useRoute()
 const showModal = ref(true)
 
 const onAuthenticated = async () => {
-  const target = typeof route.query.redirect === "string" && route.query.redirect ? route.query.redirect : "/"
+  const requested = route.query.redirect
+  const target = typeof requested === "string" && requested.startsWith("/") && !requested.startsWith("//") && !requested.includes("\\") && !requested.startsWith("/site/") && !requested.startsWith("/cabinet") ? requested : "/"
   await navigateTo(target)
 }
 

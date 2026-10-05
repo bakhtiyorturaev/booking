@@ -131,6 +131,10 @@ class BarberBookingCreateSerializer(serializers.Serializer):
         except Barber.DoesNotExist:
             raise serializers.ValidationError({"barber_id": "Sartarosh topilmadi."})
 
+        from apps.payments.venue_billing import require_branch_access
+        if barber.branch_id:
+            require_branch_access(barber.branch)
+
         starts_at = attrs["starts_at"]
         ends_at = attrs.get("ends_at") or (starts_at + timedelta(hours=1))
 
@@ -157,30 +161,11 @@ class BarberBookingCreateSerializer(serializers.Serializer):
         return attrs
 
     def create(self, validated_data):
-        user = self.context["request"].user
-        barber = validated_data["barber"]
-        starts_at = validated_data["starts_at"]
-        ends_at = validated_data["ends_at"]
-
-        booking = Booking.objects.create(
-            user=user,
-            barber=barber,
-            starts_at=starts_at,
-            ends_at=ends_at,
-            quantity=1,
-            unit_price_tiyin=0,
-            total_price_tiyin=0,
-            status=Booking.Status.CONFIRMED,
-            confirmed_at=timezone.now(),
-        )
-
-        from apps.barbers.services import send_barber_booking_notification
-        send_barber_booking_notification(booking)
-
-        from telegram_bot.services import send_customer_booking_notification
-        send_customer_booking_notification(booking, Booking.Status.CONFIRMED)
-
-        return booking
+        from apps.bookings.services import create_barber_booking
+        try:
+            return create_barber_booking(self.context["request"].user, validated_data["barber"].pk, validated_data["starts_at"], validated_data["ends_at"])
+        except (DjangoValidationError, ObjectDoesNotExist) as error:
+            _raise_service_error(error)
 
 
 class BookingSerializer(serializers.ModelSerializer):
@@ -345,3 +330,28 @@ class BranchAvailabilitySerializer(serializers.Serializer):
     branch_id = serializers.UUIDField()
     date = serializers.DateField()
     zones = ZoneAvailabilitySerializer(many=True)
+
+
+class CabinetBookingCreateSerializer(serializers.Serializer):
+    user = serializers.UUIDField()
+    zone = serializers.PrimaryKeyRelatedField(queryset=Zone.objects.select_related("branch__club"))
+    starts_at = serializers.DateTimeField()
+    ends_at = serializers.DateTimeField()
+    quantity = serializers.IntegerField(min_value=1, default=1)
+
+    def create(self, validated_data):
+        from apps.accounts.models import User
+        from django.db import transaction
+        from django.shortcuts import get_object_or_404
+        from rest_framework.exceptions import PermissionDenied
+        from apps.clubs.permissions import is_platform_admin
+        actor = self.context["request"].user
+        if not is_platform_admin(actor):
+            raise PermissionDenied("clubs.permission_denied")
+        customer = get_object_or_404(User.objects.filter(role=User.Role.CUSTOMER, status=User.Status.ACTIVE), pk=validated_data["user"])
+        try:
+            with transaction.atomic():
+                hold = create_hold(customer, validated_data["zone"].pk, validated_data["starts_at"], validated_data["ends_at"], validated_data["quantity"])
+                return create_booking(customer, hold.pk)
+        except DjangoValidationError as error:
+            _raise_service_error(error)

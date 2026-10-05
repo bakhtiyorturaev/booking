@@ -5,6 +5,8 @@ cffi==2.1.0
 charset-normalizer==3.4.9
 cryptography==49.0.0
 Django==6.0.7
+django-admin-interface==0.32.0
+django-colorfield==0.14.0
 django-cors-headers==4.9.0
 djangorestframework==3.17.1
 djangorestframework_simplejwt==5.5.1
