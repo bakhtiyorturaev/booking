@@ -1,0 +1,15 @@
+.git
+node_modules
+.nuxt
+.output
+.nitro
+.data
+.cache
+.env
+.env.*
+*.log
+*.md
+**/*.md
+*.txt
+**/*.txt
+!public/robots.txt

@@ -92,3 +92,9 @@ dump/
 *seed*.json
 *translation*.json
 *translations*.json
+
+# Local documentation and notes
+*.md
+*.txt
+!requirements.txt
+!frontend/public/robots.txt
