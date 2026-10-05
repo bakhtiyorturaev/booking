@@ -13,6 +13,7 @@ export interface AuthUser {
   role: string
   is_staff?: boolean
   has_barber_profile?: boolean
+  has_owned_clubs?: boolean
   is_superuser?: boolean
   full_name?: string
   avatar_url?: string

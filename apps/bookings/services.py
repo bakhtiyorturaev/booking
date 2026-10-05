@@ -302,18 +302,21 @@ def create_booking(user, hold_id):
 
 
 @transaction.atomic
-def cancel_booking(user, booking_id, reason=""):
-    booking = Booking.objects.select_for_update().select_related("zone__branch", "barber__branch").get(
-        pk=booking_id,
-        user=user,
-    )
+def cancel_booking(user, booking_id, reason="", *, operator=False):
+    queryset = Booking.objects.select_for_update().select_related("zone__branch__club", "barber__club", "barber__branch")
+    booking = queryset.get(pk=booking_id) if operator else queryset.get(pk=booking_id, user=user)
+    if operator:
+        from apps.clubs.permissions import can_manage_club, is_platform_admin
+        club = booking.zone.branch.club if booking.zone_id else (booking.barber.club if booking.barber_id else None)
+        if not (is_platform_admin(user) or can_manage_club(user, club) or (booking.barber_id and booking.barber.user_id == user.pk)):
+            raise PermissionError("clubs.permission_denied")
     if booking.status not in (
         Booking.Status.PENDING_CONFIRMATION,
         Booking.Status.CONFIRMED,
     ):
         raise ValidationError("bookings.only_confirmed_can_cancel", code="bookings.only_confirmed_can_cancel")
 
-    if booking.status == Booking.Status.CONFIRMED and booking.zone and booking.zone.branch:
+    if not operator and booking.status == Booking.Status.CONFIRMED and booking.zone and booking.zone.branch:
         cancel_until = booking.starts_at - timedelta(
             minutes=booking.zone.branch.free_cancellation_minutes
         )

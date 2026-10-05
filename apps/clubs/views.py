@@ -412,7 +412,7 @@ class PublicBranchViewSet(viewsets.ReadOnlyModelViewSet):
         ).filter(club__status=Club.Status.ACTIVE)
         club_id = self.request.query_params.get("club")
         category = self.request.query_params.get("category")
-        city = self.request.query_params.get("city")
+        city = self.request.query_params.get("city") or self.request.query_params.get("city_id")
         district = self.request.query_params.get("district")
         search = (self.request.query_params.get("search") or "").strip()
         min_price = parse_integer_parameter(self.request, "min_price_tiyin", 0)
@@ -610,7 +610,7 @@ class DistrictViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         queryset = self.queryset
-        city = self.request.query_params.get("city")
+        city = self.request.query_params.get("city") or self.request.query_params.get("city_id")
         search = self.request.query_params.get("search", "").strip()
         if city:
             queryset = queryset.filter(location_filter("", "city", city))

@@ -110,6 +110,13 @@ class BarberAffiliateSerializer(serializers.Serializer):
 
 
 class CabinetBarberSerializer(serializers.ModelSerializer):
+    can_manage_affiliation = serializers.SerializerMethodField()
+
+    def get_can_manage_affiliation(self, obj):
+        from apps.clubs.permissions import is_platform_admin
+        user = self.context["request"].user
+        return is_platform_admin(user) or bool(obj.club_id and obj.club.owner_id == user.pk)
+
     user_username = serializers.CharField(source="user.username", read_only=True)
     club_name = serializers.CharField(source="club.name", read_only=True, default="")
     branch_name = serializers.CharField(source="branch.name", read_only=True, default="")
@@ -149,6 +156,7 @@ class CabinetBarberSerializer(serializers.ModelSerializer):
         read_only_fields = ("is_free", "rating", "review_count", "created_at", "updated_at")
         fields = (
             "id",
+            "can_manage_affiliation",
             "is_free",
             "billing_city",
             "billing_district",

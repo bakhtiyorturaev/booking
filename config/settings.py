@@ -172,6 +172,7 @@ REST_FRAMEWORK = {
     "EXCEPTION_HANDLER": "apps.clubs.exceptions.localized_api_exception_handler",
     "DEFAULT_THROTTLE_RATES": {
         "telegram_login": "20/minute",
+        "telegram_code_status": "60/minute",
         "token_refresh": "30/minute",
     },
 }

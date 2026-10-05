@@ -7,7 +7,7 @@ import { useAuth } from "~/composables/useAuth"
 import { useTheme } from "~/composables/useTheme"
 import { useAdminApi } from "~/api/admin"
 import { billingAlertLevel } from "~/composables/useVenueBillingStatus"
-import type { BillingVenue, VenueBillingStatus } from "~/types/venueBilling"
+import type { BillingVenue } from "~/types/venueBilling"
 
 const cabinetPath = useCabinetPath()
 const { user, logout } = useAuth()
@@ -24,33 +24,48 @@ onBeforeUnmount(() => document.removeEventListener("click", closeProfileMenu))
 watch(() => route.fullPath, () => { showProfileMenu.value = false })
 const sidebar = ref<HTMLElement | null>(null)
 const menuButton = ref<HTMLButtonElement | null>(null)
-const roleLabel = computed(() => ({ ADMIN: "Administrator", MODERATOR: "Moderator", CLIENT: "Muassasa egasi" })[user.value?.role || ""] || "Xodim")
+const roleLabel = computed(() => ({ ADMIN: "Administrator", MODERATOR: "Moderator", CLIENT: "Muassasa egasi" })[user.value?.role || ""] || (user.value?.has_barber_profile ? "Sartarosh" : user.value?.has_owned_clubs ? "Muassasa egasi" : "Xodim"))
 const displayName = computed(() => user.value?.full_name || user.value?.profile?.full_name || user.value?.username || "Xodim")
 const isStaff = computed(() => user.value?.is_staff || user.value?.is_superuser || ["ADMIN", "MODERATOR"].includes(user.value?.role || ""))
 const billingClock = useState<number>("venue-billing-clock", () => Date.now())
-const clientVenues = ref<BillingVenue[]>([])
-const billingStatuses = useState<Record<string, VenueBillingStatus>>("venue-billing-statuses", () => ({}))
+const clientVenues = ref<(BillingVenue & { destination: string })[]>([])
+const billingStatuses = useCabinetBillingCache()
 const billingNotices = computed(() => clientVenues.value.filter(venue => billingAlertLevel(venue, billingClock.value) !== "NONE"))
 const billingApi = useAdminApi()
 let billingTimer: ReturnType<typeof setInterval> | undefined
+let billingLoadVersion = 0
 const refreshClientBilling = async () => {
   const ownerId = user.value?.id
-  if (isStaff.value || user.value?.role !== "CLIENT" || !ownerId) { clientVenues.value = []; billingStatuses.value = {}; return }
-  try {
-    const venues: BillingVenue[] = []
+  const version = ++billingLoadVersion
+  if (isStaff.value || !ownerId) { clientVenues.value = []; billingStatuses.value = {}; return }
+  const allBillingPages = async (fetcher: (params: Record<string, string | number>) => Promise<{ results: BillingVenue[]; next: string | null }>) => {
+    const items: BillingVenue[] = []
     let page = 1
     let hasNext = true
     while (hasNext) {
-      const response = await billingApi.getVenueBilling({ page: page++, page_size: 100 })
-      venues.push(...response.results)
+      if (version !== billingLoadVersion || user.value?.id !== ownerId) return []
+      const response = await fetcher({ page: page++, page_size: 100 })
+      items.push(...response.results)
       hasNext = Boolean(response.next)
     }
-    if (user.value?.id === ownerId && !isStaff.value) {
-      clientVenues.value = venues
-      billingStatuses.value = Object.fromEntries(venues.map(venue => [venue.id, venue]))
+    return items
+  }
+  try {
+    const [clubs, branches, barbers] = await Promise.all([
+      allBillingPages(billingApi.getVenueBilling),
+      allBillingPages(billingApi.getBranchBilling),
+      allBillingPages(billingApi.getBarberBilling),
+    ])
+    if (version === billingLoadVersion && user.value?.id === ownerId && !isStaff.value) {
+      clientVenues.value = [
+        ...branches.map(venue => ({ ...venue, name: `${venue.club_name} — ${venue.name}`, destination: '/branches' })),
+        ...barbers.map(venue => ({ ...venue, destination: '/barbers' })),
+      ]
+      billingStatuses.value = Object.fromEntries(clubs.map(venue => [venue.id, venue]))
     }
-  } catch { /* The venue list still displays its billing status if the notice refresh fails. */ }
+  } catch { /* Billing badges remain available on the venue pages. */ }
 }
+
 onMounted(() => {
   billingClock.value = Date.now()
   void refreshClientBilling()
@@ -158,7 +173,7 @@ const handleLogout = async () => {
       </header>
       <div v-if="user?.password_expired" class="cabinet-password-notice"><FontAwesomeIcon :icon="faShieldHalved" /><span>Parolingizni yangilang.</span><button type="button" @click="showChangePasswordModal = true">Yangilash</button></div>
       <div v-if="!isStaff && billingNotices.length" class="billing-notices" aria-live="polite">
-        <NuxtLink v-for="venue in billingNotices" :key="venue.id" :to="cabinetPath('/clubs')" class="billing-notice" :class="billingAlertLevel(venue, billingClock).toLowerCase()"><span><strong>{{ venue.name }}</strong><small>To‘lov muddati</small></span><VenueBillingBadge :billing="venue" :club-id="venue.id" /></NuxtLink>
+        <NuxtLink v-for="venue in billingNotices" :key="venue.id" :to="cabinetPath(venue.destination)" class="billing-notice" :class="billingAlertLevel(venue, billingClock).toLowerCase()"><span><strong>{{ venue.name }}</strong><small>To‘lov muddati</small></span><VenueBillingBadge :billing="venue" /></NuxtLink>
       </div>
       <main id="cabinet-content" class="cabinet-main" tabindex="-1"><slot /></main>
       <footer class="cabinet-footer"><span>RezervUZ</span><span>{{ roleLabel }}</span></footer>

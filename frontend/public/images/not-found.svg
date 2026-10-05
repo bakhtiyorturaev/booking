@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="686" height="286" viewBox="0 0 686 286">
+  <defs>
+    <filter id="shadow" x="-50%" y="-200%" width="200%" height="500%">
+      <feGaussianBlur stdDeviation="6" />
+    </filter>
+  </defs>
+  <rect width="686" height="286" fill="#fff" />
+  <g fill="#000" font-family="Arial, Helvetica, sans-serif" text-anchor="middle">
+    <text x="343" y="158" font-size="92" font-weight="400">404</text>
+    <text x="343" y="183" font-size="22" font-weight="400">Page not found</text>
+  </g>
+  <ellipse cx="343" cy="260" rx="68" ry="3" fill="#000" opacity=".12" filter="url(#shadow)" />
+</svg>

@@ -27,23 +27,34 @@ const searchQuery = ref("")
 const selectedAffiliation = ref("")
 const selectedRealtimeStatus = ref("")
 const errorMessage = ref("")
+const page = ref(1)
+const pageSize = 20
+const hasNextPage = ref(false)
+const totalCount = ref(0)
+let loadVersion = 0
 const successMessage = ref("")
 
-const fetchBarbers = async () => {
+const fetchBarbers = async (resetPage = true) => {
+  if (resetPage) page.value = 1
+  const version = ++loadVersion
   isLoading.value = true
   errorMessage.value = ""
   try {
-    const params: Record<string, any> = {}
+    const params: Record<string, any> = { page: page.value, page_size: pageSize }
     if (searchQuery.value) params.search = searchQuery.value
     if (selectedAffiliation.value) params.affiliation_status = selectedAffiliation.value
     if (selectedRealtimeStatus.value) params.status = selectedRealtimeStatus.value
 
     const res = await adminApi.getBarbers(params)
+    if (version !== loadVersion) return
+    hasNextPage.value = Boolean(res.next)
+    totalCount.value = res.count ?? res.results?.length ?? 0
     barbers.value = res.results || res.data || res || []
   } catch (err: any) {
+    if (version !== loadVersion) return
     errorMessage.value = err?.message || "Sartaroshlarni yuklashda xatolik yuz berdi"
   } finally {
-    isLoading.value = false
+    if (version === loadVersion) isLoading.value = false
   }
 }
 
@@ -123,7 +134,7 @@ onMounted(() => {
       </div>
       <div class="header-right">
         <OperatorCreateDialog kind="barber" @saved="fetchBarbers" />
-      <button class="btn btn-outline" @click="fetchBarbers">
+      <button class="btn btn-outline" @click="fetchBarbers()">
           <CabinetIcon name="refresh" /> Yangilash
         </button>
       </div>
@@ -146,12 +157,12 @@ onMounted(() => {
           type="text"
           placeholder="Ism, telefon yoki sartaroshxona nomi bo'yicha..."
           class="search-input"
-          @keyup.enter="fetchBarbers"
+          @keyup.enter="fetchBarbers()"
          aria-label="Ism, telefon yoki sartaroshxona nomi bo'yicha...">
       </div>
 
       <div class="filter-selects">
-        <select v-model="selectedAffiliation" class="filter-select" @change="fetchBarbers" aria-label="Birikish holati">
+        <select v-model="selectedAffiliation" class="filter-select" @change="fetchBarbers()" aria-label="Birikish holati">
           <option value="">Barcha birikish holatlari</option>
           <option value="PENDING">Kutilmoqda</option>
           <option value="APPROVED"> Tasdiqlangan</option>
@@ -159,7 +170,7 @@ onMounted(() => {
           <option value="NONE">Birikmagan</option>
         </select>
 
-        <select v-model="selectedRealtimeStatus" class="filter-select" @change="fetchBarbers" aria-label="Ish holati">
+        <select v-model="selectedRealtimeStatus" class="filter-select" @change="fetchBarbers()" aria-label="Ish holati">
           <option value="">Barcha ish holatlari</option>
           <option value="AVAILABLE"> Ishda</option>
           <option value="BREAK"> Tanaffusda</option>
@@ -272,7 +283,7 @@ onMounted(() => {
               <div class="actions-group">
                 <FreeModeToggle v-if="isStaff" kind="barber" :id="barber.id" :name="barber.full_name" :is-free="barber.is_free" @changed="fetchBarbers" />
                 <BarberScheduleDialog :barber="barber" @saved="fetchBarbers" />
-                <template v-if="isStaff && barber.affiliation_status === 'PENDING'">
+                <template v-if="barber.can_manage_affiliation && barber.affiliation_status === 'PENDING'">
                   <button
                     class="btn-sm btn-success"
                     title="Birikishni tasdiqlash"
@@ -289,7 +300,7 @@ onMounted(() => {
                   </button>
                 </template>
                 <button
-                  v-else
+                  v-else-if="isStaff"
                   class="btn-sm btn-outline"
                   :disabled="!isStaff" @click="toggleActive(barber)"
                 >
@@ -301,6 +312,14 @@ onMounted(() => {
         </tbody>
       </table>
     </div>
+    <div v-if="totalCount > pageSize" class="cabinet-pagination">
+      <span>{{ page }}-sahifa · {{ totalCount }} ta</span>
+      <div>
+        <button type="button" class="secondary-button" :disabled="page === 1 || isLoading" @click="page--; fetchBarbers(false)">Oldingi</button>
+        <button type="button" class="secondary-button" :disabled="!hasNextPage || isLoading" @click="page++; fetchBarbers(false)">Keyingi</button>
+      </div>
+    </div>
+
   </div>
 </template>
 

@@ -2,7 +2,7 @@
 import type { VenueBillingStatus } from "~/types/venueBilling"
 import { useVenueBillingStatus } from "~/composables/useVenueBillingStatus"
 const props = defineProps<{ billing: VenueBillingStatus; clubId?: string }>()
-const statuses = useState<Record<string, VenueBillingStatus>>("venue-billing-statuses", () => ({}))
+const statuses = useCabinetBillingCache()
 const current = computed(() => props.clubId ? statuses.value[props.clubId] || props.billing : props.billing)
 const { level, label, expires } = useVenueBillingStatus(() => current.value)
 </script>

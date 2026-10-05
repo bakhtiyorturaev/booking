@@ -25,6 +25,10 @@ def club_for_object(obj):
         return obj.branch.club
     if isinstance(obj, ResourceBlock):
         return obj.zone.branch.club
+    if getattr(obj, "zone_id", None):
+        return obj.zone.branch.club
+    if getattr(obj, "barber_id", None):
+        return obj.barber.club
     if hasattr(obj, "club"):
         return obj.club
     if hasattr(obj, "branch"):

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import VenueBillingBadge from "~/components/cabinet/VenueBillingBadge.vue"
 import { useAdminApi } from "~/api/admin"
-import type { VenueBillingStatus } from "~/types/venueBilling"
 import { useAuth } from "~/composables/useAuth"
 
 definePageMeta({
@@ -28,12 +27,11 @@ const isPlatformAdmin = computed(() => {
 
 const services = ref<{ id: string; code: string; name: string }[]>([])
 const cities = ref<any[]>([])
-const districts = ref<any[]>([])
 const loadLocations = async () => {
-  try { cities.value = await adminApi.getCities(); districts.value = await adminApi.getDistricts() } catch (error) { errorMessage.value = cabinetErrorMessage(error) }
+  try { cities.value = await adminApi.getCities() } catch (error) { errorMessage.value = cabinetErrorMessage(error) }
 }
 const clubs = ref<any[]>([])
-const billingStatuses = useState<Record<string, VenueBillingStatus>>("venue-billing-statuses", () => ({}))
+const billingStatuses = useCabinetBillingCache()
 const clientsList = ref<any[]>([])
 const isLoading = ref(true)
 const searchQuery = ref("")
@@ -80,6 +78,8 @@ const form = ref({
   status: "ACTIVE",
   is_verified: true,
 })
+
+const { districts, isDistrictLoading, districtError } = useCityDistricts(() => form.value.billing_city)
 
 const fetchClubs = async () => {
   isLoading.value = true
@@ -381,7 +381,7 @@ useDialogFocus(showModal, "#cabinet-clubs-showModal", () => { showModal.value = 
 
             <div class="form-row">
               <div class="form-group"><label for="billing-city">Shahar</label><select id="billing-city" v-model="form.billing_city" required :disabled="!isPlatformAdmin && Boolean(editingClub)" @change="form.billing_district = ''"><option value="" disabled>Shaharni tanlang</option><option v-for="city in cities" :key="city.id" :value="city.id">{{ city.name }}</option></select></div>
-              <div class="form-group"><label for="billing-district">Tuman</label><select id="billing-district" v-model="form.billing_district" :disabled="!isPlatformAdmin && Boolean(editingClub)"><option value="">Tanlanmagan</option><option v-for="district in districts.filter(item => item.city?.id === form.billing_city)" :key="district.id" :value="district.id">{{ district.name }}</option></select></div>
+              <div class="form-group"><label for="billing-district">Tuman</label><select id="billing-district" v-model="form.billing_district" :disabled="isDistrictLoading || !form.billing_city || (!isPlatformAdmin && Boolean(editingClub))" required><option value="" disabled>{{ isDistrictLoading ? "Yuklanmoqda…" : "Tumanni tanlang" }}</option><option v-for="district in districts" :key="district.id" :value="district.id">{{ district.name }}</option></select><small v-if="districtError" role="alert">{{ districtError }}</small><small v-else-if="form.billing_city && !isDistrictLoading && !districts.length">Bu hudud uchun tumanlar hali qo‘shilmagan.</small></div>
             </div>
             <div v-if="isPlatformAdmin" class="form-group">
               <label>Muassasa egasi</label><button type="button" class="secondary-button" @click="showNewClient = !showNewClient">Mijoz qo‘shish</button>
@@ -443,7 +443,7 @@ useDialogFocus(showModal, "#cabinet-clubs-showModal", () => { showModal.value = 
               <button type="button" class="secondary-button" @click="showModal = false">
                 Bekor qilish
               </button>
-              <button type="submit" class="primary-button" :disabled="isSaving || creatingClient">
+              <button type="submit" class="primary-button" :disabled="isSaving || creatingClient || isDistrictLoading">
                 {{ isSaving ? "Saqlanmoqda..." : "Saqlash" }}
               </button>
             </div>

@@ -51,6 +51,11 @@ export const useAuthApi = (scope?: AuthScope) => {
         local: true,
         headers: languageHeaders(language),
       }),
+    telegramCodeStatus: (sessionId: string) =>
+      api.post<ApiSuccess<{ status: "waiting" | "ready" | "expired"; expires_in: number }>>("/api/auth/telegram-code-status", {
+        local: true,
+        body: { session_id: sessionId },
+      }),
     verifyTelegramCode: (payload: TelegramCodeVerifyPayload, language: Locale) =>
       api.post<ApiSuccess<AuthResultData>>("/api/auth/telegram-code-verify", {
         local: true,

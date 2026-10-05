@@ -9,6 +9,7 @@ from apps.accounts.views import (
     StaffPasswordLoginAPIView,
     TelegramAuthConfigAPIView,
     TelegramCodeInitAPIView,
+    TelegramCodeStatusAPIView,
     TelegramCodeVerifyAPIView,
     TelegramContactAPIView,
     TelegramLoginAPIView,
@@ -26,6 +27,7 @@ router.register("cabinet/users", CabinetUserViewSet, basename="cabinet-users")
 urlpatterns = [
     path("auth/telegram/config/", TelegramAuthConfigAPIView.as_view(), name="telegram-config"),
     path("auth/telegram/code/init/", TelegramCodeInitAPIView.as_view(), name="telegram-code-init"),
+    path("auth/telegram/code/status/", TelegramCodeStatusAPIView.as_view(), name="telegram-code-status"),
     path("auth/telegram/code/verify/", TelegramCodeVerifyAPIView.as_view(), name="telegram-code-verify"),
     path("auth/telegram/", TelegramLoginAPIView.as_view(), name="telegram-login"),
     path("auth/login/", StaffPasswordLoginAPIView.as_view(), name="staff-password-login"),

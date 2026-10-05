@@ -20,6 +20,10 @@ const bookings = ref<any[]>([])
 const clubs = ref<any[]>([])
 const isLoading = ref(true)
 const errorMessage = ref("")
+const page = ref(1)
+const pageSize = 50
+const hasNextPage = ref(false)
+let loadVersion = 0
 
 const statusFilter = ref("")
 const selectedClubId = ref("")
@@ -53,23 +57,28 @@ const fetchClubs = async () => {
   }
 }
 
-const fetchBookings = async () => {
+const fetchBookings = async (resetPage = true) => {
+  if (resetPage) page.value = 1
+  const version = ++loadVersion
   isLoading.value = true
   errorMessage.value = ""
   try {
-    const params: Record<string, any> = { page_size: 50 }
+    const params: Record<string, any> = { page: page.value, page_size: pageSize }
     if (statusFilter.value) params.status = statusFilter.value
     if (selectedClubId.value) params.club_id = selectedClubId.value
     if (selectedDate.value) params.date = selectedDate.value
     if (searchQuery.value) params.query = searchQuery.value
 
     const res = await adminApi.getBookings(params)
+    if (version !== loadVersion) return
+    hasNextPage.value = Boolean(res.next)
     bookings.value = res.results || res.data || res || []
     totalCount.value = res.count || bookings.value.length
   } catch (err: any) {
+    if (version !== loadVersion) return
     errorMessage.value = err?.message || "Server bilan bog'lanishda xatolik yuz berdi"
   } finally {
-    isLoading.value = false
+    if (version === loadVersion) isLoading.value = false
   }
 }
 
@@ -149,7 +158,7 @@ useDialogFocus(showCancelModal, "#cabinet-bookings-showCancelModal", () => { sho
         <h1 class="page-title">Bronlar</h1>
       </div>
       <OperatorCreateDialog kind="booking" @saved="fetchBookings" />
-      <button type="button" class="primary-button" :disabled="isLoading" @click="fetchBookings">
+      <button type="button" class="primary-button" :disabled="isLoading" @click="fetchBookings()">
         <span><CabinetIcon name="refresh" /> Yangilash</span>
       </button>
     </div>
@@ -175,19 +184,19 @@ useDialogFocus(showCancelModal, "#cabinet-bookings-showCancelModal", () => { sho
           v-model="searchQuery"
           type="search"
           placeholder="Mijoz ismi, telefon yoki klub nomi..."
-          @keyup.enter="fetchBookings"
+          @keyup.enter="fetchBookings()"
          aria-label="Mijoz ismi, telefon yoki klub nomi...">
       </div>
       <div class="select-wrap">
-        <select v-model="selectedClubId" @change="fetchBookings" aria-label="Muassasa">
+        <select v-model="selectedClubId" @change="fetchBookings()" aria-label="Muassasa">
           <option value="">Barcha klublar</option>
           <option v-for="c in clubs" :key="c.id" :value="c.id">{{ c.name }}</option>
         </select>
       </div>
       <div class="date-wrap">
-        <input v-model="selectedDate" type="date" @change="fetchBookings" aria-label="Sana">
+        <input v-model="selectedDate" type="date" @change="fetchBookings()" aria-label="Sana">
       </div>
-      <button type="button" class="secondary-button" @click="fetchBookings">Qidirish</button>
+      <button type="button" class="secondary-button" @click="fetchBookings()">Qidirish</button>
     </div>
 
     <!-- Table -->
@@ -198,7 +207,7 @@ useDialogFocus(showCancelModal, "#cabinet-bookings-showCancelModal", () => { sho
 
     <div v-else-if="errorMessage" class="error-banner">
       <p>{{ errorMessage }}</p>
-      <button type="button" class="secondary-button" @click="fetchBookings">Qayta urinish</button>
+      <button type="button" class="secondary-button" @click="fetchBookings()">Qayta urinish</button>
     </div>
 
     <div v-else class="table-card">
@@ -291,6 +300,14 @@ useDialogFocus(showCancelModal, "#cabinet-bookings-showCancelModal", () => { sho
             </tr>
           </tbody>
         </table>
+      </div>
+    </div>
+
+    <div v-if="totalCount > pageSize" class="cabinet-pagination">
+      <span>{{ page }}-sahifa · {{ totalCount }} ta</span>
+      <div>
+        <button type="button" class="secondary-button" :disabled="page === 1 || isLoading" @click="page--; fetchBookings(false)">Oldingi</button>
+        <button type="button" class="secondary-button" :disabled="!hasNextPage || isLoading" @click="page++; fetchBookings(false)">Keyingi</button>
       </div>
     </div>
 

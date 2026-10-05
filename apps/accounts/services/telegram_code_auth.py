@@ -51,7 +51,7 @@ def generate_telegram_code_for_user(user_info, session_id=None):
     challenge = TelegramLoginChallenge.objects.select_for_update().filter(session_hash=session_hash(session_id), used_at__isnull=True, expires_at__gt=timezone.now()).first()
     if challenge is None:
         raise TelegramCodeAuthError("auth.code_expired_or_invalid")
-    if challenge.user_info and challenge.user_info.get("id") != user_info["id"]:
+    if challenge.code_hash or (challenge.user_info and challenge.user_info.get("id") != user_info["id"]):
         raise TelegramCodeAuthError("auth.code_expired_or_invalid")
     code = str(secrets.randbelow(90000) + 10000)
     challenge.code_hash = code_hash(challenge, code)
@@ -60,6 +60,16 @@ def generate_telegram_code_for_user(user_info, session_id=None):
     challenge.attempts = 0
     challenge.save(update_fields=("code_hash", "user_info", "expires_at", "attempts"))
     return code
+
+
+def telegram_code_session_status(session_id):
+    challenge = TelegramLoginChallenge.objects.filter(session_hash=session_hash(session_id)).first()
+    now = timezone.now()
+    if not challenge or challenge.used_at or challenge.expires_at <= now or challenge.attempts >= MAX_CODE_ATTEMPTS:
+        return {"status": "expired", "expires_in": 0}
+    if not challenge.code_hash:
+        return {"status": "waiting", "expires_in": 0}
+    return {"status": "ready", "expires_in": max(0, (challenge.expires_at - now).total_seconds())}
 
 
 def verify_telegram_code(code, session_id=None, device_name="Telegram Web Browser", ip_address=None):

@@ -282,6 +282,18 @@ class BookingSerializer(serializers.ModelSerializer):
             _raise_service_error(error)
 
 
+class CabinetBookingSerializer(BookingSerializer):
+    user = serializers.SerializerMethodField()
+
+    class Meta(BookingSerializer.Meta):
+        fields = (*BookingSerializer.Meta.fields, "user")
+        read_only_fields = (*BookingSerializer.Meta.read_only_fields, "user")
+
+    def get_user(self, obj):
+        profile = getattr(obj.user, "profile", None)
+        return {"id": str(obj.user_id), "username": obj.user.username, "full_name": profile.full_name if profile else "", "phone": obj.user.phone}
+
+
 class CancellationSerializer(serializers.Serializer):
     reason = serializers.CharField(max_length=500, allow_blank=True, required=False)
 
@@ -291,7 +303,10 @@ class CancellationSerializer(serializers.Serializer):
                 user=self.context["request"].user,
                 booking_id=self.context["booking_id"],
                 reason=self.validated_data.get("reason", ""),
+                operator=self.context.get("operator", False),
             )
+        except PermissionError as error:
+            raise exceptions.PermissionDenied("clubs.permission_denied", code="clubs.permission_denied") from error
         except (DjangoValidationError, ObjectDoesNotExist) as error:
             _raise_service_error(error)
 

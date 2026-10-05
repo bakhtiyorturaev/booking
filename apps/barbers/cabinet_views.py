@@ -2,6 +2,8 @@ from django.db.models import Q
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.pagination import PageNumberPagination
+from rest_framework.serializers import UUIDField
 
 from apps.barbers.models import Barber
 from apps.barbers.serializers import CabinetBarberSerializer
@@ -13,12 +15,19 @@ class IsPlatformStaff(permissions.BasePermission):
         return request.user.is_authenticated and is_platform_admin(request.user)
 
 
+class CabinetBarberPagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = "page_size"
+    max_page_size = 100
+
+
 class CabinetBarberViewSet(viewsets.ModelViewSet):
     """
     Xodimlar admin paneli uchun sartaroshlarni boshqarish va arizalarni tasdiqlash.
     """
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = CabinetBarberSerializer
+    pagination_class = CabinetBarberPagination
     queryset = Barber.objects.all().select_related("user", "club", "branch").order_by("-created_at")
 
     def get_queryset(self):
@@ -32,10 +41,13 @@ class CabinetBarberViewSet(viewsets.ModelViewSet):
         if affiliation:
             qs = qs.filter(affiliation_status=affiliation)
         if club_id:
-            qs = qs.filter(club_id=club_id)
+            qs = qs.filter(club_id=UUIDField().run_validation(club_id))
         if query:
-            qs = qs.filter(full_name__icontains=query)
+            qs = qs.filter(Q(full_name__icontains=query) | Q(phone__icontains=query) | Q(user__phone__icontains=query) | Q(club__name__icontains=query))
 
+        realtime_status = self.request.query_params.get("status")
+        if realtime_status in Barber.Status.values:
+            qs = qs.filter(status=realtime_status)
         return qs
 
     def perform_create(self, serializer):

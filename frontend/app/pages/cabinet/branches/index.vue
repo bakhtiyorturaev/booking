@@ -21,7 +21,6 @@ const { statusLabel } = useCabinetLabels()
 const clubs = ref<any[]>([])
 const branches = ref<any[]>([])
 const cities = ref<any[]>([])
-const districts = ref<any[]>([])
 const selectedClubId = ref("")
 const selectedBranch = ref<any>(null)
 const branchZones = ref<any[]>([])
@@ -47,6 +46,8 @@ const branchForm = ref({
   status: "ACTIVE",
   is_24_hours: true,
 })
+
+const { districts, isDistrictLoading, districtError } = useCityDistricts(() => branchForm.value.city)
 
 // Zone Modal
 const showZoneModal = ref(false)
@@ -114,19 +115,6 @@ const selectBranch = async (branch: any) => {
   }
 }
 
-const onCityChange = async (cityId: string) => {
-  if (!cityId) {
-    districts.value = []
-    return
-  }
-  try {
-    const res = await adminApi.getDistricts(cityId)
-    districts.value = res.results || res.data || res || []
-  } catch (err) {
-    console.error("Failed to fetch districts", err)
-  }
-}
-
 const openCreateBranchModal = () => {
   editingBranch.value = null
   branchForm.value = {
@@ -140,9 +128,6 @@ const openCreateBranchModal = () => {
     longitude: 69.2401,
     status: "ACTIVE",
     is_24_hours: true,
-  }
-  if (branchForm.value.city) {
-    void onCityChange(branchForm.value.city)
   }
   branchModalError.value = ""
   showBranchModal.value = true
@@ -161,9 +146,6 @@ const openEditBranchModal = (b: any) => {
     longitude: b.longitude || 69.2401,
     status: b.status || "ACTIVE",
     is_24_hours: b.is_24_hours ?? true,
-  }
-  if (branchForm.value.city) {
-    void onCityChange(branchForm.value.city)
   }
   branchModalError.value = ""
   showBranchModal.value = true
@@ -414,16 +396,18 @@ useDialogFocus(showZoneModal, "#cabinet-branches-showZoneModal", () => { showZon
             <div class="form-row">
               <div class="form-group">
                 <label>Shahar *</label>
-                <select v-model="branchForm.city" @change="onCityChange(branchForm.city)" aria-label="Tanlash">
+                <select v-model="branchForm.city" @change="branchForm.district = ''" aria-label="Tanlash">
                   <option v-for="city in cities" :key="city.id" :value="city.id">{{ city.name }}</option>
                 </select>
               </div>
               <div class="form-group">
-                <label>Tuman</label>
-                <select v-model="branchForm.district" aria-label="Tanlash">
-                  <option value="">Tanlanmagan</option>
+                <label>Tuman *</label>
+                <select v-model="branchForm.district" aria-label="Tuman" required :disabled="isDistrictLoading || !branchForm.city">
+                  <option value="" disabled>{{ isDistrictLoading ? "Yuklanmoqda…" : "Tumanni tanlang" }}</option>
                   <option v-for="d in districts" :key="d.id" :value="d.id">{{ d.name }}</option>
                 </select>
+                <small v-if="districtError" role="alert">{{ districtError }}</small>
+                <small v-else-if="branchForm.city && !isDistrictLoading && !districts.length">Bu hudud uchun tumanlar hali qo‘shilmagan.</small>
               </div>
             </div>
 
@@ -456,7 +440,7 @@ useDialogFocus(showZoneModal, "#cabinet-branches-showZoneModal", () => { showZon
 
             <div class="modal-actions">
               <button type="button" class="secondary-button" @click="showBranchModal = false">Bekor qilish</button>
-              <button type="submit" class="primary-button" :disabled="isSavingBranch">{{ isSavingBranch ? "Saqlanmoqda..." : "Saqlash" }}</button>
+              <button type="submit" class="primary-button" :disabled="isSavingBranch || isDistrictLoading">{{ isSavingBranch ? "Saqlanmoqda..." : "Saqlash" }}</button>
             </div>
           </form>
         </div>

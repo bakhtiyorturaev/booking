@@ -20,6 +20,7 @@ from apps.bookings.serializers import (
     BookingOperatorTransitionSerializer,
     BookingSerializer,
     CancellationSerializer,
+    CabinetBookingSerializer,
 )
 from apps.bookings.services import get_branch_availability
 from apps.clubs.models import Branch
@@ -28,6 +29,7 @@ from apps.clubs.permissions import IsClubOperator, is_platform_admin
 
 class BookingPagination(PageNumberPagination):
     page_size = 20
+    page_size_query_param = "page_size"
     max_page_size = 100
 
 
@@ -168,7 +170,7 @@ class CabinetBookingViewSet(
     viewsets.GenericViewSet,
 ):
     permission_classes = (IsAuthenticated, IsClubOperator)
-    serializer_class = BookingSerializer
+    serializer_class = CabinetBookingSerializer
     pagination_class = BookingPagination
     queryset = Booking.objects.none()
 
@@ -179,7 +181,7 @@ class CabinetBookingViewSet(
         serializer = CabinetBookingCreateSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
         booking = serializer.save()
-        return Response(BookingSerializer(booking, context={"request": request}).data, status=201)
+        return Response(self.get_serializer(booking).data, status=201)
 
     def get_queryset(self):
         queryset = Booking.objects.select_related(
@@ -196,15 +198,23 @@ class CabinetBookingViewSet(
             queryset = queryset.filter(status=booking_status)
         branch_id = self.request.query_params.get("branch_id")
         if branch_id:
+            from rest_framework.serializers import UUIDField
+            branch_id = UUIDField().run_validation(branch_id)
             queryset = queryset.filter(Q(zone__branch_id=branch_id) | Q(barber__branch_id=branch_id))
         club_id = self.request.query_params.get("club_id")
         if club_id:
+            from rest_framework.serializers import UUIDField
+            club_id = UUIDField().run_validation(club_id)
             queryset = queryset.filter(Q(zone__branch__club_id=club_id) | Q(barber__club_id=club_id))
         barber_id = self.request.query_params.get("barber_id")
         if barber_id:
+            from rest_framework.serializers import UUIDField
+            barber_id = UUIDField().run_validation(barber_id)
             queryset = queryset.filter(barber_id=barber_id)
         date = self.request.query_params.get("date")
         if date:
+            from rest_framework.serializers import DateField
+            date = DateField().run_validation(date)
             queryset = queryset.filter(starts_at__date=date)
         query = self.request.query_params.get("query", "").strip()
         if query:
@@ -231,7 +241,7 @@ class CabinetBookingViewSet(
         )
         serializer.is_valid(raise_exception=True)
         booking = serializer.save()
-        return Response(BookingSerializer(booking).data)
+        return Response(self.get_serializer(booking).data)
 
     @extend_schema(tags=["Club Cabinet"], request=None, responses=BookingSerializer)
     @action(detail=True, methods=("post",), url_path="check-in")
@@ -253,8 +263,8 @@ class CabinetBookingViewSet(
     def cancel(self, request, pk=None):
         serializer = CancellationSerializer(
             data=request.data,
-            context={"request": request, "booking_id": pk},
+            context={"request": request, "booking_id": pk, "operator": True},
         )
         serializer.is_valid(raise_exception=True)
         booking = serializer.save()
-        return Response(BookingSerializer(booking).data)
+        return Response(self.get_serializer(booking).data)

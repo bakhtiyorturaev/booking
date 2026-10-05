@@ -28,6 +28,7 @@ from apps.accounts.services.auth_tokens import (
 from apps.accounts.services.telegram_code_auth import (
     TelegramCodeAuthError,
     init_telegram_code_session,
+    telegram_code_session_status,
     verify_telegram_code,
 )
 from apps.accounts.services.password_auth import (
@@ -390,6 +391,19 @@ class TelegramCodeInitAPIView(APIView):
         except TelegramCodeAuthError as error:
             return service_error_response(error, request)
         return success_response("auth.code_session_started", request, data=data)
+
+
+class TelegramCodeStatusAPIView(APIView):
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "telegram_code_status"
+
+    @extend_schema(tags=["Authentication"], request=OpenApiTypes.OBJECT, responses={200: OpenApiTypes.OBJECT})
+    def post(self, request):
+        session_id = request.data.get("session_id")
+        if not isinstance(session_id, str) or not 20 <= len(session_id) <= 128:
+            return success_response("auth.code_session_status", request, data={"status": "expired", "expires_in": 0})
+        return success_response("auth.code_session_status", request, data=telegram_code_session_status(session_id))
 
 
 class TelegramCodeVerifyAPIView(APIView):

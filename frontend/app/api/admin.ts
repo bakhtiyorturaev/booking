@@ -197,7 +197,7 @@ export const useAdminApi = () => {
     getDistricts: (cityId?: string, language = "uz") =>
       client.get<any>("/api/locations/districts", {
         local: true,
-        params: cityId ? { city_id: cityId } : undefined,
+        params: cityId ? { city: cityId } : undefined,
         headers: { "Accept-Language": language },
       }),
 

@@ -412,9 +412,54 @@ class TelegramCodeAuthTests(APITestCase):
         message = {"chat": {"id": 88881114, "type": "private"}, "from": {"id": 88881114}, "text": "/start auth_" + session}
         handle_message(client, message)
         self.assertTrue(client.send_message.called)
-        self.assertIn("<code>", str(client.send_message.call_args))
+        self.assertIn("<b>Login code: ", client.send_message.call_args.args[1])
+        self.assertNotIn("1 minute", client.send_message.call_args.args[1])
+        button = client.send_message.call_args.kwargs["reply_markup"]["inline_keyboard"][0][0]
+        self.assertEqual(len(button["copy_text"]["text"]), 5)
         challenge = TelegramLoginChallenge.objects.get()
         self.assertTrue(challenge.code_hash)
         second = self.client.post("/api/v1/auth/telegram/code/init/").data["data"]["session_id"]
         handle_message(client, {**message, "chat": {"id": -1001234, "type": "group"}, "text": "/start auth_" + second})
         self.assertEqual(TelegramLoginChallenge.objects.exclude(code_hash="").count(), 1)
+
+    def test_code_status_tracks_generation_expiry_and_hides_secrets(self):
+        from apps.accounts.services.telegram_code_auth import generate_telegram_code_for_user, session_hash
+        from apps.accounts.models import TelegramLoginChallenge
+        from datetime import timedelta
+        session = self.client.post("/api/v1/auth/telegram/code/init/").data["data"]["session_id"]
+        url = "/api/v1/auth/telegram/code/status/"
+        response = self.client.post(url, {"session_id": session})
+        self.assertEqual(response.data["data"], {"status": "waiting", "expires_in": 0})
+        generate_telegram_code_for_user({"id": 88881120}, session)
+        response = self.client.post(url, {"session_id": session})
+        self.assertEqual(response.data["data"]["status"], "ready")
+        self.assertGreater(response.data["data"]["expires_in"], 59)
+        self.assertEqual(set(response.data["data"]), {"status", "expires_in"})
+        self.assertEqual(self.client.post(url, {"session_id": "unknown"}).data["data"]["status"], "expired")
+        TelegramLoginChallenge.objects.filter(session_hash=session_hash(session)).update(expires_at=timezone.now() - timedelta(seconds=1))
+        self.assertEqual(self.client.post(url, {"session_id": session}).data["data"]["status"], "expired")
+
+    def test_repeated_start_cannot_replace_code_or_extend_expiry(self):
+        from apps.accounts.services.telegram_code_auth import generate_telegram_code_for_user, TelegramCodeAuthError, session_hash
+        from apps.accounts.models import TelegramLoginChallenge
+        session = self.client.post("/api/v1/auth/telegram/code/init/").data["data"]["session_id"]
+        code = generate_telegram_code_for_user({"id": 88881121}, session)
+        challenge = TelegramLoginChallenge.objects.get(session_hash=session_hash(session))
+        previous_expiry = challenge.expires_at
+        previous_hash = challenge.code_hash
+        with self.assertRaises(TelegramCodeAuthError):
+            generate_telegram_code_for_user({"id": 88881121}, session)
+        challenge.refresh_from_db()
+        self.assertEqual(challenge.expires_at, previous_expiry)
+        self.assertEqual(challenge.code_hash, previous_hash)
+        self.assertEqual(self.client.post("/api/v1/auth/telegram/code/verify/", {"session_id": session, "code": code}).status_code, 200)
+        self.assertEqual(self.client.post("/api/v1/auth/telegram/code/status/", {"session_id": session}).data["data"]["status"], "expired")
+
+    def test_plain_start_does_not_issue_login_code(self):
+        from telegram_bot.handlers import handle_message
+        from apps.accounts.models import TelegramLoginChallenge
+        self.client.post("/api/v1/auth/telegram/code/init/")
+        client = Mock()
+        handle_message(client, {"chat": {"id": 88881122, "type": "private"}, "from": {"id": 88881122}, "text": "/start"})
+        self.assertFalse(TelegramLoginChallenge.objects.exclude(code_hash="").exists())
+        self.assertNotIn("Login code:", str(client.send_message.call_args_list))

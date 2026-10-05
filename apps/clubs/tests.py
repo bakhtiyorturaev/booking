@@ -236,3 +236,22 @@ class FavoriteAPITests(TestCase):
         self.assertEqual(res.data["club"]["id"], str(self.club.id))
 
 
+class DistrictLocationFilterTests(TestCase):
+    def setUp(self):
+        from apps.clubs.models import District
+        self.city = City.objects.create(name="Filter City", slug="filter-city")
+        self.other = City.objects.create(name="Other City", slug="other-filter-city")
+        self.district = District.objects.create(city=self.city, name="Own District")
+        District.objects.create(city=self.other, name="Foreign District")
+        District.objects.create(city=self.city, name="Inactive District", is_active=False)
+
+    def test_both_city_parameter_names_return_only_active_matching_districts(self):
+        for name in ("city", "city_id"):
+            response = self.client.get("/api/v1/locations/districts/", {name: str(self.city.pk)})
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual([row["id"] for row in response.json()], [str(self.district.pk)])
+
+    def test_city_without_districts_returns_empty_list(self):
+        city = City.objects.create(name="Empty City", slug="empty-filter-city")
+        response = self.client.get("/api/v1/locations/districts/", {"city": str(city.pk)})
+        self.assertEqual(response.json(), [])

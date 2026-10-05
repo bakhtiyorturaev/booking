@@ -70,6 +70,11 @@ class UserSerializer(serializers.ModelSerializer):
     profile = UserProfileSerializer(read_only=True)
     is_phone_verified = serializers.BooleanField(read_only=True)
 
+    has_owned_clubs = serializers.SerializerMethodField()
+
+    def get_has_owned_clubs(self, obj):
+        return obj.owned_clubs.exists()
+
     has_barber_profile = serializers.SerializerMethodField()
 
     def get_has_barber_profile(self, obj):
@@ -87,6 +92,7 @@ class UserSerializer(serializers.ModelSerializer):
             "is_staff",
             "is_superuser",
             "has_barber_profile",
+            "has_owned_clubs",
             "is_phone_verified",
             "profile",
         )
@@ -118,6 +124,11 @@ class AuthUserSerializer(serializers.ModelSerializer):
         read_only=True,
     )
 
+    has_owned_clubs = serializers.SerializerMethodField()
+
+    def get_has_owned_clubs(self, obj):
+        return obj.owned_clubs.exists()
+
     has_barber_profile = serializers.SerializerMethodField()
 
     def get_has_barber_profile(self, obj):
@@ -136,6 +147,7 @@ class AuthUserSerializer(serializers.ModelSerializer):
             "is_staff",
             "is_superuser",
             "has_barber_profile",
+            "has_owned_clubs",
             "preferred_language",
             "is_phone_verified",
             "is_profile_completed",
