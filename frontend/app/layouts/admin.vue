@@ -87,7 +87,9 @@ const navGroups = computed(() => [
   ] },
 ].map(group => ({ ...group, items: group.items.filter(item => isStaff.value || ![cabinetPath(''), cabinetPath('/users'), cabinetPath('/payments')].includes(item.to)) })))
 const isActive = (item: { to: string; exact?: boolean }) => item.exact ? route.path === item.to : route.path.startsWith(`${item.to}/`) || route.path === item.to
-const currentPage = computed(() => navGroups.value.flatMap(group => group.items).find(isActive)?.label || "Kabinet")
+const clientsMenuOpen = ref(route.path.includes('/users'))
+watch(() => route.path, path => { if (path.includes('/users')) clientsMenuOpen.value = true })
+const currentPage = computed(() => route.path.endsWith('/users/customers') ? 'Foydalanuvchilar' : route.path.endsWith('/users/clients') ? 'Clientlar' : navGroups.value.flatMap(group => group.items).find(isActive)?.label || "Kabinet")
 const closeSidebar = () => {
   isSidebarOpen.value = false
   menuButton.value?.focus()
@@ -146,9 +148,20 @@ const handleLogout = async () => {
       <nav class="cabinet-nav" aria-label="Asosiy navigatsiya">
         <div v-for="group in navGroups" :key="group.label" class="cabinet-nav-group">
           <p class="cabinet-nav-label">{{ group.label }}</p>
-          <NuxtLink v-for="item in group.items" :key="item.to" :to="item.to" class="cabinet-nav-link" :class="{ 'is-active': isActive(item) }" :aria-current="isActive(item) ? 'page' : undefined">
-            <FontAwesomeIcon :icon="item.icon" /><span>{{ item.label }}</span><FontAwesomeIcon v-if="isActive(item)" :icon="faChevronRight" class="nav-arrow" />
-          </NuxtLink>
+          <template v-for="item in group.items" :key="item.to">
+            <template v-if="item.to === cabinetPath('/users')">
+              <button type="button" class="cabinet-nav-link clients-menu-toggle" :class="{ 'is-active': isActive(item) }" :aria-expanded="clientsMenuOpen" aria-controls="clients-submenu" @click="clientsMenuOpen = !clientsMenuOpen">
+                <FontAwesomeIcon :icon="item.icon" /><span>{{ item.label }}</span><FontAwesomeIcon :icon="faChevronRight" class="nav-arrow" :class="{ 'submenu-open': clientsMenuOpen }" />
+              </button>
+              <div v-if="clientsMenuOpen" id="clients-submenu" class="cabinet-subnav">
+                <NuxtLink :to="cabinetPath('/users/customers')" :aria-current="route.path.endsWith('/users/customers') ? 'page' : undefined">Foydalanuvchilar</NuxtLink>
+                <NuxtLink :to="cabinetPath('/users/clients')" :aria-current="route.path.endsWith('/users/clients') ? 'page' : undefined">Clientlar</NuxtLink>
+              </div>
+            </template>
+            <NuxtLink v-else :to="item.to" class="cabinet-nav-link" :class="{ 'is-active': isActive(item) }" :aria-current="isActive(item) ? 'page' : undefined">
+              <FontAwesomeIcon :icon="item.icon" /><span>{{ item.label }}</span><FontAwesomeIcon v-if="isActive(item)" :icon="faChevronRight" class="nav-arrow" />
+            </NuxtLink>
+          </template>
         </div>
       </nav>
       <div class="cabinet-sidebar-bottom">
@@ -183,6 +196,12 @@ const handleLogout = async () => {
 </template>
 
 <style scoped>
+.clients-menu-toggle { width: calc(100% - 6px); border: 0; background: transparent; text-align: left; cursor: pointer; font-family: inherit; }
+.submenu-open { transform: rotate(90deg); }
+.cabinet-subnav { display: grid; gap: 2px; margin: 0 0 8px 24px; padding-left: 18px; border-left: 1px solid var(--panel-border); }
+.cabinet-subnav a { display: flex; align-items: center; min-height: 44px; padding: 8px 12px; border-radius: 8px; font-size: 12px; color: var(--muted); text-decoration: none; }
+.cabinet-subnav a:hover, .cabinet-subnav a[aria-current="page"] { color: var(--accent); background: var(--accent-soft); }
+
 .profile-menu { position: relative; }
 .profile-trigger { border: 0; cursor: pointer; min-width: 44px; min-height: 44px; }
 .profile-actions { position: absolute; z-index: 90; top: calc(100% + 12px); right: 0; width: min(260px, calc(100vw - 32px)); background: var(--surface); border: 1px solid var(--panel-border); border-radius: 12px; box-shadow: 0 12px 36px #0002; padding: 12px; }

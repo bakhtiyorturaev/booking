@@ -161,3 +161,29 @@ class PortalIsolationTests(TestCase):
         self.assertEqual(first.data["count"], 23)
         self.assertEqual(len(first.data["results"]), 20)
         self.assertEqual(len(second.data["results"]), 3)
+    def test_customer_and_client_lists_are_separate_and_never_show_staff(self):
+        self.api.force_authenticate(self.staff)
+        hidden = [
+            self.staff,
+            User.objects.create_user(username="hidden_admin", telegram_user_id=9300001, role="ADMIN"),
+            User.objects.create_user(username="hidden_staff_customer", telegram_user_id=9300002, role="CUSTOMER", is_staff=True),
+            User.objects.create_user(username="hidden_super_client", telegram_user_id=9300003, role="CLIENT", is_superuser=True),
+        ]
+        for audience, expected in (("customers", {str(self.customer.pk)}), ("clients", {str(self.owner.pk), str(self.other.pk), str(self.barber_user.pk)})):
+            response = self.api.get("/api/v1/cabinet/users/", {"audience": audience})
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual({item["id"] for item in response.data["results"]}, expected)
+        for account in hidden:
+            self.assertEqual(self.api.get(f"/api/v1/cabinet/users/{account.pk}/").status_code, 404)
+        response = self.api.get("/api/v1/cabinet/users/", {"role": "ADMIN"})
+        self.assertEqual(response.data["count"], 0)
+
+    def test_legacy_owner_is_in_client_list_once_and_not_customer_list(self):
+        self.owner.role = "CUSTOMER"
+        self.owner.save()
+        Club.objects.create(owner=self.owner, name="Another owned venue")
+        self.api.force_authenticate(self.staff)
+        response = self.api.get("/api/v1/cabinet/users/", {"audience": "clients", "query": self.owner.username})
+        self.assertEqual(response.data["count"], 1)
+        response = self.api.get("/api/v1/cabinet/users/", {"audience": "customers", "query": self.owner.username})
+        self.assertEqual(response.data["count"], 0)

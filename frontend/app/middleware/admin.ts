@@ -10,4 +10,5 @@ export default defineNuxtRouteMiddleware(async (to) => {
   if (scope === "staff" && !staff) return navigateTo("/site/staff/login")
   if (scope === "client" && !staff && user.value?.role !== "CLIENT" && !user.value?.has_barber_profile && !user.value?.has_owned_clubs) return navigateTo("/site/client/login")
   if (!staff && (to.path === base || ["/users", "/payments"].some(suffix => to.path.startsWith(base + suffix)))) return navigateTo(base + (user.value?.has_barber_profile ? "/barbers" : "/clubs"))
+  if (to.path === base + "/users") return navigateTo(base + "/users/customers")
 })

@@ -2,7 +2,7 @@
 import AccountList from "~/components/cabinet/AccountList.vue"
 
 definePageMeta({
-  alias: ["/site/staff/panel/users", "/site/client/panel/users"],
+  alias: ["/site/staff/panel/users/clients", "/site/client/panel/users/clients"],
   layout: "admin",
   middleware: ["admin"],
 })

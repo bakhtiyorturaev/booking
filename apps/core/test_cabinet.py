@@ -95,7 +95,7 @@ class CabinetStaffApiTestCase(TestCase):
         # List
         res = self.client.get("/api/v1/cabinet/users/")
         self.assertEqual(res.status_code, 200)
-        self.assertGreaterEqual(res.json()["count"], 3)
+        self.assertEqual(res.json()["count"], 1)
 
         # Toggle status
         res = self.client.post(f"/api/v1/cabinet/users/{self.customer_user.id}/toggle-status/")

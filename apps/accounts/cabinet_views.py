@@ -5,6 +5,7 @@ from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError
 
 from apps.accounts.client_serializers import ClientCreateSerializer
 from apps.accounts.models import User
@@ -46,6 +47,16 @@ class CabinetUserViewSet(
 
     def get_queryset(self):
         qs = super().get_queryset()
+        if self.action in {"list", "retrieve"}:
+            qs = qs.filter(is_staff=False, is_superuser=False).exclude(role__in=[User.Role.ADMIN, User.Role.MODERATOR])
+        audience = self.request.query_params.get("audience", "").strip()
+        if audience not in {"", "customers", "clients"}:
+            raise ValidationError({"audience": "Noto‘g‘ri bo‘lim."})
+        if audience == "clients":
+            qs = qs.filter(Q(role=User.Role.CLIENT) | Q(owned_clubs__isnull=False) | Q(barber_profile__isnull=False)).distinct()
+        elif audience == "customers":
+            qs = qs.filter(role=User.Role.CUSTOMER, owned_clubs__isnull=True, barber_profile__isnull=True)
+
         query = self.request.query_params.get("query", "").strip()
         role = self.request.query_params.get("role", "").strip()
         user_status = self.request.query_params.get("status", "").strip()
