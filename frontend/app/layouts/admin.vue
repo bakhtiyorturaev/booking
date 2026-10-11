@@ -184,7 +184,7 @@ const handleLogout = async () => {
           </div>
         </div>
       </header>
-      <div v-if="user?.password_expired" class="cabinet-password-notice"><FontAwesomeIcon :icon="faShieldHalved" /><span>Parolingizni yangilang.</span><button type="button" @click="showChangePasswordModal = true">Yangilash</button></div>
+      <div v-if="user?.password_expired" class="cabinet-password-notice"><FontAwesomeIcon :icon="faShieldHalved" /><span>Parolingizni yangilang.</span><button type="button" @click="showChangePasswordModal = true">Parolni o‘zgartirish</button></div>
       <div v-if="!isStaff && billingNotices.length" class="billing-notices" aria-live="polite">
         <NuxtLink v-for="venue in billingNotices" :key="venue.id" :to="cabinetPath(venue.destination)" class="billing-notice" :class="billingAlertLevel(venue, billingClock).toLowerCase()"><span><strong>{{ venue.name }}</strong><small>To‘lov muddati</small></span><VenueBillingBadge :billing="venue" /></NuxtLink>
       </div>

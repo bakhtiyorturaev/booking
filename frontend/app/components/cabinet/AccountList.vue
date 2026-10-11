@@ -140,17 +140,10 @@ useDialogFocus(showRoleModal, "#cabinet-users-showRoleModal", () => { showRoleMo
 
 <template>
   <div class="admin-page">
-    <!-- Header -->
-    <div class="page-header">
-      <div class="cabinet-header-actions"><button v-if="audience === 'clients'" type="button" class="primary-button" @click="openClientModal"><CabinetIcon name="plus" /> Mijoz qo‘shish</button>
-      <button type="button" class="secondary-button" :disabled="isLoading" @click="fetchUsers">
-        <span><CabinetIcon name="refresh" /> Yangilash</span>
-      </button></div>
-    </div>
     <div v-if="createdClient" class="cabinet-success-banner" role="status"><span>@{{ createdClient.username }} qo‘shildi.</span><NuxtLink :to="{ path: cabinetPath('/clubs'), query: { owner: createdClient.id } }" class="secondary-button">Xizmat qo‘shish</NuxtLink></div>
 
     <!-- Filters Bar -->
-    <div class="filter-bar">
+    <div class="filter-bar cabinet-list-toolbar">
       <div class="search-wrap">
         <input
           v-model="searchQuery"
@@ -167,6 +160,7 @@ useDialogFocus(showRoleModal, "#cabinet-users-showRoleModal", () => { showRoleMo
         </select>
       </div>
       <button type="button" class="secondary-button" @click="fetchUsers">Qidirish</button>
+      <button v-if="audience === 'clients'" type="button" class="primary-button" @click="openClientModal"><CabinetIcon name="plus" /> Mijoz qo‘shish</button>
     </div>
 
     <!-- Table -->

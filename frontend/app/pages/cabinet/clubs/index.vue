@@ -225,15 +225,8 @@ useDialogFocus(showModal, "#cabinet-clubs-showModal", () => { showModal.value = 
 
 <template>
   <div class="admin-page">
-    <!-- Header -->
-    <div v-if="isPlatformAdmin" class="page-header">
-      <button type="button" v-if="isPlatformAdmin" class="primary-button create-btn" @click="openCreateModal">
-        <span><CabinetIcon name="plus" /> Xizmat qo‘shish</span>
-      </button>
-    </div>
-
     <!-- Filters Bar -->
-    <div class="filter-bar">
+    <div class="filter-bar cabinet-list-toolbar">
       <div class="search-box">
         <input
           v-model="searchQuery"
@@ -254,6 +247,9 @@ useDialogFocus(showModal, "#cabinet-clubs-showModal", () => { showModal.value = 
       </div>
       <button type="button" class="secondary-button" @click="fetchClubs">
         Qidirish
+      </button>
+      <button v-if="isPlatformAdmin" type="button" class="primary-button create-btn" @click="openCreateModal">
+        <CabinetIcon name="plus" /> Xizmat qo‘shish
       </button>
     </div>
 

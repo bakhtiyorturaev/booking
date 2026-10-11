@@ -128,16 +128,6 @@ onMounted(() => {
 
 <template>
   <div class="admin-barbers-page">
-    <!-- Header -->
-    <div class="page-header">
-      <div class="header-right">
-        <OperatorCreateDialog @saved="fetchBarbers" />
-      <button class="btn btn-outline" @click="fetchBarbers()">
-          <CabinetIcon name="refresh" /> Yangilash
-        </button>
-      </div>
-    </div>
-
     <!-- Feedback Alerts -->
     <div v-if="successMessage" class="alert alert-success">
       <span>✓ {{ successMessage }}</span>
@@ -147,7 +137,7 @@ onMounted(() => {
     </div>
 
     <!-- Filters Bar -->
-    <div class="filters-card">
+    <div class="filters-card cabinet-list-toolbar">
       <div class="search-input-box">
         <span class="search-icon"><CabinetIcon name="search" /></span>
         <input
@@ -177,6 +167,7 @@ onMounted(() => {
           <option value="DAY_OFF"> Dam olish kuni</option>
         </select>
       </div>
+      <OperatorCreateDialog @saved="fetchBarbers" />
     </div>
 
     <!-- Barbers Table -->

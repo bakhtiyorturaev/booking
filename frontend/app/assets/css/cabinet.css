@@ -51,6 +51,10 @@
 .cabinet-shell.cabinet-shell button:disabled { opacity: .5; cursor: not-allowed; }
 .cabinet-shell.cabinet-shell :is(.filter-bar, .filters-card) { display: flex; flex-wrap: wrap; gap: 12px; padding: 16px; border: 1px solid var(--panel-border); border-radius: 12px; background: var(--surface); box-shadow: none; min-width: 0; }
 .cabinet-shell.cabinet-shell :is(.search-wrap, .search-input-wrap, .search-input-box) { flex: 1; min-width: min(240px, 100%); }
+.cabinet-shell.cabinet-shell .cabinet-list-toolbar { align-items: center; }
+.cabinet-shell.cabinet-shell .cabinet-list-toolbar :is(.search-box, .search-wrap, .search-input-box) { flex: 1 1 160px; min-width: min(160px, 100%); max-width: 360px; }
+.cabinet-shell.cabinet-shell .cabinet-list-toolbar :is(.select-box select, .filter-select) { max-width: 200px; }
+.cabinet-shell.cabinet-shell .cabinet-list-toolbar > .primary-button { margin-left: auto; flex-shrink: 0; }
 .cabinet-shell.cabinet-shell :is(.select-wrap, .date-wrap) { min-width: 140px; }
 .cabinet-shell.cabinet-shell :is(input:not([type="checkbox"]), select, textarea) { min-height: 40px; padding: 10px 12px; font-size: 13px; border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 8px; max-width: 100%; }
 .cabinet-shell.cabinet-shell input::placeholder { color: var(--muted); }
@@ -100,6 +104,8 @@
 @media (max-width: 1100px) { .cabinet-shell.cabinet-shell .branches-layout-grid { grid-template-columns: 1fr; } }
 @media (max-width: 700px) {
   .cabinet-shell.cabinet-shell :is(.filter-bar, .filters-card) { padding: 12px; gap: 10px; }
+  .cabinet-shell.cabinet-shell .cabinet-list-toolbar :is(.search-box, .search-wrap, .search-input-box) { flex: 1 1 100%; min-width: 0; max-width: none; width: 100%; }
+  .cabinet-shell.cabinet-shell .cabinet-list-toolbar > .primary-button { margin-left: 0; flex: 1 1 100%; }
   .cabinet-shell.cabinet-shell :is(.search-wrap, .search-input-wrap, .search-input-box, .club-filter-select, .filter-selects) { flex-basis: 100%; width: 100%; min-width: 0; }
   .cabinet-shell.cabinet-shell .filter-selects { flex-wrap: wrap; }
   .cabinet-shell.cabinet-shell :is(.select-wrap, .date-wrap) { flex: 1; min-width: 0; }

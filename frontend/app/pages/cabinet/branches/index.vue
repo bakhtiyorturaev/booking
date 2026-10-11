@@ -296,17 +296,8 @@ useDialogFocus(showZoneModal, "#cabinet-branches-showZoneModal", () => { showZon
 
 <template>
   <div class="admin-page">
-    <!-- Header -->
-    <div v-if="isStaff" class="page-header">
-      <div class="header-actions">
-        <button type="button" v-if="isStaff" class="primary-button" @click="openCreateBranchModal">
-          <span><CabinetIcon name="plus" /> Yangi filial qo'shish</span>
-        </button>
-      </div>
-    </div>
-
     <!-- Filter Bar -->
-    <div class="filter-bar">
+    <div class="filter-bar cabinet-list-toolbar">
       <div class="club-filter-select">
         <label>Klubni tanlang:</label>
         <select v-model="selectedClubId" @change="fetchBranches" aria-label="Xizmat">
@@ -314,6 +305,9 @@ useDialogFocus(showZoneModal, "#cabinet-branches-showZoneModal", () => { showZon
           <option v-for="c in clubs" :key="c.id" :value="c.id">{{ c.name }}</option>
         </select>
       </div>
+      <button v-if="isStaff" type="button" class="primary-button" @click="openCreateBranchModal">
+        <CabinetIcon name="plus" /> Yangi filial qo‘shish
+      </button>
     </div>
 
     <!-- Main Two-Column Layout -->
