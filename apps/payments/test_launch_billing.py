@@ -115,16 +115,19 @@ class PlatformAndBarberBillingTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["count"], 1)
         self.assertEqual(self.api.get("/api/v1/cabinet/barbers/").status_code, 200)
-        response = self.api.patch(f"/api/v1/cabinet/barbers/{self.barber.pk}/", {"work_start_time": "09:30", "work_end_time": "18:00", "working_days": [1, 3, 5]}, format="json")
-        self.assertEqual(response.status_code, 200, response.data)
         self.barber.refresh_from_db()
-        self.assertEqual(self.barber.work_start_time, time(9, 30))
-        self.assertEqual(self.barber.working_days, [1, 3, 5])
+        previous_start = self.barber.work_start_time
+        previous_days = self.barber.working_days[:]
+        response = self.api.patch(f"/api/v1/cabinet/barbers/{self.barber.pk}/", {"work_start_time": "09:30", "work_end_time": "18:00", "working_days": [1, 3, 5]}, format="json")
+        self.assertEqual(response.status_code, 403, response.data)
+        self.barber.refresh_from_db()
+        self.assertEqual(self.barber.work_start_time, previous_start)
+        self.assertEqual(self.barber.working_days, previous_days)
         self.assertEqual(self.pay_barber().status_code, 403)
         self.assertEqual(self.api.patch(f"/api/v1/cabinet/barbers/{self.barber.pk}/", {"billing_city": str(self.city.pk)}, format="json").status_code, 403)
         self.api.force_authenticate(self.other)
         self.assertEqual(self.api.get("/api/v1/cabinet/barber-billing/").data["count"], 0)
-        self.assertEqual(self.api.patch(f"/api/v1/cabinet/barbers/{self.barber.pk}/", {"work_start_time": "10:00"}, format="json").status_code, 404)
+        self.assertEqual(self.api.patch(f"/api/v1/cabinet/barbers/{self.barber.pk}/", {"work_start_time": "10:00"}, format="json").status_code, 403)
 
     def test_barber_time_boundaries_and_two_prevalidated_requests(self):
         self.barber.work_start_time = time(9, 30)
@@ -162,6 +165,6 @@ class PlatformAndBarberBillingTests(TestCase):
         self.api.force_authenticate(self.barber_user)
         self.assertEqual(self.api.get("/api/v1/cabinet/bookings/").data["count"], 1)
         response = self.api.post(f"/api/v1/cabinet/bookings/{booking.pk}/check-in/")
-        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.status_code, 403, response.data)
         self.api.force_authenticate(self.other)
         self.assertEqual(self.api.get(f"/api/v1/cabinet/bookings/{booking.pk}/").status_code, 404)

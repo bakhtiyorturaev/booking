@@ -114,7 +114,7 @@ class BarberTests(APITestCase):
         self.assertFalse(res["is_available"])
         self.assertEqual(len(res["slots"]), 0)
 
-    def test_barber_self_service_profile_and_status(self):
+    def test_barber_profile_is_read_only(self):
         self.client.force_authenticate(user=self.barber_user)
 
         # Get my profile
@@ -124,9 +124,9 @@ class BarberTests(APITestCase):
 
         # Change status to BREAK
         response = self.client.patch("/api/v1/barbers/me/status/", {"status": Barber.Status.BREAK})
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.barber.refresh_from_db()
-        self.assertEqual(self.barber.status, Barber.Status.BREAK)
+        self.assertEqual(self.barber.status, Barber.Status.AVAILABLE)
 
     def test_barber_affiliate_request(self):
         # Create new barber user
@@ -141,10 +141,8 @@ class BarberTests(APITestCase):
             "club_id": str(self.barbershop.id),
             "branch_id": str(self.branch.id),
         })
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        new_barber = Barber.objects.get(user=new_barber_user)
-        self.assertEqual(new_barber.affiliation_status, Barber.AffiliationStatus.PENDING)
-        self.assertEqual(new_barber.club, self.barbershop)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertFalse(Barber.objects.filter(user=new_barber_user).exists())
 
     def test_customer_book_barber(self):
         from apps.barbers.services import TASHKENT_TZ

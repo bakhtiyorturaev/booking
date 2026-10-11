@@ -58,7 +58,7 @@ class CabinetVenueBillingViewSet(BillingAccessMixin, viewsets.ReadOnlyModelViewS
     queryset = Club.objects.none()
 
     def get_queryset(self):
-        qs = Club.objects.select_related("owner__profile", "billing").exclude(status=Club.Status.ARCHIVED)
+        qs = Club.objects.select_related("owner__profile", "billing")
         if not is_platform_admin(self.request.user):
             qs = qs.filter(owner=self.request.user)
         query = self.request.query_params.get("query", "").strip()
@@ -101,7 +101,7 @@ class CabinetManualVenuePaymentViewSet(BillingAccessMixin, mixins.ListModelMixin
         serializer = ManualPaymentInputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
-        club = get_object_or_404(Club.objects.exclude(status=Club.Status.ARCHIVED), pk=data["club"]) if data.get("club") else None
+        club = get_object_or_404(Club, pk=data["club"]) if data.get("club") else None
         from apps.barbers.models import Barber
         from apps.payments.barber_billing import record_barber_payment
         barber = get_object_or_404(Barber, pk=data["barber"]) if data.get("barber") else None
@@ -156,7 +156,7 @@ class CabinetBranchBillingViewSet(FreeModeMixin, BillingAccessMixin, viewsets.Re
 
     def get_queryset(self):
         from apps.clubs.models import Branch
-        qs = Branch.objects.select_related("club__owner__profile", "club__billing").exclude(status=Branch.Status.ARCHIVED).order_by("club__name", "name", "id")
+        qs = Branch.objects.select_related("club__owner__profile", "club__billing").order_by("club__name", "name", "id")
         if not is_platform_admin(self.request.user):
             qs = qs.filter(club__owner=self.request.user)
         query = self.request.query_params.get("query", "").strip()

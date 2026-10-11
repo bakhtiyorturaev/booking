@@ -4,4 +4,4 @@ from django.apps import AppConfig
 class BarbersConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
     name = "apps.barbers"
-    verbose_name = "Barbers and Salons"
+    verbose_name = "Sartaroshlar"

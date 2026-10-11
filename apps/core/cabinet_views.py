@@ -29,7 +29,7 @@ class AdminDashboardStatsAPIView(APIView):
 
         total_clubs = Club.objects.count()
         active_clubs = Club.objects.filter(status=Club.Status.ACTIVE).count()
-        pending_clubs = Club.objects.filter(status=Club.Status.PENDING).count()
+        inactive_clubs = Club.objects.filter(status=Club.Status.INACTIVE).count()
 
         total_branches = Branch.objects.count()
         active_branches = Branch.objects.filter(status=Branch.Status.ACTIVE).count()
@@ -94,7 +94,7 @@ class AdminDashboardStatsAPIView(APIView):
                 "clubs": {
                     "total": total_clubs,
                     "active": active_clubs,
-                    "pending": pending_clubs,
+                    "inactive": inactive_clubs,
                 },
                 "branches": {
                     "total": total_branches,

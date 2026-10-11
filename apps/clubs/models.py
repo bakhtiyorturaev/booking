@@ -11,6 +11,8 @@ from django.db.models import Q
 from django.utils import timezone
 from django.utils.text import slugify
 
+from apps.core.models import City, District, ServiceType
+
 
 MAX_IMAGE_SIZE = 5 * 1024 * 1024
 IMAGE_EXTENSIONS = ("jpg", "jpeg", "png", "webp")
@@ -53,29 +55,10 @@ class TimeStampedModel(models.Model):
         abstract = True
 
 
-class ServiceType(TimeStampedModel):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    code = models.SlugField(max_length=50, unique=True)
-    name = models.CharField(max_length=100)
-    is_active = models.BooleanField(default=True)
-    sort_order = models.PositiveSmallIntegerField(default=0)
-
-    class Meta:
-        ordering = ("sort_order", "name")
-        verbose_name = "Xizmat turi"
-        verbose_name_plural = "Xizmat turlari"
-
-    def __str__(self):
-        return self.name
-
-
 class Club(TimeStampedModel):
     class Status(models.TextChoices):
-        DRAFT = "DRAFT", "Draft"
-        PENDING = "PENDING", "Pending moderation"
         ACTIVE = "ACTIVE", "Active"
-        SUSPENDED = "SUSPENDED", "Suspended"
-        ARCHIVED = "ARCHIVED", "Archived"
+        INACTIVE = "INACTIVE", "Inactive"
 
     class Category(models.TextChoices):
         GAMING_CLUB = "GAMING_CLUB", "Gaming Club"
@@ -98,8 +81,9 @@ class Club(TimeStampedModel):
         help_text="Muassasa toifasi.",
     )
     service_type = models.ForeignKey(ServiceType, on_delete=models.PROTECT, null=True, blank=True)
-    billing_city = models.ForeignKey("City", on_delete=models.PROTECT, null=True, blank=True, related_name="billing_clubs")
-    billing_district = models.ForeignKey("District", on_delete=models.PROTECT, null=True, blank=True, related_name="billing_clubs")
+    available_services = models.ManyToManyField(ServiceType, blank=True, related_name="offering_clubs")
+    billing_city = models.ForeignKey("core.City", on_delete=models.PROTECT, null=True, blank=True, related_name="billing_clubs")
+    billing_district = models.ForeignKey("core.District", on_delete=models.PROTECT, null=True, blank=True, related_name="billing_clubs")
     billing_required = models.BooleanField(default=False, editable=False)
     service_name = models.CharField(max_length=100, blank=True, help_text="Boshqa xizmat nomi.")
     slug = models.SlugField(max_length=210, unique=True, help_text="URL uchun nom.")
@@ -122,7 +106,7 @@ class Club(TimeStampedModel):
     status = models.CharField(
         max_length=12,
         choices=Status.choices,
-        default=Status.DRAFT,
+        default=Status.ACTIVE,
         help_text="Klub holati.",
     )
     is_verified = models.BooleanField(default=False, help_text="Tekshiruvdan o‘tganmi.")
@@ -137,8 +121,8 @@ class Club(TimeStampedModel):
 
     class Meta:
         db_table = "clubs"
-        verbose_name = "Klub"
-        verbose_name_plural = "Klublar"
+        verbose_name = "Xizmat"
+        verbose_name_plural = "Xizmatlar"
         ordering = ("-is_verified", "-rating", "name")
         indexes = [
             models.Index(fields=["status", "rating"], name="club_status_rating_idx"),
@@ -170,96 +154,13 @@ class Club(TimeStampedModel):
         super().save(*args, **kwargs)
 
 
-class City(TimeStampedModel):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    name = models.CharField(max_length=120, help_text="Shahar nomi.")
-    slug = models.SlugField(max_length=140, unique=True, help_text="Shahar kodi.")
-    is_active = models.BooleanField(default=True, help_text="Tanlash uchun faolmi.")
-    sort_order = models.PositiveSmallIntegerField(default=0, help_text="Ko‘rinish tartibi.")
-
-    class Meta:
-        db_table = "cities"
-        verbose_name = "Shahar"
-        verbose_name_plural = "Shaharlar"
-        ordering = ("sort_order", "name")
-
-    def __str__(self):
-        return self.name
-
-    def save(self, *args, **kwargs):
-        if not self.slug:
-            base = slugify(self.name) or "city"
-            candidate = base
-            number = 2
-            while City.objects.exclude(pk=self.pk).filter(slug=candidate).exists():
-                candidate = f"{base}-{number}"
-                number += 1
-            self.slug = candidate
-        super().save(*args, **kwargs)
-
-
-class District(TimeStampedModel):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    city = models.ForeignKey(
-        City,
-        on_delete=models.PROTECT,
-        related_name="districts",
-        help_text="Tuman tegishli shahar.",
-    )
-    name = models.CharField(max_length=120, help_text="Tuman nomi.")
-    slug = models.SlugField(max_length=140, help_text="Tuman kodi.")
-    is_active = models.BooleanField(default=True, help_text="Tanlash uchun faolmi.")
-    sort_order = models.PositiveSmallIntegerField(default=0, help_text="Ko‘rinish tartibi.")
-
-    class Meta:
-        db_table = "districts"
-        verbose_name = "Tuman"
-        verbose_name_plural = "Tumanlar"
-        ordering = ("city__sort_order", "city__name", "sort_order", "name")
-        constraints = [
-            models.UniqueConstraint(
-                fields=["city", "slug"],
-                name="unique_district_slug_per_city",
-            ),
-            models.UniqueConstraint(
-                fields=["city", "name"],
-                name="unique_district_name_per_city",
-            ),
-        ]
-        indexes = [
-            models.Index(
-                fields=["city", "is_active", "sort_order"],
-                name="district_city_active_idx",
-            ),
-        ]
-
-    def __str__(self):
-        return f"{self.city.name} — {self.name}"
-
-    def save(self, *args, **kwargs):
-        if not self.slug:
-            base = slugify(self.name) or "district"
-            candidate = base
-            number = 2
-            while (
-                District.objects.exclude(pk=self.pk)
-                .filter(city_id=self.city_id, slug=candidate)
-                .exists()
-            ):
-                candidate = f"{base}-{number}"
-                number += 1
-            self.slug = candidate
-        super().save(*args, **kwargs)
-
-
 class Branch(TimeStampedModel):
+    enabled_services = models.ManyToManyField(ServiceType, blank=True, related_name="offering_branches")
     is_free = models.BooleanField(default=True, help_text="Platformadan bepul foydalanish.")
 
     class Status(models.TextChoices):
-        DRAFT = "DRAFT", "Draft"
         ACTIVE = "ACTIVE", "Active"
-        TEMPORARILY_CLOSED = "TEMP_CLOSED", "Temporarily closed"
-        ARCHIVED = "ARCHIVED", "Archived"
+        INACTIVE = "INACTIVE", "Inactive"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     club = models.ForeignKey(
@@ -307,7 +208,7 @@ class Branch(TimeStampedModel):
     status = models.CharField(
         max_length=12,
         choices=Status.choices,
-        default=Status.DRAFT,
+        default=Status.ACTIVE,
         help_text="Filial holati.",
     )
     slot_interval_minutes = models.PositiveSmallIntegerField(
@@ -351,8 +252,8 @@ class Branch(TimeStampedModel):
 
     class Meta:
         db_table = "club_branches"
-        verbose_name = "Klub filiali"
-        verbose_name_plural = "Klub filiallari"
+        verbose_name = "Xizmat filiali"
+        verbose_name_plural = "Xizmat filiallari"
         ordering = ("club__name", "name")
         constraints = [
             models.UniqueConstraint(
@@ -524,13 +425,14 @@ class Zone(TimeStampedModel):
         GENERAL = "GENERAL", "Resurs"
         COMPUTER = "COMPUTER", "Computer"
         PLAYSTATION = "PLAYSTATION", "PlayStation"
+        BILLIARDS = "BILLIARDS", "Bilyard"
 
     class Status(models.TextChoices):
         ACTIVE = "ACTIVE", "Active"
-        MAINTENANCE = "MAINTENANCE", "Maintenance"
-        DISABLED = "DISABLED", "Disabled"
+        INACTIVE = "INACTIVE", "Inactive"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    service_type = models.ForeignKey(ServiceType, on_delete=models.PROTECT, null=True, blank=True, related_name="zones")
     branch = models.ForeignKey(
         Branch,
         on_delete=models.CASCADE,
@@ -653,8 +555,8 @@ class Favorite(TimeStampedModel):
 
     class Meta:
         db_table = "favorite_clubs"
-        verbose_name = "Sevimli klub"
-        verbose_name_plural = "Sevimli klublar"
+        verbose_name = "Sevimli xizmat"
+        verbose_name_plural = "Sevimli xizmatlar"
         constraints = [
             models.UniqueConstraint(
                 fields=["user", "club"],

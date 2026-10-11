@@ -169,7 +169,7 @@ class VenueBillingTests(TestCase):
         response = client.post(f"/api/v1/cabinet/venue-billing/{self.club.pk}/tariff/", {"monthly_price": "1"}, format="json")
         self.assertEqual(response.status_code, 403)
         response = client.patch(f"/api/v1/cabinet/clubs/{self.club.pk}/", {"monthly_price": "1"}, format="json")
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 403)
         self.assertEqual(ManualVenuePayment.objects.count(), 0)
 
     def test_payment_actor_and_period_cannot_be_forged(self):
@@ -249,7 +249,7 @@ class VenueBillingTests(TestCase):
         self.assertEqual(client.get("/api/v1/cabinet/venue-billing/").status_code, 200)
 
     def test_new_venue_cannot_bypass_billing_by_omitting_tariff(self):
-        response = self.api_client(self.owner).post("/api/v1/cabinet/clubs/", {"name": "New unpaid venue"}, format="json")
+        response = self.api_client().post("/api/v1/cabinet/clubs/", {"name": "New unpaid venue", "owner": str(self.owner.pk)}, format="json")
         self.assertEqual(response.status_code, 201, response.data)
         club = Club.objects.get(pk=response.data["id"])
         self.assertTrue(club.billing_required)
@@ -280,7 +280,7 @@ class VenueBillingTests(TestCase):
 
     def test_owner_cannot_transfer_venue(self):
         response = self.api_client(self.owner).patch(f"/api/v1/cabinet/clubs/{self.club.pk}/", {"owner": str(self.other.pk)}, format="json")
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 403)
         self.club.refresh_from_db()
         self.assertEqual(self.club.owner, self.owner)
 
@@ -344,26 +344,26 @@ class VenueBillingTests(TestCase):
         staff = self.api_client().get(f"/api/v1/cabinet/clubs/{self.club.pk}/")
         self.assertIn("billing", staff.data)
 
-    def test_staff_payment_activates_new_venue(self):
-        for status in (Club.Status.DRAFT, Club.Status.PENDING):
+    def test_staff_payment_preserves_service_status(self):
+        for status in (Club.Status.ACTIVE, Club.Status.INACTIVE):
             with self.subTest(status=status):
                 self.club.status = status
                 self.club.save(update_fields=("status", "updated_at"))
                 response = self.pay()
                 self.assertEqual(response.status_code, 201, response.data)
                 self.club.refresh_from_db()
-                self.assertEqual(self.club.status, Club.Status.ACTIVE)
+                self.assertEqual(self.club.status, status)
                 billing = self.api_client().get(
                     f"/api/v1/cabinet/venue-billing/{self.club.pk}/"
                 )
                 self.assertEqual(billing.data["billing_status"], "ACTIVE")
 
     def test_payment_does_not_override_administrative_suspension(self):
-        self.club.status = Club.Status.SUSPENDED
+        self.club.status = Club.Status.INACTIVE
         self.club.save(update_fields=("status", "updated_at"))
         self.assertEqual(self.pay().status_code, 201)
         self.club.refresh_from_db()
-        self.assertEqual(self.club.status, Club.Status.SUSPENDED)
+        self.assertEqual(self.club.status, Club.Status.INACTIVE)
 
 
     def test_owner_can_only_read_billing_of_owned_venues(self):
@@ -464,7 +464,7 @@ class VenueBillingTests(TestCase):
         self.assertEqual(response.data["service_type_name"], "Tennis korti")
         self.assertEqual(response.data["category"], "OTHER")
         forged = self.api_client(self.owner).patch(f"/api/v1/cabinet/clubs/{response.data['id']}/", {"billing_city": None}, format="json")
-        self.assertEqual(forged.status_code, 400)
+        self.assertEqual(forged.status_code, 403)
 
 
     def test_operator_booking_uses_existing_capacity_and_billing_checks(self):

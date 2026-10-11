@@ -20,7 +20,7 @@ interface RecentBooking {
   total_price_tiyin: number
 }
 interface DashboardStats {
-  clubs: { total: number; active: number; pending: number }
+  clubs: { total: number; active: number; inactive: number }
   branches: { total: number; active: number }
   bookings: { today: number; active_now: number; pending: number; completed: number; cancelled: number }
   users: { total: number; active: number; staff: number }
@@ -79,16 +79,16 @@ onMounted(() => {
       <div class="metric-grid">
         <NuxtLink :to="cabinetPath('/bookings')" class="metric-card"><div class="metric-top"><span>Bugungi bronlar</span><span class="metric-icon violet"><FontAwesomeIcon :icon="faCalendarCheck" /></span></div><strong class="metric-value">{{ stats.bookings.today }}</strong><div class="metric-bottom"><span class="metric-pill"><span class="metric-dot" />{{ stats.bookings.active_now }} davom etmoqda</span><FontAwesomeIcon :icon="faArrowRight" /></div></NuxtLink>
         <NuxtLink :to="cabinetPath('/payments')" class="metric-card"><div class="metric-top"><span>Bugungi tushum</span><span class="metric-icon green"><FontAwesomeIcon :icon="faWallet" /></span></div><strong class="metric-value">{{ formatPrice(stats.revenue.today_tiyin) }}<small>so‘m</small></strong><div class="metric-bottom"><span>Jami {{ formatPrice(stats.revenue.total_tiyin) }} so‘m</span><FontAwesomeIcon :icon="faArrowRight" /></div></NuxtLink>
-        <NuxtLink :to="cabinetPath('/clubs')" class="metric-card"><div class="metric-top"><span>Muassasalar</span><span class="metric-icon amber"><FontAwesomeIcon :icon="faBuilding" /></span></div><strong class="metric-value">{{ stats.clubs.total }}</strong><div class="metric-bottom"><span>{{ stats.clubs.active }} faol <span class="metric-divider">/</span> {{ stats.branches.total }} filial</span><FontAwesomeIcon :icon="faArrowRight" /></div></NuxtLink>
+        <NuxtLink :to="cabinetPath('/clubs')" class="metric-card"><div class="metric-top"><span>Xizmatlar</span><span class="metric-icon amber"><FontAwesomeIcon :icon="faBuilding" /></span></div><strong class="metric-value">{{ stats.clubs.total }}</strong><div class="metric-bottom"><span>{{ stats.clubs.active }} faol <span class="metric-divider">/</span> {{ stats.branches.total }} filial</span><FontAwesomeIcon :icon="faArrowRight" /></div></NuxtLink>
         <NuxtLink :to="cabinetPath('/users')" class="metric-card"><div class="metric-top"><span>Foydalanuvchilar</span><span class="metric-icon blue"><FontAwesomeIcon :icon="faUsers" /></span></div><strong class="metric-value">{{ stats.users.total }}</strong><div class="metric-bottom"><span>{{ stats.users.active }} faol <span class="metric-divider">/</span> {{ stats.users.staff }} xodim</span><FontAwesomeIcon :icon="faArrowRight" /></div></NuxtLink>
       </div>
       <div class="dashboard-columns">
         <section class="dashboard-section bookings-section" aria-labelledby="recent-bookings-title">
           <div class="section-top"><div class="section-title-row"><h2 id="recent-bookings-title">Oxirgi bronlar</h2><span class="section-count">{{ stats.recent_bookings.length }}</span></div><NuxtLink :to="cabinetPath('/bookings')" class="section-link">Barchasi<FontAwesomeIcon :icon="faArrowRight" /></NuxtLink></div>
           <div v-if="!stats.recent_bookings.length" class="dashboard-empty"><span class="empty-icon"><FontAwesomeIcon :icon="faCalendarCheck" /></span><strong>Hali bronlar yo‘q</strong><NuxtLink :to="cabinetPath('/bookings')">Bronlar sahifasi<FontAwesomeIcon :icon="faArrowRight" /></NuxtLink></div>
-          <div v-else class="table-container"><table class="admin-table"><caption class="sr-only">Oxirgi bronlar</caption><thead><tr><th scope="col">Mijoz</th><th scope="col">Muassasa</th><th scope="col">Vaqt</th><th scope="col">Summa</th><th scope="col">Holat</th><th scope="col">Amal</th></tr></thead><tbody><tr v-for="b in stats.recent_bookings" :key="b.id">
+          <div v-else class="table-container"><table class="admin-table"><caption class="sr-only">Oxirgi bronlar</caption><thead><tr><th scope="col">Mijoz</th><th scope="col">Xizmat</th><th scope="col">Vaqt</th><th scope="col">Summa</th><th scope="col">Holat</th><th scope="col">Amal</th></tr></thead><tbody><tr v-for="b in stats.recent_bookings" :key="b.id">
             <td data-label="Mijoz"><div class="booking-person"><span class="person-avatar">{{ b.user_name.slice(0, 1).toUpperCase() }}</span><div><strong>{{ b.user_name }}</strong><span>{{ b.user_phone || '—' }}</span></div></div></td>
-            <td data-label="Muassasa"><div class="table-stack"><strong>{{ b.club_name }}</strong><span>{{ b.branch_name }} · {{ b.zone_name }}</span></div></td>
+            <td data-label="Xizmat"><div class="table-stack"><strong>{{ b.club_name }}</strong><span>{{ b.branch_name }} · {{ b.zone_name }}</span></div></td>
             <td data-label="Vaqt"><div class="table-stack"><strong>{{ formatTime(b.starts_at) }}–{{ formatTime(b.ends_at) }}</strong><span>{{ formatDay(b.starts_at) }}</span></div></td>
             <td data-label="Summa"><span class="price-text">{{ formatPrice(b.total_price_tiyin) }} so‘m</span></td>
             <td data-label="Holat"><span class="status-badge" :class="b.status.toLowerCase()">{{ statusLabels[b.status] || b.status }}</span></td>
@@ -98,7 +98,7 @@ onMounted(() => {
         </section>
         <section class="dashboard-section attention-section" aria-labelledby="attention-title"><div class="section-top"><h2 id="attention-title">E’tibor talab qiladi</h2></div>
           <NuxtLink :to="cabinetPath('/bookings')" class="attention-item"><span class="attention-icon amber"><FontAwesomeIcon :icon="faClock" /></span><span class="attention-text"><strong>Kutilayotgan bronlar</strong><span>Tasdiqlash</span></span><strong class="attention-count">{{ stats.bookings.pending }}</strong><FontAwesomeIcon :icon="faArrowRight" /></NuxtLink>
-          <NuxtLink :to="cabinetPath('/clubs')" class="attention-item"><span class="attention-icon violet"><FontAwesomeIcon :icon="faBuilding" /></span><span class="attention-text"><strong>Yangi muassasalar</strong><span>Tekshirish</span></span><strong class="attention-count">{{ stats.clubs.pending }}</strong><FontAwesomeIcon :icon="faArrowRight" /></NuxtLink>
+          <NuxtLink :to="cabinetPath('/clubs')" class="attention-item"><span class="attention-icon violet"><FontAwesomeIcon :icon="faBuilding" /></span><span class="attention-text"><strong>Nofaol xizmatlar</strong><span>Ko‘rish</span></span><strong class="attention-count">{{ stats.clubs.inactive }}</strong><FontAwesomeIcon :icon="faArrowRight" /></NuxtLink>
           <div class="activity-summary"><span class="activity-icon"><FontAwesomeIcon :icon="faCircleCheck" /></span><div><strong>{{ stats.bookings.completed }}</strong><span>Tugallangan bronlar</span></div><div class="cancelled-summary"><strong>{{ stats.bookings.cancelled }}</strong><span>Bekor qilingan</span></div></div>
         </section>
       </div>

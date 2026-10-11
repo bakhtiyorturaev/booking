@@ -61,8 +61,8 @@ class Barber(models.Model):
         related_name="barbers",
         help_text="Sartaroshxona filiali.",
     )
-    billing_city = models.ForeignKey("clubs.City", on_delete=models.PROTECT, null=True, blank=True, related_name="billing_barbers")
-    billing_district = models.ForeignKey("clubs.District", on_delete=models.PROTECT, null=True, blank=True, related_name="billing_barbers")
+    billing_city = models.ForeignKey("core.City", on_delete=models.PROTECT, null=True, blank=True, related_name="billing_barbers")
+    billing_district = models.ForeignKey("core.District", on_delete=models.PROTECT, null=True, blank=True, related_name="billing_barbers")
     affiliation_status = models.CharField(
         max_length=15,
         choices=AffiliationStatus.choices,
@@ -104,6 +104,8 @@ class Barber(models.Model):
 
     class Meta:
         db_table = "barbers"
+        verbose_name = "Sartarosh"
+        verbose_name_plural = "Sartaroshlar"
         ordering = ("-rating", "-created_at")
 
     def __str__(self):

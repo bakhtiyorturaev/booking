@@ -53,6 +53,8 @@ class Review(models.Model):
 
     class Meta:
         db_table = "reviews"
+        verbose_name = "Sharh"
+        verbose_name_plural = "Sharhlar"
         ordering = ("-created_at",)
         indexes = [
             models.Index(

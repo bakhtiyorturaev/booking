@@ -2,8 +2,7 @@
 import { useAdminApi } from "~/api/admin"
 const props = defineProps<{ kind: "booking" | "barber" }>()
 const emit = defineEmits<{ saved: [] }>()
-const { user } = useAuth()
-const isStaff = computed(() => user.value?.is_staff || user.value?.is_superuser || ["ADMIN", "MODERATOR"].includes(user.value?.role || ""))
+const { isStaff } = useCabinetAccess()
 const api = useAdminApi()
 const open = ref(false)
 const loading = ref(false)

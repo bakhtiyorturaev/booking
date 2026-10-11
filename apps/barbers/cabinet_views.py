@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.serializers import UUIDField
 
+from apps.clubs.permissions import IsStaffOrReadOnly
 from apps.barbers.models import Barber
 from apps.barbers.serializers import CabinetBarberSerializer
 from apps.clubs.permissions import is_platform_admin
@@ -25,7 +26,7 @@ class CabinetBarberViewSet(viewsets.ModelViewSet):
     """
     Xodimlar admin paneli uchun sartaroshlarni boshqarish va arizalarni tasdiqlash.
     """
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsStaffOrReadOnly]
     serializer_class = CabinetBarberSerializer
     pagination_class = CabinetBarberPagination
     queryset = Barber.objects.all().select_related("user", "club", "branch").order_by("-created_at")
@@ -44,6 +45,10 @@ class CabinetBarberViewSet(viewsets.ModelViewSet):
             qs = qs.filter(club_id=UUIDField().run_validation(club_id))
         if query:
             qs = qs.filter(Q(full_name__icontains=query) | Q(phone__icontains=query) | Q(user__phone__icontains=query) | Q(club__name__icontains=query))
+
+        active = self.request.query_params.get("active")
+        if active in {"true", "false"}:
+            qs = qs.filter(is_active=active == "true")
 
         realtime_status = self.request.query_params.get("status")
         if realtime_status in Barber.Status.values:

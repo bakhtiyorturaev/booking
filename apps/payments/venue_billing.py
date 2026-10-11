@@ -142,7 +142,4 @@ def record_venue_payment(*, club, actor, amount_tiyin, method, idempotency_key, 
     )
     billing.paid_until = ends_at
     billing.save(update_fields=("monthly_price_tiyin", "paid_until", "updated_at"))
-    if club.status in {Club.Status.DRAFT, Club.Status.PENDING}:
-        club.status = Club.Status.ACTIVE
-        club.save(update_fields=("status", "updated_at"))
     return payment, True

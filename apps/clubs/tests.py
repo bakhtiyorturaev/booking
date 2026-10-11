@@ -38,7 +38,7 @@ class ClubCabinetAPITests(TestCase):
         self.assertEqual(response.data["count"], 1)
         self.assertEqual(response.data["results"][0]["name"], "Owner Club")
 
-    def test_owner_can_create_branch_for_owned_club(self):
+    def test_owner_cannot_create_branch_in_read_only_cabinet(self):
         response = self.authenticated_client(self.owner).post(
             "/api/v1/cabinet/branches/",
             {
@@ -49,13 +49,13 @@ class ClubCabinetAPITests(TestCase):
                 "district": str(self.district.id),
                 "latitude": "41.311081",
                 "longitude": "69.240562",
-                "status": Branch.Status.DRAFT,
+                "status": Branch.Status.INACTIVE,
             },
             format="json",
         )
 
-        self.assertEqual(response.status_code, 201, response.data)
-        self.assertTrue(Branch.objects.filter(club=self.club, name="Main Branch").exists())
+        self.assertEqual(response.status_code, 403, response.data)
+        self.assertFalse(Branch.objects.filter(club=self.club, name="Main Branch").exists())
 
     def test_other_user_cannot_create_branch_for_foreign_club(self):
         response = self.authenticated_client(self.other_user).post(

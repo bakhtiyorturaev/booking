@@ -66,9 +66,26 @@ class UserProfileUpdateSerializer(serializers.Serializer):
         raise NotImplementedError
 
 
+def cabinet_sections(user):
+    from django.db.models import Q
+    sections = []
+    if user.owned_clubs.exists():
+        sections.extend(["clubs", "branches"])
+    if hasattr(user, "barber_profile") or user.owned_clubs.filter(
+        Q(category="BARBERSHOP") | Q(service_type__code="BARBER") | Q(available_services__code__in=["BARBERSHOP", "BARBER"])
+    ).exists():
+        sections.append("barbers")
+    return sections
+
+
 class UserSerializer(serializers.ModelSerializer):
     profile = UserProfileSerializer(read_only=True)
     is_phone_verified = serializers.BooleanField(read_only=True)
+
+    cabinet_sections = serializers.SerializerMethodField()
+
+    def get_cabinet_sections(self, obj):
+        return cabinet_sections(obj)
 
     has_owned_clubs = serializers.SerializerMethodField()
 
@@ -93,6 +110,7 @@ class UserSerializer(serializers.ModelSerializer):
             "is_superuser",
             "has_barber_profile",
             "has_owned_clubs",
+            "cabinet_sections",
             "is_phone_verified",
             "profile",
         )
@@ -124,6 +142,11 @@ class AuthUserSerializer(serializers.ModelSerializer):
         read_only=True,
     )
 
+    cabinet_sections = serializers.SerializerMethodField()
+
+    def get_cabinet_sections(self, obj):
+        return cabinet_sections(obj)
+
     has_owned_clubs = serializers.SerializerMethodField()
 
     def get_has_owned_clubs(self, obj):
@@ -148,6 +171,7 @@ class AuthUserSerializer(serializers.ModelSerializer):
             "is_superuser",
             "has_barber_profile",
             "has_owned_clubs",
+            "cabinet_sections",
             "preferred_language",
             "is_phone_verified",
             "is_profile_completed",

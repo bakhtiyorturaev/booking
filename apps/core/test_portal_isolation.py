@@ -109,14 +109,14 @@ class PortalIsolationTests(TestCase):
         self.assertNotIn("user", self.api.get(f"/api/v1/bookings/{booking.pk}/").data)
 
     def test_affiliation_permissions_match_owner_and_barber_roles(self):
-        for actor, allowed in ((self.staff, True), (self.owner, True), (self.barber_user, False)):
+        for actor, allowed in ((self.staff, True), (self.owner, False), (self.barber_user, False)):
             self.api.force_authenticate(actor)
             response = self.api.get(f"/api/v1/cabinet/barbers/{self.barber.pk}/")
             self.assertEqual(response.data["can_manage_affiliation"], allowed)
         self.api.force_authenticate(self.barber_user)
         self.assertEqual(self.api.post(f"/api/v1/cabinet/barbers/{self.barber.pk}/approve-affiliation/").status_code, 403)
         self.api.force_authenticate(self.owner)
-        self.assertEqual(self.api.post(f"/api/v1/cabinet/barbers/{self.barber.pk}/approve-affiliation/").status_code, 200)
+        self.assertEqual(self.api.post(f"/api/v1/cabinet/barbers/{self.barber.pk}/approve-affiliation/").status_code, 403)
 
     def test_barber_search_status_and_pagination_work_together(self):
         self.barber.status = "BREAK"
@@ -187,3 +187,67 @@ class PortalIsolationTests(TestCase):
         self.assertEqual(response.data["count"], 1)
         response = self.api.get("/api/v1/cabinet/users/", {"audience": "customers", "query": self.owner.username})
         self.assertEqual(response.data["count"], 0)
+
+    def test_client_business_records_are_read_only_but_staff_can_edit(self):
+        self.api.force_authenticate(self.owner)
+        for endpoint, obj, payload in (
+            ("clubs", self.clubs[0], {"name": "Forbidden name"}),
+            ("branches", self.branches[0], {"name": "Forbidden name"}),
+            ("zones", self.zones[0], {"capacity": 2}),
+            ("barbers", self.barber, {"full_name": "Forbidden name"}),
+        ):
+            with self.subTest(endpoint=endpoint):
+                self.assertEqual(self.api.patch(f"/api/v1/cabinet/{endpoint}/{obj.pk}/", payload, format="json").status_code, 403)
+                self.assertEqual(self.api.delete(f"/api/v1/cabinet/{endpoint}/{obj.pk}/").status_code, 403)
+        self.api.force_authenticate(self.staff)
+        response = self.api.patch(f"/api/v1/cabinet/clubs/{self.clubs[0].pk}/", {"name": "Staff changed name"}, format="json")
+        self.assertEqual(response.status_code, 200, response.data)
+
+    def test_owner_can_confirm_own_pending_booking_but_cannot_check_in(self):
+        from unittest.mock import patch
+        booking = self.booking(zone=self.zones[0])
+        booking.status = "PENDING_CONFIRMATION"
+        booking.save(update_fields=["status"])
+        self.api.force_authenticate(self.other)
+        self.assertEqual(self.api.post(f"/api/v1/cabinet/bookings/{booking.pk}/confirm/").status_code, 403)
+        self.api.force_authenticate(self.owner)
+        with patch("telegram_bot.services.send_customer_booking_notification"):
+            response = self.api.post(f"/api/v1/cabinet/bookings/{booking.pk}/confirm/")
+        self.assertEqual(response.status_code, 200, response.data)
+        booking.refresh_from_db()
+        self.assertEqual(booking.status, "CONFIRMED")
+        self.assertEqual(self.api.post(f"/api/v1/cabinet/bookings/{booking.pk}/check-in/").status_code, 403)
+
+    def test_club_services_can_be_assigned_per_branch_and_zone(self):
+        from apps.clubs.models import ServiceType
+        computer, _ = ServiceType.objects.get_or_create(code="COMPUTER", defaults={"name": "Kompyuter"})
+        billiards, _ = ServiceType.objects.get_or_create(code="BILLIARDS", defaults={"name": "Bilyard"})
+        ps, _ = ServiceType.objects.get_or_create(code="PLAYSTATION", defaults={"name": "PlayStation"})
+        self.api.force_authenticate(self.staff)
+        club = self.clubs[0]
+        branch = self.branches[0]
+        zone = self.zones[0]
+        response = self.api.patch(f"/api/v1/cabinet/clubs/{club.pk}/", {"available_services": [str(computer.pk), str(billiards.pk)]}, format="json")
+        self.assertEqual(response.status_code, 200, response.data)
+        url = f"/api/v1/cabinet/branches/{branch.pk}/"
+        self.assertEqual(self.api.patch(url, {"enabled_services": [str(ps.pk)]}, format="json").status_code, 400)
+        response = self.api.patch(url, {"enabled_services": [str(billiards.pk)]}, format="json")
+        self.assertEqual(response.status_code, 200, response.data)
+        zone_url = f"/api/v1/cabinet/zones/{zone.pk}/"
+        self.assertEqual(self.api.patch(zone_url, {"service_type": str(computer.pk)}, format="json").status_code, 400)
+        response = self.api.patch(zone_url, {"service_type": str(billiards.pk), "resource_type": "BILLIARDS"}, format="json")
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(self.api.patch(url, {"enabled_services": []}, format="json").status_code, 400)
+        self.assertEqual(self.api.patch(f"/api/v1/cabinet/clubs/{club.pk}/", {"available_services": []}, format="json").status_code, 400)
+        self.api.force_authenticate(self.owner)
+        self.assertEqual(self.api.patch(url, {"enabled_services": [str(ps.pk)]}, format="json").status_code, 403)
+
+    def test_client_navigation_is_derived_from_owned_services(self):
+        from apps.accounts.serializers import AuthUserSerializer
+        self.clubs[1].category = "GAMING_CLUB"
+        self.clubs[1].save()
+        self.assertEqual(AuthUserSerializer(self.other).data["cabinet_sections"], ["clubs", "branches"])
+        self.clubs[0].category = "BARBERSHOP"
+        self.clubs[0].save()
+        self.assertEqual(AuthUserSerializer(self.owner).data["cabinet_sections"], ["clubs", "branches", "barbers"])
+        self.assertEqual(AuthUserSerializer(self.barber_user).data["cabinet_sections"], ["barbers"])

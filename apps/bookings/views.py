@@ -10,6 +10,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.clubs.permissions import IsStaffOrReadOnly
 from apps.bookings.models import Booking, BookingHold
 from apps.bookings.serializers import (
     AvailabilityQuerySerializer,
@@ -160,6 +161,11 @@ class BookingViewSet(
         return Response(BookingSerializer(booking).data, status=status.HTTP_200_OK)
 
 
+class IsBookingStaffOrOperatorReadOnly(IsStaffOrReadOnly):
+    def has_permission(self, request, view):
+        return view.action in {"confirm", "cancel"} or super().has_permission(request, view)
+
+
 @extend_schema_view(
     list=extend_schema(tags=["Club Cabinet"], summary="Klub bronlarini olish"),
     retrieve=extend_schema(tags=["Club Cabinet"], summary="Klub broni tafsiloti"),
@@ -169,7 +175,7 @@ class CabinetBookingViewSet(
     mixins.RetrieveModelMixin,
     viewsets.GenericViewSet,
 ):
-    permission_classes = (IsAuthenticated, IsClubOperator)
+    permission_classes = (IsAuthenticated, IsBookingStaffOrOperatorReadOnly, IsClubOperator)
     serializer_class = CabinetBookingSerializer
     pagination_class = BookingPagination
     queryset = Booking.objects.none()
@@ -242,6 +248,11 @@ class CabinetBookingViewSet(
         serializer.is_valid(raise_exception=True)
         booking = serializer.save()
         return Response(self.get_serializer(booking).data)
+
+    @extend_schema(tags=["Club Cabinet"], request=None, responses=BookingSerializer)
+    @action(detail=True, methods=("post",))
+    def confirm(self, request, pk=None):
+        return self._transition(request, pk, Booking.Status.CONFIRMED)
 
     @extend_schema(tags=["Club Cabinet"], request=None, responses=BookingSerializer)
     @action(detail=True, methods=("post",), url_path="check-in")

@@ -59,6 +59,8 @@ class BookingHold(ReservationBase):
 
     class Meta:
         db_table = "booking_holds"
+        verbose_name = "Vaqtincha bron"
+        verbose_name_plural = "Vaqtincha bronlar"
         ordering = ("-created_at",)
         constraints = [
             models.CheckConstraint(
@@ -138,6 +140,8 @@ class Booking(ReservationBase):
 
     class Meta:
         db_table = "bookings"
+        verbose_name = "Bron"
+        verbose_name_plural = "Bronlar"
         ordering = ("-created_at",)
         constraints = [
             models.CheckConstraint(
@@ -217,6 +221,8 @@ class Cancellation(models.Model):
 
     class Meta:
         db_table = "booking_cancellations"
+        verbose_name = "Bekor qilingan bron"
+        verbose_name_plural = "Bekor qilingan bronlar"
         ordering = ("-created_at",)
 
     def __str__(self):

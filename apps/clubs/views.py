@@ -14,17 +14,17 @@ from rest_framework.response import Response
 from apps.clubs.models import (
     Branch,
     BranchImage,
-    City,
     Club,
-    District,
     Favorite,
     OperatingHour,
     ResourceBlock,
     SpecialSchedule,
     Zone,
 )
+from apps.core.models import City, District
 from apps.clubs.permissions import (
     IsClubOperator,
+    IsStaffOrReadOnly,
     IsOwnerOrPlatformAdmin,
     can_manage_club,
     is_platform_admin,
@@ -731,7 +731,7 @@ class CabinetAccessMixin:
     destroy=extend_schema(tags=["Club Cabinet"], summary="Klubni arxivlash"),
 )
 class CabinetClubViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated, IsOwnerOrPlatformAdmin]
+    permission_classes = [IsAuthenticated, IsStaffOrReadOnly, IsOwnerOrPlatformAdmin]
     serializer_class = ClubManagementSerializer
     pagination_class = StandardPagination
     queryset = Club.objects.none()
@@ -757,7 +757,7 @@ class CabinetClubViewSet(viewsets.ModelViewSet):
         service_type = self.request.query_params.get("service_type")
         if service_type:
             from rest_framework.serializers import UUIDField
-            from apps.clubs.models import ServiceType
+            from apps.core.models import ServiceType
             service_id = UUIDField().run_validation(service_type)
             service = ServiceType.objects.filter(pk=service_id).first()
             scope = Q(service_type_id=service_id)
@@ -768,18 +768,15 @@ class CabinetClubViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in {"list", "create"}:
-            return [IsAuthenticated()]
+            return [IsAuthenticated(), IsStaffOrReadOnly()]
         return super().get_permissions()
 
     def perform_create(self, serializer):
-        initial_status = serializer.validated_data.get(
-            "status",
-            Club.Status.ACTIVE if is_platform_admin(self.request.user) else Club.Status.DRAFT,
-        )
+        initial_status = serializer.validated_data.get("status", Club.Status.ACTIVE)
         serializer.save(status=initial_status)
 
     def perform_destroy(self, instance):
-        instance.status = Club.Status.ARCHIVED
+        instance.status = Club.Status.INACTIVE
         instance.save(update_fields=["status", "updated_at"])
 
 
@@ -792,7 +789,7 @@ class CabinetClubViewSet(viewsets.ModelViewSet):
     destroy=extend_schema(tags=["Club Cabinet"], summary="Filialni o‘chirish"),
 )
 class CabinetBranchViewSet(CabinetAccessMixin, viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated, IsClubOperator]
+    permission_classes = [IsAuthenticated, IsStaffOrReadOnly, IsClubOperator]
     serializer_class = BranchManagementSerializer
     pagination_class = StandardPagination
     club_path = "club"
@@ -829,7 +826,7 @@ class CabinetBranchViewSet(CabinetAccessMixin, viewsets.ModelViewSet):
     destroy=extend_schema(tags=["Club Cabinet"], summary="Zonani o‘chirish"),
 )
 class CabinetZoneViewSet(CabinetAccessMixin, viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated, IsClubOperator]
+    permission_classes = [IsAuthenticated, IsStaffOrReadOnly, IsClubOperator]
     serializer_class = ZoneSerializer
     pagination_class = StandardPagination
     club_path = "branch"
@@ -858,7 +855,7 @@ class CabinetZoneViewSet(CabinetAccessMixin, viewsets.ModelViewSet):
     destroy=extend_schema(tags=["Club Cabinet"], summary="Ish vaqtini o‘chirish"),
 )
 class CabinetOperatingHourViewSet(CabinetAccessMixin, viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated, IsClubOperator]
+    permission_classes = [IsAuthenticated, IsStaffOrReadOnly, IsClubOperator]
     serializer_class = OperatingHourSerializer
     pagination_class = StandardPagination
     club_path = "branch"
@@ -886,7 +883,7 @@ class CabinetOperatingHourViewSet(CabinetAccessMixin, viewsets.ModelViewSet):
     destroy=extend_schema(tags=["Club Cabinet"], summary="Maxsus jadvalni o‘chirish"),
 )
 class CabinetSpecialScheduleViewSet(CabinetAccessMixin, viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated, IsClubOperator]
+    permission_classes = [IsAuthenticated, IsStaffOrReadOnly, IsClubOperator]
     serializer_class = SpecialScheduleSerializer
     pagination_class = StandardPagination
     club_path = "branch"
@@ -911,7 +908,7 @@ class CabinetSpecialScheduleViewSet(CabinetAccessMixin, viewsets.ModelViewSet):
     destroy=extend_schema(tags=["Club Cabinet"], summary="Filial rasmini o‘chirish"),
 )
 class CabinetBranchImageViewSet(CabinetAccessMixin, viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated, IsClubOperator]
+    permission_classes = [IsAuthenticated, IsStaffOrReadOnly, IsClubOperator]
     serializer_class = BranchImageSerializer
     pagination_class = StandardPagination
     club_path = "branch"
@@ -933,7 +930,7 @@ class CabinetBranchImageViewSet(CabinetAccessMixin, viewsets.ModelViewSet):
     destroy=extend_schema(tags=["Club Cabinet"], summary="Zona blokini o‘chirish"),
 )
 class CabinetResourceBlockViewSet(CabinetAccessMixin, viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated, IsClubOperator]
+    permission_classes = [IsAuthenticated, IsStaffOrReadOnly, IsClubOperator]
     serializer_class = ResourceBlockSerializer
     pagination_class = StandardPagination
     club_path = "zone"
@@ -954,11 +951,19 @@ class ServiceTypeViewSet(viewsets.ReadOnlyModelViewSet):
     pagination_class = None
 
     def get_queryset(self):
-        from apps.clubs.models import ServiceType
-        return ServiceType.objects.filter(is_active=True)
+        from apps.core.models import ServiceType
+        qs = ServiceType.objects.filter(is_active=True)
+        user = self.request.user
+        if not is_platform_admin(user):
+            clubs = Club.objects.filter(owner=user)
+            visible = Q(offering_clubs__owner=user) | Q(pk__in=clubs.values("service_type_id")) | Q(code__in=clubs.filter(service_type=None).values("category"))
+            if hasattr(user, "barber_profile"):
+                visible |= Q(code="BARBERSHOP")
+            qs = qs.filter(visible).distinct()
+        return qs
 
     def get_serializer_class(self):
-        from apps.clubs.models import ServiceType
+        from apps.core.models import ServiceType
         from rest_framework import serializers
 
         class ServiceTypeSerializer(serializers.ModelSerializer):

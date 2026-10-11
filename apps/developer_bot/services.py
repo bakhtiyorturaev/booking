@@ -5,7 +5,7 @@ from django.db import DatabaseError
 
 from apps.developer_bot.client import DeveloperTelegramClient
 from apps.developer_bot.formatters import format_event
-from apps.developer_bot.models import DeveloperBotSettings
+from apps.core.models import DeveloperBotSettings
 
 
 _settings_lock = threading.Lock()

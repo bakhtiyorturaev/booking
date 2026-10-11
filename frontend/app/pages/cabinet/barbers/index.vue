@@ -17,8 +17,7 @@ useHead({
 })
 
 const cabinetPath = useCabinetPath()
-const { user } = useAuth()
-const isStaff = computed(() => user.value?.is_staff || user.value?.is_superuser || ["ADMIN", "MODERATOR"].includes(user.value?.role || ""))
+const { isStaff } = useCabinetAccess()
 const adminApi = useAdminApi()
 
 const barbers = ref<CabinetBarberItem[]>([])
@@ -26,6 +25,7 @@ const isLoading = ref(true)
 const searchQuery = ref("")
 const selectedAffiliation = ref("")
 const selectedRealtimeStatus = ref("")
+const selectedActive = ref("")
 const errorMessage = ref("")
 const page = ref(1)
 const pageSize = 20
@@ -43,6 +43,7 @@ const fetchBarbers = async (resetPage = true) => {
     const params: Record<string, any> = { page: page.value, page_size: pageSize }
     if (searchQuery.value) params.search = searchQuery.value
     if (selectedAffiliation.value) params.affiliation_status = selectedAffiliation.value
+    if (selectedActive.value) params.active = selectedActive.value
     if (selectedRealtimeStatus.value) params.status = selectedRealtimeStatus.value
 
     const res = await adminApi.getBarbers(params)
@@ -162,7 +163,8 @@ onMounted(() => {
       </div>
 
       <div class="filter-selects">
-        <select v-model="selectedAffiliation" class="filter-select" @change="fetchBarbers()" aria-label="Birikish holati">
+        <select v-if="!isStaff" v-model="selectedActive" class="filter-select" aria-label="Holat" @change="fetchBarbers()"><option value="">Barchasi</option><option value="true">Faol</option><option value="false">Muzlatilgan</option></select>
+        <select v-if="isStaff" v-model="selectedAffiliation" class="filter-select" @change="fetchBarbers()" aria-label="Birikish holati">
           <option value="">Barcha birikish holatlari</option>
           <option value="PENDING">Kutilmoqda</option>
           <option value="APPROVED"> Tasdiqlangan</option>
@@ -170,7 +172,7 @@ onMounted(() => {
           <option value="NONE">Birikmagan</option>
         </select>
 
-        <select v-model="selectedRealtimeStatus" class="filter-select" @change="fetchBarbers()" aria-label="Ish holati">
+        <select v-if="isStaff" v-model="selectedRealtimeStatus" class="filter-select" @change="fetchBarbers()" aria-label="Ish holati">
           <option value="">Barcha ish holatlari</option>
           <option value="AVAILABLE"> Ishda</option>
           <option value="BREAK"> Tanaffusda</option>
@@ -199,11 +201,11 @@ onMounted(() => {
             <th scope="col">Usta</th>
             <th scope="col">Sartaroshxona / Filial</th>
             <th scope="col">Ish vaqti</th>
-            <th scope="col">Ish holati</th>
-            <th scope="col">Birikish</th>
+            <th v-if="isStaff" scope="col">Ish holati</th>
+            <th v-if="isStaff" scope="col">Birikish</th>
             <th scope="col">Reyting</th>
             <th scope="col">To‘lov muddati</th><th scope="col">Platforma holati</th>
-            <th scope="col" class="text-right">Amallar</th>
+            <th v-if="isStaff" scope="col" class="text-right">Amallar</th>
           </tr>
         </thead>
         <tbody>
@@ -244,14 +246,14 @@ onMounted(() => {
             </td>
 
             <!-- Real-time status -->
-            <td data-label="Ish holati">
+            <td v-if="isStaff" data-label="Ish holati">
               <span class="badge" :class="getStatusBadgeClass(barber.status)">
                 {{ barber.status_display || barber.status }}
               </span>
             </td>
 
             <!-- Affiliation status -->
-            <td data-label="Birikish">
+            <td v-if="isStaff" data-label="Birikish">
               <span class="badge" :class="getAffiliationBadgeClass(barber.affiliation_status)">
                 {{ barber.affiliation_status_display || barber.affiliation_status }}
               </span>
@@ -268,7 +270,8 @@ onMounted(() => {
             <!-- Active / Inactive -->
             <td data-label="To‘lov muddati"><VenueBillingBadge :billing="barber.billing" /></td>
             <td data-label="Platforma holati">
-              <button
+              <span v-if="!isStaff" class="badge" :class="barber.is_active ? 'badge-success' : 'badge-danger'">{{ barber.is_active ? 'Faol' : 'Nofaol' }}</span>
+              <button v-else
                 type="button"
                 class="status-toggle-btn"
                 :class="barber.is_active ? 'active' : 'inactive'"
@@ -279,11 +282,11 @@ onMounted(() => {
             </td>
 
             <!-- Actions -->
-            <td data-label="Amallar" class="text-right">
+            <td v-if="isStaff" data-label="Amallar" class="text-right">
               <div class="actions-group">
                 <FreeModeToggle v-if="isStaff" kind="barber" :id="barber.id" :name="barber.full_name" :is-free="barber.is_free" @changed="fetchBarbers" />
-                <BarberScheduleDialog :barber="barber" @saved="fetchBarbers" />
-                <template v-if="barber.can_manage_affiliation && barber.affiliation_status === 'PENDING'">
+                <BarberScheduleDialog v-if="isStaff" :barber="barber" @saved="fetchBarbers" />
+                <template v-if="isStaff && barber.can_manage_affiliation && barber.affiliation_status === 'PENDING'">
                   <button
                     class="btn-sm btn-success"
                     title="Birikishni tasdiqlash"

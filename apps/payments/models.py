@@ -25,6 +25,8 @@ class SubscriptionPlan(models.Model):
 
     class Meta:
         db_table = "subscription_plans"
+        verbose_name = "Obuna tarifi"
+        verbose_name_plural = "Obuna tariflari"
         ordering = ("price_tiyin", "duration_days")
         constraints = [
             models.CheckConstraint(
@@ -65,6 +67,8 @@ class UserSubscription(models.Model):
 
     class Meta:
         db_table = "user_subscriptions"
+        verbose_name = "Foydalanuvchi obunasi"
+        verbose_name_plural = "Foydalanuvchi obunalari"
         ordering = ("-created_at",)
         constraints = [
             models.CheckConstraint(
@@ -139,6 +143,8 @@ class Payment(models.Model):
 
     class Meta:
         db_table = "payments"
+        verbose_name = "To‘lov"
+        verbose_name_plural = "To‘lovlar"
         ordering = ("-created_at",)
         indexes = [
             models.Index(fields=("user", "status"), name="payment_user_status_idx"),
@@ -165,6 +171,8 @@ class VenueBilling(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
+        verbose_name = "Xizmat hisob-kitobi"
+        verbose_name_plural = "Xizmat hisob-kitoblari"
         constraints = [models.CheckConstraint(
             condition=Q(monthly_price_tiyin__gt=0), name="venue_billing_positive_price",
         )]
@@ -206,6 +214,8 @@ class BarberBilling(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
+        verbose_name = "Sartarosh hisob-kitobi"
+        verbose_name_plural = "Sartarosh hisob-kitoblari"
         constraints = [models.CheckConstraint(condition=Q(monthly_price_tiyin__gt=0), name="barber_billing_positive_price")]
 
 
@@ -229,6 +239,8 @@ class ManualVenuePayment(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        verbose_name = "Qo‘lda kiritilgan to‘lov"
+        verbose_name_plural = "Qo‘lda kiritilgan to‘lovlar"
         ordering = ("-created_at", "-id")
         constraints = [
             models.CheckConstraint(condition=(Q(billing__isnull=False, barber_billing__isnull=True) | Q(billing__isnull=True, barber_billing__isnull=False)), name="manual_payment_single_target"),
@@ -240,9 +252,9 @@ class ManualVenuePayment(models.Model):
 
 
 class VenueTariffRule(models.Model):
-    service_type = models.ForeignKey("clubs.ServiceType", on_delete=models.PROTECT)
-    city = models.ForeignKey("clubs.City", on_delete=models.PROTECT, null=True, blank=True)
-    district = models.ForeignKey("clubs.District", on_delete=models.PROTECT, null=True, blank=True)
+    service_type = models.ForeignKey("core.ServiceType", on_delete=models.PROTECT)
+    city = models.ForeignKey("core.City", on_delete=models.PROTECT, null=True, blank=True)
+    district = models.ForeignKey("core.District", on_delete=models.PROTECT, null=True, blank=True)
     monthly_price_tiyin = models.PositiveBigIntegerField(validators=[MinValueValidator(1)])
 
     class Meta:

@@ -145,3 +145,9 @@
 .cabinet-shell.cabinet-shell .cabinet-header-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .cabinet-shell.cabinet-shell .cabinet-success-banner { padding: 16px; background: var(--success-soft); color: var(--success); border-radius: 10px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 13px; }
 @media (max-width: 450px) { .cabinet-modal.cabinet-modal .modal-form { padding: 18px; } .cabinet-modal.cabinet-modal .modal-header { padding: 16px 18px; } }
+
+.service-picker { border: 1px solid var(--cabinet-border, #dce1ed); border-radius: 12px; padding: 14px; display: flex; flex-wrap: wrap; gap: 12px 20px; }
+.service-picker legend { padding: 0 6px; font-weight: 600; }
+.service-choice { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; cursor: pointer; }
+.service-choice input[type="checkbox"] { width: 18px; height: 18px; accent-color: #7c66ef; }
+.branch-services { margin: 8px 0; font-size: 13px; color: var(--cabinet-muted, #7c8597); }

@@ -6,6 +6,7 @@ from rest_framework import permissions, status, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.clubs.permissions import IsStaffOrReadOnly
 from apps.barbers.models import Barber
 from apps.barbers.serializers import (
     BarberAffiliateSerializer,
@@ -15,8 +16,6 @@ from apps.barbers.serializers import (
 )
 from apps.barbers.services import get_barber_available_slots
 from apps.clubs.services.geo import haversine_km
-
-
 from django.db.models import Q
 
 class PublicBarberViewSet(viewsets.ReadOnlyModelViewSet):
@@ -127,7 +126,7 @@ class BarberProfileAPIView(APIView):
     """
     Sartaroshning o'z shaxsiy profilini olish va tahrirlash.
     """
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsStaffOrReadOnly]
 
     def get_or_create_barber(self, user):
         barber, created = Barber.objects.get_or_create(
@@ -140,7 +139,7 @@ class BarberProfileAPIView(APIView):
         return barber
 
     def get(self, request):
-        barber = self.get_or_create_barber(request.user)
+        barber = get_object_or_404(Barber, user=request.user)
         serializer = BarberProfileSerializer(barber)
         return Response(serializer.data)
 
@@ -156,7 +155,7 @@ class BarberStatusAPIView(APIView):
     """
     Sartarosh o'zining real vaqt holatini (Ishda, Tanaffusda, Ishga chiqmagan, Dam olish kuni) tezkor o'zgartirishi.
     """
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsStaffOrReadOnly]
 
     def post(self, request):
         return self._update_status(request)
@@ -187,7 +186,7 @@ class BarberAffiliateAPIView(APIView):
     """
     Sartaroshning sartaroshxonaga birikish so'rovi yuborishi.
     """
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsStaffOrReadOnly]
 
     def post(self, request):
         barber, _ = Barber.objects.get_or_create(

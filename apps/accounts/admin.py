@@ -45,7 +45,7 @@ class UserAdmin(BaseUserAdmin):
             },
         ),
         (
-            "Telegram & Status",
+            "Telegram va holat",
             {
                 "fields": (
                     "telegram_user_id",
@@ -57,7 +57,7 @@ class UserAdmin(BaseUserAdmin):
             },
         ),
         (
-            "Permissions",
+            "Ruxsatlar",
             {
                 "fields": (
                     "is_staff",

@@ -150,7 +150,7 @@ useDialogFocus(showRoleModal, "#cabinet-users-showRoleModal", () => { showRoleMo
         <span><CabinetIcon name="refresh" /> Yangilash</span>
       </button></div>
     </div>
-    <div v-if="createdClient" class="cabinet-success-banner" role="status"><span>@{{ createdClient.username }} qo‘shildi.</span><NuxtLink :to="{ path: cabinetPath('/clubs'), query: { owner: createdClient.id } }" class="secondary-button">Muassasa qo‘shish</NuxtLink></div>
+    <div v-if="createdClient" class="cabinet-success-banner" role="status"><span>@{{ createdClient.username }} qo‘shildi.</span><NuxtLink :to="{ path: cabinetPath('/clubs'), query: { owner: createdClient.id } }" class="secondary-button">Xizmat qo‘shish</NuxtLink></div>
 
     <!-- Filters Bar -->
     <div class="filter-bar">
@@ -293,7 +293,7 @@ useDialogFocus(showRoleModal, "#cabinet-users-showRoleModal", () => { showRoleMo
               <label>Yangi rol</label>
               <select v-model="newRole" aria-label="Tanlash">
                 <option value="CUSTOMER">Mijoz</option>
-                <option value="CLIENT">Muassasa egasi</option>
+                <option value="CLIENT">Xizmat egasi</option>
               </select>
             </div>
 

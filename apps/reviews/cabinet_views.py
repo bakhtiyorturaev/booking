@@ -6,6 +6,7 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from apps.clubs.permissions import IsStaffOrReadOnly
 from apps.clubs.permissions import is_platform_admin
 from apps.core.responses import error_response, success_response
 from apps.reviews.models import Review
@@ -29,7 +30,7 @@ class CabinetReviewViewSet(
     mixins.DestroyModelMixin,
     viewsets.GenericViewSet,
 ):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsStaffOrReadOnly]
     serializer_class = PublicReviewSerializer
     pagination_class = CabinetReviewPagination
     queryset = Review.objects.all().select_related("user__profile", "club", "booking").order_by("-created_at")

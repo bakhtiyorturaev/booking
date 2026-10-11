@@ -14,6 +14,7 @@ useHead({
 
 const cabinetPath = useCabinetPath()
 const adminApi = useAdminApi()
+const { isStaff } = useCabinetAccess()
 const { statusLabel } = useCabinetLabels()
 
 const bookings = ref<any[]>([])
@@ -89,6 +90,11 @@ const handleCheckIn = async (bId: string) => {
   } catch (err: any) {
     alert(err?.data?.message || err?.message || "Check-in xatolik yuz berdi")
   }
+}
+
+const handleConfirm = async (id: string) => {
+  try { await adminApi.confirmBooking(id); await fetchBookings() }
+  catch (error) { useToast().error(cabinetErrorMessage(error)) }
 }
 
 const handleComplete = async (bId: string) => {
@@ -188,7 +194,7 @@ useDialogFocus(showCancelModal, "#cabinet-bookings-showCancelModal", () => { sho
          aria-label="Mijoz ismi, telefon yoki klub nomi...">
       </div>
       <div class="select-wrap">
-        <select v-model="selectedClubId" @change="fetchBookings()" aria-label="Muassasa">
+        <select v-model="selectedClubId" @change="fetchBookings()" aria-label="Xizmat">
           <option value="">Barcha klublar</option>
           <option v-for="c in clubs" :key="c.id" :value="c.id">{{ c.name }}</option>
         </select>
@@ -259,8 +265,9 @@ useDialogFocus(showCancelModal, "#cabinet-bookings-showCancelModal", () => { sho
               </td>
               <td data-label="Amallar">
                 <div class="action-buttons-inline">
+                  <button v-if="b.status === 'PENDING_CONFIRMATION'" type="button" class="btn-act checkin" @click="handleConfirm(b.id)">Tasdiqlash</button>
                   <button
-                    v-if="b.status === 'CONFIRMED'"
+                    v-if="isStaff && b.status === 'CONFIRMED'"
                     type="button"
                     class="btn-act checkin"
                     title="Check-in qilish"
@@ -269,7 +276,7 @@ useDialogFocus(showCancelModal, "#cabinet-bookings-showCancelModal", () => { sho
                     Check-in
                   </button>
                   <button
-                    v-if="b.status === 'CHECKED_IN'"
+                    v-if="isStaff && b.status === 'CHECKED_IN'"
                     type="button"
                     class="btn-act complete"
                     title="Tugatish"
@@ -278,7 +285,7 @@ useDialogFocus(showCancelModal, "#cabinet-bookings-showCancelModal", () => { sho
                     Tugatish
                   </button>
                   <button
-                    v-if="b.status === 'CONFIRMED'"
+                    v-if="isStaff && b.status === 'CONFIRMED'"
                     type="button"
                     class="btn-act noshow"
                     title="Kelmadi"

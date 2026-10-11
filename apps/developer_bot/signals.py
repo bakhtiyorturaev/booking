@@ -5,7 +5,7 @@ from django.dispatch import receiver
 
 from apps.accounts.models import User
 from apps.bookings.models import Booking, Cancellation
-from apps.developer_bot.models import DeveloperBotSettings
+from apps.core.models import DeveloperBotSettings
 from apps.developer_bot.services import (
     clear_developer_bot_settings_cache,
     notify_developer_async,

@@ -24,9 +24,9 @@ onBeforeUnmount(() => document.removeEventListener("click", closeProfileMenu))
 watch(() => route.fullPath, () => { showProfileMenu.value = false })
 const sidebar = ref<HTMLElement | null>(null)
 const menuButton = ref<HTMLButtonElement | null>(null)
-const roleLabel = computed(() => ({ ADMIN: "Administrator", MODERATOR: "Moderator", CLIENT: "Muassasa egasi" })[user.value?.role || ""] || (user.value?.has_barber_profile ? "Sartarosh" : user.value?.has_owned_clubs ? "Muassasa egasi" : "Xodim"))
+const roleLabel = computed(() => ({ ADMIN: "Administrator", MODERATOR: "Moderator", CLIENT: "Xizmat egasi" })[user.value?.role || ""] || (user.value?.has_barber_profile ? "Sartarosh" : user.value?.has_owned_clubs ? "Xizmat egasi" : "Xodim"))
 const displayName = computed(() => user.value?.full_name || user.value?.profile?.full_name || user.value?.username || "Xodim")
-const isStaff = computed(() => user.value?.is_staff || user.value?.is_superuser || ["ADMIN", "MODERATOR"].includes(user.value?.role || ""))
+const { isStaff } = useCabinetAccess()
 const billingClock = useState<number>("venue-billing-clock", () => Date.now())
 const clientVenues = ref<(BillingVenue & { destination: string })[]>([])
 const billingStatuses = useCabinetBillingCache()
@@ -80,12 +80,12 @@ const navGroups = computed(() => [
     { to: cabinetPath('/payments'), label: "To‘lovlar", icon: faCreditCard },
   ] },
   { label: "Boshqaruv", items: [
-    { to: cabinetPath('/clubs'), label: "Muassasalar", icon: faBuilding },
+    { to: cabinetPath('/clubs'), label: "Xizmatlar", icon: faBuilding },
     { to: cabinetPath('/branches'), label: "Filiallar va zonalar", icon: faCodeBranch },
     { to: cabinetPath('/barbers'), label: "Sartaroshlar", icon: faScissors },
     { to: cabinetPath('/users'), label: "Mijozlar", icon: faUsers },
   ] },
-].map(group => ({ ...group, items: group.items.filter(item => isStaff.value || ![cabinetPath(''), cabinetPath('/users'), cabinetPath('/payments')].includes(item.to)) })))
+].map(group => ({ ...group, items: group.items.filter(item => isStaff.value || (item.to === cabinetPath('/bookings') || (user.value?.cabinet_sections || []).some(section => item.to === cabinetPath('/' + section)))) })))
 const isActive = (item: { to: string; exact?: boolean }) => item.exact ? route.path === item.to : route.path.startsWith(`${item.to}/`) || route.path === item.to
 const clientsMenuOpen = ref(route.path.includes('/users'))
 watch(() => route.path, path => { if (path.includes('/users')) clientsMenuOpen.value = true })
@@ -144,7 +144,6 @@ const handleLogout = async () => {
         </NuxtLink>
         <button type="button" class="cabinet-icon-button sidebar-close" aria-label="Menyuni yopish" @click="closeSidebar"><FontAwesomeIcon :icon="faXmark" /></button>
       </div>
-      <div class="cabinet-workspace"><span class="workspace-mark"><FontAwesomeIcon :icon="faBuilding" /></span><div><strong>RezervUZ</strong><span>{{ isStaff ? "Xodimlar kabineti" : "Muassasa kabineti" }}</span></div><FontAwesomeIcon :icon="faShieldHalved" class="workspace-shield" /></div>
       <nav class="cabinet-nav" aria-label="Asosiy navigatsiya">
         <div v-for="group in navGroups" :key="group.label" class="cabinet-nav-group">
           <p class="cabinet-nav-label">{{ group.label }}</p>
@@ -224,11 +223,8 @@ const handleLogout = async () => {
 .cabinet-logo { display: grid; place-items: center; width: 36px; height: 40px; border-radius: 11px; background: var(--accent); color: white; font-size: 17px; }
 .cabinet-brand-accent { color: var(--accent); }
 .cabinet-brand small { display: block; font-size: 10px; letter-spacing: 1.8px; text-transform: uppercase; margin-top: 2px; color: var(--muted); font-weight: 600; }
-.cabinet-workspace { display: flex; align-items: center; gap: 10px; padding: 13px 12px; margin: 8px 16px 20px; background: var(--control); border: 1px solid var(--panel-border); border-radius: 10px; }
-.workspace-mark { display: grid; place-items: center; width: 32px; height: 32px; background: var(--surface); border: 1px solid var(--panel-border); border-radius: 8px; color: var(--muted); font-size: 13px; }
-.cabinet-workspace strong, .cabinet-sidebar-user strong { display: block; font-size: 13px; font-weight: 650; }
-.cabinet-workspace div > span, .cabinet-sidebar-user div > span { display: block; color: var(--muted); font-size: 11px; margin-top: 3px; }
-.workspace-shield { margin-left: auto; color: var(--muted); font-size: 12px; }
+.cabinet-sidebar-user strong { display: block; font-size: 13px; font-weight: 650; }
+.cabinet-sidebar-user div > span { display: block; color: var(--muted); font-size: 11px; margin-top: 3px; }
 .cabinet-nav { flex: 1; overflow-y: auto; padding: 0 14px; }
 .cabinet-nav-group + .cabinet-nav-group { margin-top: 27px; }
 .cabinet-nav-label { margin: 0 12px 9px; font-size: 10px; font-weight: 650; letter-spacing: 1.3px; text-transform: uppercase; color: var(--muted); }

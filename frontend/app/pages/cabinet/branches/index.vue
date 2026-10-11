@@ -14,13 +14,13 @@ useHead({
 
 const cabinetPath = useCabinetPath()
 const adminApi = useAdminApi()
-const { user } = useAuth()
-const isStaff = computed(() => user.value?.is_staff || user.value?.is_superuser || ["ADMIN", "MODERATOR"].includes(user.value?.role || ""))
+const { isStaff } = useCabinetAccess()
 const { statusLabel } = useCabinetLabels()
 
 const clubs = ref<any[]>([])
 const branches = ref<any[]>([])
 const cities = ref<any[]>([])
+const services = ref<{ id: string; code: string; name: string }[]>([])
 const selectedClubId = ref("")
 const selectedBranch = ref<any>(null)
 const branchZones = ref<any[]>([])
@@ -36,6 +36,7 @@ const isSavingBranch = ref(false)
 const branchModalError = ref("")
 const branchForm = ref({
   club: "",
+  enabled_services: [] as string[],
   name: "",
   city: "",
   district: "",
@@ -45,6 +46,16 @@ const branchForm = ref({
   longitude: 69.2401,
   status: "ACTIVE",
   is_24_hours: true,
+})
+
+const branchServiceChoices = computed(() => {
+  const club = clubs.value.find(item => item.id === branchForm.value.club)
+  return services.value.filter(service => (club?.available_services || []).includes(service.id))
+})
+const zoneServiceChoices = computed(() => services.value.filter(service => (selectedBranch.value?.enabled_services || []).includes(service.id)))
+watch(() => branchForm.value.club, () => {
+  const allowed = new Set(branchServiceChoices.value.map(service => service.id))
+  branchForm.value.enabled_services = branchForm.value.enabled_services.filter(id => allowed.has(id))
 })
 
 const { districts, isDistrictLoading, districtError } = useCityDistricts(() => branchForm.value.city)
@@ -57,6 +68,7 @@ const zoneModalError = ref("")
 const zoneForm = ref({
   branch: "",
   name: "",
+  service_type: "",
   resource_type: "GENERAL",
   booking_type: "PER_SEAT",
   capacity: 10,
@@ -65,15 +77,22 @@ const zoneForm = ref({
   status: "ACTIVE",
 })
 
+watch(() => zoneForm.value.service_type, id => {
+  const code = services.value.find(service => service.id === id)?.code
+  if (code && ["COMPUTER", "PLAYSTATION", "BILLIARDS"].includes(code)) zoneForm.value.resource_type = code
+})
+
 const fetchData = async () => {
   isLoading.value = true
   errorMessage.value = ""
   try {
-    const [clubsRes, citiesRes] = await Promise.all([
+    const [clubsRes, citiesRes, serviceRes] = await Promise.all([
       adminApi.getClubs({ page_size: 100 }),
       adminApi.getCities(),
+      adminApi.getServiceTypes(),
     ])
     clubs.value = clubsRes.results || clubsRes.data || clubsRes || []
+    services.value = serviceRes
     cities.value = citiesRes.results || citiesRes.data || citiesRes || []
 
     await fetchBranches()
@@ -84,16 +103,23 @@ const fetchData = async () => {
   }
 }
 
+let branchLoadVersion = 0
+let zoneLoadVersion = 0
 const fetchBranches = async () => {
+  const version = ++branchLoadVersion
   isLoading.value = true
   try {
     const params: Record<string, any> = { page_size: 100 }
     if (selectedClubId.value) params.club_id = selectedClubId.value
 
     const res = await adminApi.getBranches(params)
+    if (version !== branchLoadVersion) return
     branches.value = res.results || res.data || res || []
-    if (branches.value.length > 0 && !selectedBranch.value) {
-      void selectBranch(branches.value[0])
+    if (!branches.value.some(branch => branch.id === selectedBranch.value?.id)) {
+      selectedBranch.value = null
+      branchZones.value = []
+      zoneLoadVersion++
+      if (branches.value.length) void selectBranch(branches.value[0])
     }
   } catch (err: any) {
     errorMessage.value = err?.message || "Server bilan bog'lanishda xatolik yuz berdi"
@@ -103,15 +129,17 @@ const fetchBranches = async () => {
 }
 
 const selectBranch = async (branch: any) => {
+  const version = ++zoneLoadVersion
   selectedBranch.value = branch
   isZonesLoading.value = true
   try {
     const res = await adminApi.getZones({ branch_id: branch.id })
+    if (version !== zoneLoadVersion) return
     branchZones.value = res.results || res.data || res || []
   } catch (err) {
     console.error("Failed to load zones", err)
   } finally {
-    isZonesLoading.value = false
+    if (version === zoneLoadVersion) isZonesLoading.value = false
   }
 }
 
@@ -119,6 +147,7 @@ const openCreateBranchModal = () => {
   editingBranch.value = null
   branchForm.value = {
     club: selectedClubId.value || (clubs.value[0]?.id || ""),
+    enabled_services: [],
     name: "",
     city: cities.value[0]?.id || "",
     district: "",
@@ -137,6 +166,7 @@ const openEditBranchModal = (b: any) => {
   editingBranch.value = b
   branchForm.value = {
     club: b.club?.id || b.club || "",
+    enabled_services: [...(b.enabled_services || [])],
     name: b.name,
     city: b.city?.id || b.city || "",
     district: b.district?.id || b.district || "",
@@ -165,6 +195,7 @@ const saveBranch = async () => {
       await adminApi.createBranch(branchForm.value)
     }
     showBranchModal.value = false
+    selectedBranch.value = null
     await fetchBranches()
   } catch (err: any) {
     branchModalError.value = err?.data?.message || err?.message || "Saqlashda xatolik yuz berdi"
@@ -179,7 +210,8 @@ const openCreateZoneModal = () => {
   zoneForm.value = {
     branch: selectedBranch.value.id,
     name: "",
-    resource_type: "GENERAL",
+    service_type: "",
+  resource_type: "GENERAL",
     booking_type: "PER_SEAT",
     capacity: 10,
     unit_count: 10,
@@ -195,11 +227,12 @@ const openEditZoneModal = (z: any) => {
   zoneForm.value = {
     branch: selectedBranch.value.id,
     name: z.name,
+    service_type: z.service_type || "",
     resource_type: z.resource_type || "GENERAL",
     booking_type: z.booking_type || "PER_SEAT",
     capacity: z.capacity || 10,
     unit_count: z.unit_count || 10,
-    price_per_hour_tiyin: z.price_per_hour_tiyin || 2000000,
+    price_per_hour_tiyin: z.price_per_hour_tiyin ?? 2000000,
     status: z.status || "ACTIVE",
   }
   zoneModalError.value = ""
@@ -215,9 +248,9 @@ const saveZone = async () => {
   zoneModalError.value = ""
   try {
     if (editingZone.value) {
-      await adminApi.updateZone(editingZone.value.id, zoneForm.value)
+      await adminApi.updateZone(editingZone.value.id, { ...zoneForm.value, service_type: zoneForm.value.service_type || null })
     } else {
-      await adminApi.createZone(zoneForm.value)
+      await adminApi.createZone({ ...zoneForm.value, service_type: zoneForm.value.service_type || null })
     }
     showZoneModal.value = false
     if (selectedBranch.value) {
@@ -262,7 +295,7 @@ useDialogFocus(showZoneModal, "#cabinet-branches-showZoneModal", () => { showZon
         <h1 class="page-title">Filiallar va zonalar</h1>
       </div>
       <div class="header-actions">
-        <button type="button" class="primary-button" @click="openCreateBranchModal">
+        <button type="button" v-if="isStaff" class="primary-button" @click="openCreateBranchModal">
           <span><CabinetIcon name="plus" /> Yangi filial qo'shish</span>
         </button>
       </div>
@@ -272,7 +305,7 @@ useDialogFocus(showZoneModal, "#cabinet-branches-showZoneModal", () => { showZon
     <div class="filter-bar">
       <div class="club-filter-select">
         <label>Klubni tanlang:</label>
-        <select v-model="selectedClubId" @change="fetchBranches" aria-label="Muassasa">
+        <select v-model="selectedClubId" @change="fetchBranches" aria-label="Xizmat">
           <option value="">Barcha klublar filiallari</option>
           <option v-for="c in clubs" :key="c.id" :value="c.id">{{ c.name }}</option>
         </select>
@@ -307,12 +340,13 @@ useDialogFocus(showZoneModal, "#cabinet-branches-showZoneModal", () => { showZon
               <span class="bic-name">{{ b.name }}</span>
               <span class="status-badge" :class="b.status.toLowerCase()">{{ statusLabel(b.status) }}</span>
             </div>
+            <p class="branch-services">{{ services.filter(service => (b.enabled_services || []).includes(service.id)).map(service => service.name).join(" · ") }}</p>
             <p class="bic-address"><CabinetIcon name="location" /> {{ b.address }}</p>
             <div class="bic-footer">
               <span class="bic-phone"><CabinetIcon name="phone" /> {{ b.phone || "—" }}</span>
               <div class="bic-actions" @click.stop>
                 <FreeModeToggle v-if="isStaff" kind="branch" :id="b.id" :name="b.name" :is-free="b.is_free" @changed="fetchBranches" />
-                <button type="button" class="action-btn" title="Tahrirlash" @click="openEditBranchModal(b)"><CabinetIcon name="edit" /></button>
+                <button type="button" v-if="isStaff" class="action-btn" title="Tahrirlash" @click="openEditBranchModal(b)"><CabinetIcon name="edit" /></button>
               </div>
             </div>
           </div>
@@ -331,7 +365,7 @@ useDialogFocus(showZoneModal, "#cabinet-branches-showZoneModal", () => { showZon
               <h3>{{ selectedBranch.name }} — Zonalar</h3>
               <p class="zones-sub">Xona va joylar konfiguratsiyasi</p>
             </div>
-            <button type="button" class="primary-button add-zone-btn" @click="openCreateZoneModal">
+            <button type="button" v-if="isStaff" class="primary-button add-zone-btn" @click="openCreateZoneModal">
               <span><CabinetIcon name="plus" /> Zona qo'shish</span>
             </button>
           </div>
@@ -350,7 +384,7 @@ useDialogFocus(showZoneModal, "#cabinet-branches-showZoneModal", () => { showZon
                 <span class="zmc-type-icon">{{ z.resource_type === 'COMPUTER' ? '' : '' }}</span>
                 <span class="status-badge" :class="z.status.toLowerCase()">{{ statusLabel(z.status) }}</span>
               </div>
-              <h4 class="zmc-title">{{ z.name }}</h4>
+              <h4 class="zmc-title">{{ z.name }}</h4><span v-if="z.service_type_name" class="spec-tag">{{ z.service_type_name }}</span>
               <div class="zmc-specs">
                 <span class="spec-tag"> Sig'im: {{ z.capacity }} kishi</span>
                 <span class="spec-tag"> Joylar: {{ z.unit_count }} dona</span>
@@ -359,7 +393,7 @@ useDialogFocus(showZoneModal, "#cabinet-branches-showZoneModal", () => { showZon
               <div class="zmc-price">
                 {{ formatPrice(z.price_per_hour_tiyin) }}
               </div>
-              <div class="zmc-footer">
+              <div v-if="isStaff" class="zmc-footer">
                 <button type="button" class="action-btn" @click="openEditZoneModal(z)"><CabinetIcon name="edit" /> Tahrirlash</button>
                 <button type="button" class="action-btn delete" @click="deleteZone(z)"><CabinetIcon name="delete" /> O'chirish</button>
               </div>
@@ -393,6 +427,7 @@ useDialogFocus(showZoneModal, "#cabinet-branches-showZoneModal", () => { showZon
               <input v-model="branchForm.name" type="text" placeholder="Masalan: Chilonzor filiali" required aria-label="Masalan: Chilonzor filiali">
             </div>
 
+            <fieldset class="service-picker"><legend>Filial xizmatlari</legend><label v-for="service in branchServiceChoices" :key="service.id" class="service-choice"><input v-model="branchForm.enabled_services" type="checkbox" :value="service.id">{{ service.name }}</label><p v-if="!branchServiceChoices.length">Avval klubga xizmatlarni biriktiring.</p></fieldset>
             <div class="form-row">
               <div class="form-group">
                 <label>Shahar *</label>
@@ -425,8 +460,7 @@ useDialogFocus(showZoneModal, "#cabinet-branches-showZoneModal", () => { showZon
                 <label>Holat</label>
                 <select v-model="branchForm.status" aria-label="Tanlash">
                   <option value="ACTIVE">Faol</option>
-                  <option value="INACTIVE">INACTIVE (Nofaol)</option>
-                  <option value="MAINTENANCE">MAINTENANCE (Ta'mirlash)</option>
+                  <option value="INACTIVE">Nofaol</option>
                 </select>
               </div>
             </div>
@@ -464,13 +498,14 @@ useDialogFocus(showZoneModal, "#cabinet-branches-showZoneModal", () => { showZon
               <input v-model="zoneForm.name" type="text" placeholder="Masalan: 1-stol, maydon yoki xona" required aria-label="Masalan: 1-stol, maydon yoki xona">
             </div>
 
+            <div class="form-group"><label for="zone-service">Xizmat turi</label><select id="zone-service" v-model="zoneForm.service_type"><option value="">Umumiy</option><option v-for="service in zoneServiceChoices" :key="service.id" :value="service.id">{{ service.name }}</option></select></div>
             <div class="form-row">
               <div class="form-group">
                 <label>Resurs turi</label>
                 <select v-model="zoneForm.resource_type" aria-label="Tanlash">
                   <option value="GENERAL">Resurs</option>
                   <option value="COMPUTER"> Computer (Kompyuter)</option>
-                  <option value="PLAYSTATION"> PlayStation</option>
+                  <option value="PLAYSTATION"> PlayStation</option><option value="BILLIARDS">Bilyard</option>
                 </select>
               </div>
               <div class="form-group">
@@ -495,15 +530,14 @@ useDialogFocus(showZoneModal, "#cabinet-branches-showZoneModal", () => { showZon
 
             <div class="form-group">
               <label>Soatlik narx (tiyinda, masalan: 2000000 = 20,000 so'm) *</label>
-              <input v-model.number="zoneForm.price_per_hour_tiyin" type="number" min="0" step="100000" required>
+              <input v-model.number="zoneForm.price_per_hour_tiyin" type="number" min="0" step="1" required>
             </div>
 
             <div class="form-group">
               <label>Holat</label>
               <select v-model="zoneForm.status" aria-label="Tanlash">
                 <option value="ACTIVE">Faol</option>
-                <option value="MAINTENANCE">MAINTENANCE (Ta'mirda)</option>
-                <option value="DISABLED">DISABLED (O'chirilgan)</option>
+                <option value="INACTIVE">Nofaol</option>
               </select>
             </div>
 

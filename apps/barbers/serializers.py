@@ -115,7 +115,7 @@ class CabinetBarberSerializer(serializers.ModelSerializer):
     def get_can_manage_affiliation(self, obj):
         from apps.clubs.permissions import is_platform_admin
         user = self.context["request"].user
-        return is_platform_admin(user) or bool(obj.club_id and obj.club.owner_id == user.pk)
+        return is_platform_admin(user)
 
     user_username = serializers.CharField(source="user.username", read_only=True)
     club_name = serializers.CharField(source="club.name", read_only=True, default="")

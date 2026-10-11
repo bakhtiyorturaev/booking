@@ -8,18 +8,16 @@ from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from apps.clubs.models import (
-    ServiceType,
     Branch,
     BranchImage,
-    City,
     Club,
-    District,
     Favorite,
     OperatingHour,
     ResourceBlock,
     SpecialSchedule,
     Zone,
 )
+from apps.core.models import City, District, ServiceType
 from apps.clubs.permissions import is_platform_admin
 
 
@@ -125,6 +123,17 @@ class DistrictSerializer(serializers.ModelSerializer):
 
 
 class ZoneSerializer(CleanModelSerializer):
+    service_type_name = serializers.CharField(source="service_type.name", read_only=True)
+
+    def validate(self, attrs):
+        branch = attrs.get("branch", self.instance.branch if self.instance else None)
+        service = attrs.get("service_type", self.instance.service_type if self.instance else None)
+        if service and service.code in Zone.ResourceType.values:
+            attrs["resource_type"] = service.code
+        if service and (not branch or not branch.enabled_services.filter(pk=service.pk).exists()):
+            raise serializers.ValidationError({"service_type": "Xizmat ushbu filialga biriktirilmagan."})
+        return super().validate(attrs)
+
     class Meta:
         model = Zone
         fields = (
@@ -139,6 +148,8 @@ class ZoneSerializer(CleanModelSerializer):
             "price_per_hour_tiyin",
             "sort_order",
             "resource_type",
+            "service_type",
+            "service_type_name",
         )
         read_only_fields = ("id",)
 
@@ -354,6 +365,16 @@ class ClubManagementSerializer(CleanModelSerializer):
                 raise serializers.ValidationError("auth.client_required")
         return value
 
+    def validate_available_services(self, value):
+        if any(not service.is_active for service in value):
+            raise serializers.ValidationError("Faqat faol xizmatlarni tanlang.")
+        if self.instance:
+            selected = {service.pk for service in value}
+            assigned = set(ServiceType.objects.filter(offering_branches__club=self.instance).values_list("pk", flat=True))
+            if not assigned.issubset(selected):
+                raise serializers.ValidationError("Avval bu xizmatni filiallardan olib tashlang.")
+        return value
+
     def validate_monthly_price(self, value):
         raise serializers.ValidationError("Tarif faqat Django admin orqali belgilanadi.")
 
@@ -363,6 +384,8 @@ class ClubManagementSerializer(CleanModelSerializer):
         validated_data["owner"] = validated_data.get("owner") or self.context["request"].user
         validated_data["billing_required"] = True
         instance = super().create(validated_data)
+        if instance.service_type_id and not instance.available_services.exists():
+            instance.available_services.add(instance.service_type_id)
         return instance
 
     @transaction.atomic
@@ -382,6 +405,7 @@ class ClubManagementSerializer(CleanModelSerializer):
             "service_name",
             "service_type",
             "service_type_name",
+            "available_services",
             "billing_city",
             "billing_district",
             "slug",
@@ -405,8 +429,8 @@ class ClubManagementSerializer(CleanModelSerializer):
     def validate_status(self, value):
         request = self.context.get("request")
         if request and not is_platform_admin(request.user):
-            allowed = {Club.Status.DRAFT, Club.Status.PENDING}
-            current = self.instance.status if self.instance else Club.Status.DRAFT
+            allowed = {Club.Status.ACTIVE, Club.Status.INACTIVE}
+            current = self.instance.status if self.instance else Club.Status.ACTIVE
             if value not in allowed and value != current:
                 raise serializers.ValidationError("clubs.admin_only_status_change", code="clubs.admin_only_status_change")
         return value
@@ -421,9 +445,24 @@ class ClubManagementSerializer(CleanModelSerializer):
 
 
 class BranchManagementSerializer(CleanModelSerializer):
+    def validate(self, attrs):
+        club = attrs.get("club", self.instance.club if self.instance else None)
+        services = attrs.get("enabled_services")
+        if services is None and self.instance:
+            services = list(self.instance.enabled_services.all())
+        if services is not None:
+            allowed = set(club.available_services.values_list("pk", flat=True)) if club else set()
+            if any(service.pk not in allowed or not service.is_active for service in services):
+                raise serializers.ValidationError({"enabled_services": "Faqat ushbu klubga tegishli faol xizmatlarni tanlang."})
+            if self.instance:
+                assigned = set(self.instance.zones.exclude(service_type=None).values_list("service_type_id", flat=True))
+                if not assigned.issubset({service.pk for service in services}):
+                    raise serializers.ValidationError({"enabled_services": "Avval ushbu xizmatning zonalarini o‘zgartiring yoki olib tashlang."})
+        return super().validate(attrs)
+
     class Meta:
         model = Branch
-        fields = ("id","is_free","club","name","description","address","city","district","landmark","latitude","longitude",
+        fields = ("id","is_free","club","enabled_services","name","description","address","city","district","landmark","latitude","longitude",
                   "phone","timezone","status","slot_interval_minutes","minimum_booking_minutes",
                   "maximum_booking_minutes","booking_hold_minutes","advance_booking_days","free_cancellation_minutes",
                   "no_show_grace_minutes","auto_confirm_booking","is_24_hours",)

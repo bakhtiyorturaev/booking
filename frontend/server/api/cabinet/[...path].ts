@@ -14,6 +14,9 @@ export default defineEventHandler(async (event) => {
     if (!["GET", "POST", "PATCH", "PUT", "DELETE"].includes(method)) {
       throw createError({ statusCode: 405, statusMessage: "Method not allowed" })
     }
+    if (requestAuthScope(event) === "client" && method !== "GET" && !(method === "POST" && /^bookings\/[a-zA-Z0-9-]+\/(confirm|cancel)\/?$/.test(path))) {
+      throw createError({ statusCode: 403, statusMessage: "Client kabineti faqat ko‘rish uchun" })
+    }
     return await authenticatedDjangoRequest(event, `/cabinet/${path.replace(/\/$/, "")}/`, {
       method,
       query: getQuery(event),

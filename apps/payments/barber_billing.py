@@ -6,7 +6,7 @@ from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
 from apps.barbers.models import Barber
-from apps.clubs.models import ServiceType
+from apps.core.models import ServiceType
 from apps.payments.models import BarberBilling, ManualVenuePayment, VenueTariffRule
 from apps.payments.venue_billing import PaymentConflict
 

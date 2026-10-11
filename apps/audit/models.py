@@ -25,6 +25,8 @@ class AuditLog(models.Model):
 
     class Meta:
         db_table = "audit_logs"
+        verbose_name = "Audit yozuvi"
+        verbose_name_plural = "Audit yozuvlari"
         ordering = ("-created_at",)
         indexes = [
             models.Index(fields=("actor", "created_at"), name="audit_actor_created_idx"),

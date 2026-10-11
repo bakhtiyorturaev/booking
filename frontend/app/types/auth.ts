@@ -14,6 +14,7 @@ export interface AuthUser {
   is_staff?: boolean
   has_barber_profile?: boolean
   has_owned_clubs?: boolean
+  cabinet_sections?: string[]
   is_superuser?: boolean
   full_name?: string
   avatar_url?: string

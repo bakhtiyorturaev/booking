@@ -122,6 +122,8 @@ export const useAdminApi = () => {
         headers: { "Accept-Language": language },
       }),
 
+    confirmBooking: (id: string) => client.post<any>(`/api/cabinet/bookings/${id}/confirm/`, { local: true }),
+
     cancelBooking: (id: string, reason = "", language = "uz") =>
       client.post<any>(`/api/cabinet/bookings/${id}/cancel/`, {
         body: { reason },

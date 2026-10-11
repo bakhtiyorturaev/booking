@@ -1,7 +1,40 @@
+import uuid
+
 from django.core.cache import cache
+from django.core.exceptions import ValidationError
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+from django.utils.text import slugify
+
+from apps.core.fields import EncryptedTextField
 
 SUPPORTED_LANGUAGES = ("uz", "ru", "en")
+
+
+class TimeStampedModel(models.Model):
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        abstract = True
+
+
+class ServiceType(TimeStampedModel):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    code = models.SlugField(max_length=50, unique=True)
+    name = models.CharField(max_length=100)
+    is_active = models.BooleanField(default=True)
+    sort_order = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        db_table = "clubs_servicetype"
+        ordering = ("sort_order", "name")
+        verbose_name = "Xizmat turi"
+        verbose_name_plural = "Xizmat turlari"
+
+    def __str__(self):
+        return self.name
+
 
 def normalize_language(language):
     if not language:
@@ -125,3 +158,117 @@ class SystemMessage(models.Model):
             cache.delete(f"system-message:{code}:{language}")
 
         return result
+
+
+class City(TimeStampedModel):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=120, help_text="Shahar nomi.")
+    slug = models.SlugField(max_length=140, unique=True, help_text="Shahar kodi.")
+    is_active = models.BooleanField(default=True, help_text="Tanlash uchun faolmi.")
+    sort_order = models.PositiveSmallIntegerField(default=0, help_text="Ko‘rinish tartibi.")
+
+    class Meta:
+        db_table = "cities"
+        verbose_name = "Shahar"
+        verbose_name_plural = "Shaharlar"
+        ordering = ("sort_order", "name")
+
+    def __str__(self):
+        return self.name
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            base = slugify(self.name) or "city"
+            candidate = base
+            number = 2
+            while City.objects.exclude(pk=self.pk).filter(slug=candidate).exists():
+                candidate = f"{base}-{number}"
+                number += 1
+            self.slug = candidate
+        super().save(*args, **kwargs)
+
+
+class District(TimeStampedModel):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    city = models.ForeignKey(
+        City,
+        on_delete=models.PROTECT,
+        related_name="districts",
+        help_text="Tuman tegishli shahar.",
+    )
+    name = models.CharField(max_length=120, help_text="Tuman nomi.")
+    slug = models.SlugField(max_length=140, help_text="Tuman kodi.")
+    is_active = models.BooleanField(default=True, help_text="Tanlash uchun faolmi.")
+    sort_order = models.PositiveSmallIntegerField(default=0, help_text="Ko‘rinish tartibi.")
+
+    class Meta:
+        db_table = "districts"
+        verbose_name = "Tuman"
+        verbose_name_plural = "Tumanlar"
+        ordering = ("city__sort_order", "city__name", "sort_order", "name")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["city", "slug"],
+                name="unique_district_slug_per_city",
+            ),
+            models.UniqueConstraint(
+                fields=["city", "name"],
+                name="unique_district_name_per_city",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["city", "is_active", "sort_order"],
+                name="district_city_active_idx",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.city.name} — {self.name}"
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            base = slugify(self.name) or "district"
+            candidate = base
+            number = 2
+            while (
+                District.objects.exclude(pk=self.pk)
+                .filter(city_id=self.city_id, slug=candidate)
+                .exists()
+            ):
+                candidate = f"{base}-{number}"
+                number += 1
+            self.slug = candidate
+        super().save(*args, **kwargs)
+
+
+class DeveloperBotSettings(models.Model):
+    id = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
+    is_enabled = models.BooleanField(default=False)
+    bot_token = EncryptedTextField(blank=True)
+    chat_id = models.BigIntegerField(null=True, blank=True)
+    environment = models.CharField(max_length=50, default="development")
+    request_timeout_seconds = models.PositiveSmallIntegerField(
+        default=5,
+        validators=(MinValueValidator(1), MaxValueValidator(60)),
+    )
+    notify_errors = models.BooleanField(default=True)
+    notify_user_events = models.BooleanField(default=True)
+    notify_booking_events = models.BooleanField(default=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "developer_bot_settings"
+        verbose_name = "Dasturchi boti sozlamasi"
+        verbose_name_plural = "Dasturchi boti sozlamalari"
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @property
+    def is_configured(self):
+        return bool(self.is_enabled and self.bot_token and self.chat_id)
+
+    def __str__(self):
+        return "Dasturchi boti sozlamalari"

@@ -1,12 +1,9 @@
 from django.contrib import admin
 
 from apps.clubs.models import (
-    ServiceType,
     Branch,
     BranchImage,
-    City,
     Club,
-    District,
     Favorite,
     OperatingHour,
     ResourceBlock,
@@ -22,25 +19,9 @@ class BranchInline(admin.TabularInline):
     show_change_link = True
 
 
-@admin.register(City)
-class CityAdmin(admin.ModelAdmin):
-    list_display = ("name", "slug", "is_active", "sort_order")
-    list_filter = ("is_active",)
-    search_fields = ("name", "slug")
-    prepopulated_fields = {"slug": ("name",)}
-
-
-@admin.register(District)
-class DistrictAdmin(admin.ModelAdmin):
-    list_display = ("name", "city", "slug", "is_active", "sort_order")
-    list_filter = ("is_active", "city")
-    search_fields = ("name", "slug", "city__name")
-    autocomplete_fields = ("city",)
-    prepopulated_fields = {"slug": ("name",)}
-
-
 @admin.register(Club)
 class ClubAdmin(admin.ModelAdmin):
+    filter_horizontal = ("available_services",)
     list_display = ("name","owner","status","is_verified","rating","review_count","created_at",)
     list_filter = ("status", "is_verified")
     search_fields = ("name", "owner__username", "owner__phone")
@@ -51,6 +32,7 @@ class ClubAdmin(admin.ModelAdmin):
 
 @admin.register(Branch)
 class BranchAdmin(admin.ModelAdmin):
+    filter_horizontal = ("enabled_services",)
     list_display = ("name", "club", "city", "district", "status")
     list_filter = ("status", "city", "district", "is_24_hours")
     search_fields = ("name","club__name","address","city__name","district__name",)
@@ -80,18 +62,3 @@ class FavoriteAdmin(admin.ModelAdmin):
 admin.site.register(BranchImage)
 admin.site.register(OperatingHour)
 admin.site.register(SpecialSchedule)
-
-
-@admin.register(ServiceType)
-class ServiceTypeAdmin(admin.ModelAdmin):
-    list_display = ("name", "code", "is_active", "sort_order")
-    search_fields = ("name", "code")
-
-    def has_add_permission(self, request):
-        return request.user.is_superuser
-
-    def has_change_permission(self, request, obj=None):
-        return request.user.is_superuser
-
-    def has_delete_permission(self, request, obj=None):
-        return request.user.is_superuser

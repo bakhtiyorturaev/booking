@@ -45,6 +45,8 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     class Meta:
         db_table = "users"
+        verbose_name = "Foydalanuvchi"
+        verbose_name_plural = "Foydalanuvchilar"
         indexes = [models.Index(fields=["role", "status"], name="users_role_status_idx")]
 
     def __str__(self):
@@ -104,6 +106,8 @@ class UserProfile(models.Model):
 
     class Meta:
         db_table = "user_profiles"
+        verbose_name = "Foydalanuvchi profili"
+        verbose_name_plural = "Foydalanuvchi profillari"
 
     def __str__(self):
         return self.full_name or self.user.username
@@ -130,6 +134,8 @@ class UserSession(models.Model):
 
     class Meta:
         db_table = "user_sessions"
+        verbose_name = "Kirish sessiyasi"
+        verbose_name_plural = "Kirish sessiyalari"
         indexes = [
             models.Index(fields=["user"], name="session_user_idx"),
             models.Index(fields=["expires_at"], name="session_expires_at_idx"),

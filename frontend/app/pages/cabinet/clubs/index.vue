@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import VenueBillingBadge from "~/components/cabinet/VenueBillingBadge.vue"
 import { useAdminApi } from "~/api/admin"
-import { useAuth } from "~/composables/useAuth"
 
 definePageMeta({
   alias: ["/site/staff/panel/clubs", "/site/client/panel/clubs"],
@@ -10,20 +9,16 @@ definePageMeta({
 })
 
 useHead({
-  title: "Muassasalar",
+  title: "Xizmatlar",
 })
 
 const cabinetPath = useCabinetPath()
-const { user: currentUser } = useAuth()
 const adminApi = useAdminApi()
 const route = useRoute()
 const categoryLabels: Record<string, string> = { GAMING_CLUB: "O‘yin klubi", BARBERSHOP: "Sartaroshxona", BILLIARDS: "Bilyard", OTHER: "Boshqa xizmat" }
 const { statusLabel } = useCabinetLabels()
 
-const isPlatformAdmin = computed(() => {
-  const role = currentUser.value?.role
-  return role === "ADMIN" || role === "MODERATOR" || currentUser.value?.is_staff || currentUser.value?.is_superuser
-})
+const { isStaff: isPlatformAdmin } = useCabinetAccess()
 
 const services = ref<{ id: string; code: string; name: string }[]>([])
 const cities = ref<any[]>([])
@@ -69,7 +64,7 @@ const form = ref({
   name: "",
   owner: null as string | null,
   category: "GAMING_CLUB",
-  service_type: "", billing_city: "", billing_district: "",
+  available_services: [] as string[], service_type: "", billing_city: "", billing_district: "",
   service_name: "",
   description: "",
   phone: "",
@@ -77,6 +72,10 @@ const form = ref({
   website: "",
   status: "ACTIVE",
   is_verified: true,
+})
+
+watch(() => form.value.service_type, id => {
+  if (id && !form.value.available_services.includes(id)) form.value.available_services.push(id)
 })
 
 const { districts, isDistrictLoading, districtError } = useCityDistricts(() => form.value.billing_city)
@@ -128,13 +127,13 @@ const openCreateModal = () => {
     name: "",
     owner: null,
     category: "GAMING_CLUB",
-  service_type: "", billing_city: "", billing_district: "",
+  available_services: [] as string[], service_type: "", billing_city: "", billing_district: "",
     service_name: "",
     description: "",
     phone: "",
     email: "",
     website: "",
-    status: isPlatformAdmin.value ? "ACTIVE" : "DRAFT",
+    status: "ACTIVE",
     is_verified: Boolean(isPlatformAdmin.value),
   }
   modalError.value = ""
@@ -148,6 +147,7 @@ const openEditModal = (club: any) => {
     name: club.name,
     owner: club.owner || club.owner_details?.id || null,
     category: club.category || "GAMING_CLUB",
+    available_services: [...(club.available_services || [])],
     service_type: club.service_type || "", billing_city: club.billing_city || "", billing_district: club.billing_district || "",
     service_name: club.service_name || "",
     description: club.description || "",
@@ -164,7 +164,7 @@ const openEditModal = (club: any) => {
 const saveClub = async () => {
   if (isSaving.value) return
   if (!form.value.name.trim()) {
-    modalError.value = "Muassasa nomini kiriting"
+    modalError.value = "Xizmat nomini kiriting"
     return
   }
 
@@ -189,7 +189,7 @@ const saveClub = async () => {
 }
 
 const toggleClubStatus = async (club: any) => {
-  const nextStatus = club.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE"
+  const nextStatus = club.status === "ACTIVE" ? "INACTIVE" : "ACTIVE"
   try {
     await adminApi.updateClub(club.id, { status: nextStatus })
     await fetchClubs()
@@ -199,7 +199,7 @@ const toggleClubStatus = async (club: any) => {
 }
 
 const deleteClub = async (club: any) => {
-  if (!confirm(`"${club.name}" klubini arxivlamoqchimisiz?`)) return
+  if (!confirm(`"${club.name}" xizmatini nofaol qilmoqchimisiz?`)) return
   try {
     await adminApi.deleteClub(club.id)
     await fetchClubs()
@@ -224,10 +224,10 @@ useDialogFocus(showModal, "#cabinet-clubs-showModal", () => { showModal.value = 
     <!-- Header -->
     <div class="page-header">
       <div>
-        <h1 class="page-title">Muassasalar</h1>
+        <h1 class="page-title">Xizmatlar</h1>
       </div>
-      <button type="button" class="primary-button create-btn" @click="openCreateModal">
-        <span><CabinetIcon name="plus" /> Muassasa qo‘shish</span>
+      <button type="button" v-if="isPlatformAdmin" class="primary-button create-btn" @click="openCreateModal">
+        <span><CabinetIcon name="plus" /> Xizmat qo‘shish</span>
       </button>
     </div>
 
@@ -237,9 +237,9 @@ useDialogFocus(showModal, "#cabinet-clubs-showModal", () => { showModal.value = 
         <input
           v-model="searchQuery"
           type="search"
-          placeholder="Muassasa nomi yoki telefon bo'yicha qidirish..."
+          placeholder="Xizmat nomi yoki telefon bo'yicha qidirish..."
           @keyup.enter="fetchClubs"
-         aria-label="Muassasa nomi yoki telefon bo'yicha qidirish...">
+         aria-label="Xizmat nomi yoki telefon bo'yicha qidirish...">
       </div>
       <div class="select-box">
         <select v-model="selectedCategory" @change="fetchClubs" aria-label="Xizmat turi"><option value="">Barcha xizmatlar</option><option v-for="service in services" :key="service.id" :value="service.id">{{ service.name }}</option></select>
@@ -248,10 +248,7 @@ useDialogFocus(showModal, "#cabinet-clubs-showModal", () => { showModal.value = 
         <select v-model="selectedStatus" @change="fetchClubs" aria-label="Holat">
           <option value="">Barcha holatlar</option>
           <option value="ACTIVE">Faol</option>
-          <option value="DRAFT">DRAFT (Qoralama)</option>
-          <option value="PENDING">Kutilmoqda</option>
-          <option value="SUSPENDED">SUSPENDED (Muzlatilgan)</option>
-          <option value="ARCHIVED">ARCHIVED (Arxivlangan)</option>
+          <option value="INACTIVE">Nofaol</option>
         </select>
       </div>
       <button type="button" class="secondary-button" @click="fetchClubs">
@@ -274,7 +271,7 @@ useDialogFocus(showModal, "#cabinet-clubs-showModal", () => { showModal.value = 
 
     <div v-else class="table-card">
       <div v-if="!clubs.length" class="empty-state">
-        Muassasalar topilmadi.
+        Xizmatlar topilmadi.
       </div>
       <div v-else class="table-container">
         <table class="admin-table">
@@ -289,7 +286,7 @@ useDialogFocus(showModal, "#cabinet-clubs-showModal", () => { showModal.value = 
               <th scope="col">Holat</th>
               <th scope="col">Tekshiruv</th>
               <th scope="col">Reyting</th>
-              <th scope="col">Amallar</th>
+              <th v-if="isPlatformAdmin" scope="col">Amallar</th>
             </tr>
           </thead>
           <tbody>
@@ -329,7 +326,7 @@ useDialogFocus(showModal, "#cabinet-clubs-showModal", () => { showModal.value = 
                 </span>
               </td>
               <td data-label="Reyting"><CabinetIcon name="star" /> {{ Number(c.rating || 0).toFixed(1) }} ({{ c.review_count || 0 }})</td>
-              <td data-label="Amallar">
+              <td v-if="isPlatformAdmin" data-label="Amallar">
                 <div class="table-actions">
                   <button
                     type="button"
@@ -361,7 +358,7 @@ useDialogFocus(showModal, "#cabinet-clubs-showModal", () => { showModal.value = 
       <div v-if="showModal" id="cabinet-clubs-showModal" class="modal-backdrop cabinet-modal" role="dialog" aria-modal="true" aria-label="Tahrirlash" tabindex="-1" @click.self="showModal = false">
         <div class="modal-card">
           <div class="modal-header">
-            <h3>{{ editingClub ? "Muassasani tahrirlash" : "Yangi muassasa qo'shish" }}</h3>
+            <h3>{{ editingClub ? "Xizmatni tahrirlash" : "Yangi xizmat qo'shish" }}</h3>
             <button type="button" class="modal-close-btn" @click="showModal = false">✕</button>
           </div>
 
@@ -371,7 +368,7 @@ useDialogFocus(showModal, "#cabinet-clubs-showModal", () => { showModal.value = 
             <div class="form-row">
               <div class="form-group">
                 <label>Nomi *</label>
-                <input v-model="form.name" type="text" placeholder="Muassasa nomi" required aria-label="Muassasa nomi">
+                <input v-model="form.name" type="text" placeholder="Xizmat nomi" required aria-label="Xizmat nomi">
               </div>
               <div class="form-group">
                 <label for="club-service-type">Xizmat turi *</label>
@@ -379,12 +376,13 @@ useDialogFocus(showModal, "#cabinet-clubs-showModal", () => { showModal.value = 
               </div>
             </div>
 
+            <fieldset class="service-picker"><legend>Klub xizmatlari</legend><label v-for="service in services" :key="service.id" class="service-choice"><input v-model="form.available_services" type="checkbox" :value="service.id">{{ service.name }}</label></fieldset>
             <div class="form-row">
               <div class="form-group"><label for="billing-city">Shahar</label><select id="billing-city" v-model="form.billing_city" required :disabled="!isPlatformAdmin && Boolean(editingClub)" @change="form.billing_district = ''"><option value="" disabled>Shaharni tanlang</option><option v-for="city in cities" :key="city.id" :value="city.id">{{ city.name }}</option></select></div>
               <div class="form-group"><label for="billing-district">Tuman</label><select id="billing-district" v-model="form.billing_district" :disabled="isDistrictLoading || !form.billing_city || (!isPlatformAdmin && Boolean(editingClub))" required><option value="" disabled>{{ isDistrictLoading ? "Yuklanmoqda…" : "Tumanni tanlang" }}</option><option v-for="district in districts" :key="district.id" :value="district.id">{{ district.name }}</option></select><small v-if="districtError" role="alert">{{ districtError }}</small><small v-else-if="form.billing_city && !isDistrictLoading && !districts.length">Bu hudud uchun tumanlar hali qo‘shilmagan.</small></div>
             </div>
             <div v-if="isPlatformAdmin" class="form-group">
-              <label>Muassasa egasi</label><button type="button" class="secondary-button" @click="showNewClient = !showNewClient">Mijoz qo‘shish</button>
+              <label>Xizmat egasi</label><button type="button" class="secondary-button" @click="showNewClient = !showNewClient">Mijoz qo‘shish</button>
               <div v-if="showNewClient" class="inline-client-form">
                 <label for="new-owner-name">Ism-familiya</label><input id="new-owner-name" v-model="newClient.full_name" maxlength="150" autocomplete="name">
                 <label for="new-owner-phone">Telefon</label><input id="new-owner-phone" v-model="newClient.phone" type="tel" autocomplete="tel">
@@ -402,7 +400,7 @@ useDialogFocus(showModal, "#cabinet-clubs-showModal", () => { showModal.value = 
 
             <div class="form-group">
               <label>Tavsif</label>
-              <textarea v-model="form.description" rows="3" placeholder="Muassasa haqida" />
+              <textarea v-model="form.description" rows="3" placeholder="Xizmat haqida" />
             </div>
 
             <div class="form-row">
@@ -425,9 +423,7 @@ useDialogFocus(showModal, "#cabinet-clubs-showModal", () => { showModal.value = 
                 <label>Holat</label>
                 <select v-model="form.status" aria-label="Tanlash">
                   <option value="ACTIVE">Faol</option>
-                  <option value="DRAFT">DRAFT (Qoralama)</option>
-                  <option value="PENDING">Kutilmoqda</option>
-                  <option value="SUSPENDED">SUSPENDED (Muzlatilgan)</option>
+                  <option value="INACTIVE">Nofaol</option>
                 </select>
               </div>
             </div>

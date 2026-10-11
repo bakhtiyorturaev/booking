@@ -1,4 +1,4 @@
-from rest_framework.permissions import BasePermission
+from rest_framework.permissions import BasePermission, SAFE_METHODS
 
 from apps.accounts.models import User
 from apps.clubs.models import Branch, Club, ResourceBlock, Zone
@@ -66,3 +66,10 @@ class IsOwnerOrPlatformAdmin(BasePermission):
         return is_platform_admin(request.user) or (
             club is not None and club.owner_id == request.user.id
         )
+
+
+class IsStaffOrReadOnly(BasePermission):
+    message = "Client kabineti faqat ko‘rish uchun."
+
+    def has_permission(self, request, view):
+        return request.method in SAFE_METHODS or is_platform_admin(request.user)
