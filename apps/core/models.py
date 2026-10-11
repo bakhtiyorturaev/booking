@@ -3,7 +3,7 @@ import uuid
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
-from django.db import models
+from django.db import models, transaction
 from django.utils.text import slugify
 
 from apps.core.fields import EncryptedTextField
@@ -25,6 +25,10 @@ class ServiceType(TimeStampedModel):
     name = models.CharField(max_length=100)
     name_ru = models.CharField("Ruscha nom", max_length=100, blank=True, default="")
     name_en = models.CharField("Inglizcha nom", max_length=100, blank=True, default="")
+    parent = models.ForeignKey(
+        "self", on_delete=models.PROTECT, null=True, blank=True,
+        related_name="children", verbose_name="Asosiy xizmat",
+    )
     is_active = models.BooleanField(default=True)
     sort_order = models.PositiveSmallIntegerField(default=0)
 
@@ -35,7 +39,55 @@ class ServiceType(TimeStampedModel):
         verbose_name_plural = "Xizmat turlari"
 
     def __str__(self):
-        return self.name
+        names = [self.name]
+        seen = {self.pk}
+        parent = self.parent if self.parent_id else None
+        while parent and parent.pk not in seen:
+            seen.add(parent.pk)
+            names.insert(0, parent.name)
+            parent = parent.parent if parent.parent_id else None
+        return " → ".join(names)
+
+    def clean(self):
+        super().clean()
+        seen = {self.pk}
+        parent = ServiceType.objects.filter(pk=self.parent_id).first() if self.parent_id else None
+        if parent:
+            self.parent = parent
+        while parent:
+            if parent.pk in seen:
+                raise ValidationError({"parent": "Xizmat o‘ziga yoki ichki xizmatiga biriktirilmaydi."})
+            seen.add(parent.pk)
+            parent = parent.parent if parent.parent_id else None
+        previous = ServiceType.objects.filter(pk=self.pk).values("parent_id").first()
+        if previous and previous["parent_id"] != self.parent_id:
+            from apps.clubs.models import Branch
+            from apps.core.services.service_types import descendant_service_ids
+            affected = descendant_service_ids([self.pk])
+            overrides = {self.pk: self.parent_id}
+            branches = Branch.objects.filter(
+                models.Q(enabled_services__in=affected) | models.Q(zones__service_type_id__in=affected)
+            ).select_related("club").prefetch_related("enabled_services", "club__available_services", "zones").distinct()
+            for branch in branches:
+                enabled = {service.pk for service in branch.enabled_services.all()}
+                club_services = {service.pk for service in branch.club.available_services.all()}
+                allowed = descendant_service_ids(club_services, parent_overrides=overrides)
+                zone_services = {zone.service_type_id for zone in branch.zones.all() if zone.service_type_id}
+                if not enabled.issubset(allowed) or not zone_services.issubset(descendant_service_ids(enabled, parent_overrides=overrides)):
+                    raise ValidationError({"parent": "Avval bu xizmatni tegishli klub va filiallarga alohida biriktiring."})
+
+    def save(self, *args, **kwargs):
+        with transaction.atomic():
+            list(ServiceType.objects.select_for_update().values_list("pk", flat=True))
+            self.clean()
+            result = super().save(*args, **kwargs)
+            from apps.clubs.models import Club
+            from apps.core.services.service_types import descendant_service_ids, root_service
+            root = root_service(self)
+            category = root.code if root.code in Club.Category.values else Club.Category.OTHER
+            Club.objects.filter(service_type_id__in=descendant_service_ids([self.pk])).update(category=category)
+            Club.objects.filter(service_type_id=self.pk).update(service_name=self.name)
+            return result
 
 
 def normalize_language(language):

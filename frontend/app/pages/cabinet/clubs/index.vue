@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import VenueBillingBadge from "~/components/cabinet/VenueBillingBadge.vue"
 import { useAdminApi } from "~/api/admin"
+import type { ServiceTypeManagementItem } from "~/api/serviceTypes"
+import { serviceTreeOptions } from "~/utils/serviceTree"
+import ServiceChecklist from "~/components/cabinet/ServiceChecklist.vue"
 
 definePageMeta({
   alias: ["/site/staff/panel/clubs", "/site/client/panel/clubs"],
@@ -20,7 +23,8 @@ const { statusLabel } = useCabinetLabels()
 
 const { isStaff: isPlatformAdmin } = useCabinetAccess()
 
-const services = ref<{ id: string; code: string; name: string }[]>([])
+const services = ref<ServiceTypeManagementItem[]>([])
+const serviceChoices = computed(() => serviceTreeOptions(services.value.filter(service => service.is_active)))
 const cities = ref<any[]>([])
 const loadLocations = async () => {
   try { cities.value = await adminApi.getCities() } catch (error) { errorMessage.value = cabinetErrorMessage(error) }
@@ -242,7 +246,7 @@ useDialogFocus(showModal, "#cabinet-clubs-showModal", () => { showModal.value = 
          aria-label="Xizmat nomi yoki telefon bo'yicha qidirish...">
       </div>
       <div class="select-box">
-        <select v-model="selectedCategory" @change="fetchClubs" aria-label="Xizmat turi"><option value="">Barcha xizmatlar</option><option v-for="service in services" :key="service.id" :value="service.id">{{ service.name }}</option></select>
+        <select v-model="selectedCategory" @change="fetchClubs" aria-label="Xizmat turi"><option value="">Barcha xizmatlar</option><option v-for="service in serviceChoices" :key="service.id" :value="service.id">{{ service.label }}</option></select>
       </div>
       <div class="select-box">
         <select v-model="selectedStatus" @change="fetchClubs" aria-label="Holat">
@@ -364,11 +368,11 @@ useDialogFocus(showModal, "#cabinet-clubs-showModal", () => { showModal.value = 
               </div>
               <div class="form-group">
                 <label for="club-service-type">Xizmat turi *</label>
-                <select id="club-service-type" v-model="form.service_type" :disabled="!isPlatformAdmin && Boolean(editingClub)" required aria-label="Xizmat turi"><option value="" disabled>Xizmatni tanlang</option><option v-for="service in services" :key="service.id" :value="service.id">{{ service.name }}</option></select>
+                <select id="club-service-type" v-model="form.service_type" :disabled="!isPlatformAdmin && Boolean(editingClub)" required aria-label="Xizmat turi"><option value="" disabled>Xizmatni tanlang</option><option v-for="service in serviceChoices" :key="service.id" :value="service.id">{{ service.label }}</option></select>
               </div>
             </div>
 
-            <fieldset class="service-picker"><legend>Klub xizmatlari</legend><label v-for="service in services" :key="service.id" class="service-choice"><input v-model="form.available_services" type="checkbox" :value="service.id">{{ service.name }}</label></fieldset>
+            <fieldset class="service-picker"><legend>Klub xizmatlari</legend><ServiceChecklist v-model="form.available_services" :services="serviceChoices" /></fieldset>
             <div class="form-row">
               <div class="form-group"><label for="billing-city">Shahar</label><select id="billing-city" v-model="form.billing_city" required :disabled="!isPlatformAdmin && Boolean(editingClub)" @change="form.billing_district = ''"><option value="" disabled>Shaharni tanlang</option><option v-for="city in cities" :key="city.id" :value="city.id">{{ city.name }}</option></select></div>
               <div class="form-group"><label for="billing-district">Tuman</label><select id="billing-district" v-model="form.billing_district" :disabled="isDistrictLoading || !form.billing_city || (!isPlatformAdmin && Boolean(editingClub))" required><option value="" disabled>{{ isDistrictLoading ? "Yuklanmoqda…" : "Tumanni tanlang" }}</option><option v-for="district in districts" :key="district.id" :value="district.id">{{ district.name }}</option></select><small v-if="districtError" role="alert">{{ districtError }}</small><small v-else-if="form.billing_city && !isDistrictLoading && !districts.length">Bu hudud uchun tumanlar hali qo‘shilmagan.</small></div>

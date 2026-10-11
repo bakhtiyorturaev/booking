@@ -139,7 +139,9 @@ class Club(TimeStampedModel):
 
     def save(self, *args, **kwargs):
         if self.service_type_id:
-            self.category = self.service_type.code if self.service_type.code in self.Category.values else self.Category.OTHER
+            from apps.core.services.service_types import root_service
+            root = root_service(self.service_type)
+            self.category = root.code if root.code in self.Category.values else self.Category.OTHER
             self.service_name = self.service_type.name
             if kwargs.get("update_fields"):
                 kwargs["update_fields"] = set(kwargs["update_fields"]) | {"category", "service_name"}

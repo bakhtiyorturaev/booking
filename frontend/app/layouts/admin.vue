@@ -81,6 +81,7 @@ const navGroups = computed(() => [
   ] },
   { label: "Boshqaruv", items: [
     { to: cabinetPath('/clubs'), label: "Xizmatlar", icon: faBuilding },
+    { to: cabinetPath('/service-types'), label: "Xizmat turlari", icon: faCodeBranch },
     { to: cabinetPath('/branches'), label: "Filiallar va zonalar", icon: faCodeBranch },
     { to: cabinetPath('/barbers'), label: "Sartaroshlar", icon: faScissors },
     { to: cabinetPath('/users'), label: "Mijozlar", icon: faUsers },

@@ -1,5 +1,6 @@
 import { useApiClient } from "./client"
 import type { BillingVenue, ManualVenuePayment, ManualPaymentInput, BillingSummary, Paginated } from "~/types/venueBilling"
+import type { ServiceTypeManagementItem } from "~/api/serviceTypes"
 
 export const useAdminApi = () => {
   const client = useApiClient()
@@ -11,7 +12,10 @@ export const useAdminApi = () => {
         headers: { "Accept-Language": language },
       }),
 
-    getServiceTypes: () => client.get<{ id: string; code: string; name: string }[]>("/api/cabinet/service-types/", { local: true }),
+    getServiceTypes: () => client.get<ServiceTypeManagementItem[]>("/api/cabinet/service-types/", { local: true }),
+    createServiceType: (body: Omit<ServiceTypeManagementItem, "id" | "translations">) => client.post<ServiceTypeManagementItem>("/api/cabinet/service-types/", { local: true, body }),
+    updateServiceType: (id: string, body: Partial<ServiceTypeManagementItem>) => client.patch<ServiceTypeManagementItem>(`/api/cabinet/service-types/${encodeURIComponent(id)}/`, { local: true, body }),
+    deleteServiceType: (id: string) => client.delete(`/api/cabinet/service-types/${encodeURIComponent(id)}/`, { local: true }),
 
     getClubs: (params?: Record<string, any>, language = "uz") =>
       client.get<any>("/api/cabinet/clubs/", {

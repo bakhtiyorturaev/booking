@@ -16,6 +16,7 @@ import CatalogSidebarFilter, { type FilterState } from "~/components/catalog/Cat
 import CatalogBottomSheet from "~/components/catalog/CatalogBottomSheet.vue"
 import ServiceCategorySelector from "~/components/catalog/ServiceCategorySelector.vue"
 import type { BarberItem } from "~/types/barber"
+import { descendantServiceIds, rootService, serviceTreeOptions } from "~/utils/serviceTree"
 
 definePageMeta({ layout: "customer" })
 
@@ -35,10 +36,24 @@ const selectedServiceCode = ref<string | null>(
   ?? null,
 )
 const activeService = computed(() => serviceTypes.value.find(service => service.code === selectedServiceCode.value) ?? null)
-const isBarbershop = computed(() => activeService.value?.code.toUpperCase().replaceAll("-", "_") === "BARBERSHOP")
-
-useHead({
-  title: computed(() => activeService.value?.name || t("clubs.catalog_title") || "Xizmatlar"),
+const rootServices = computed(() => serviceTypes.value.filter(service => !service.parent))
+const selectedRoot = computed(() => rootService(serviceTypes.value, activeService.value))
+const serviceRows = computed(() => serviceTreeOptions(serviceTypes.value))
+const categoryChildren = computed(() => {
+  const service = activeService.value
+  const children = serviceTypes.value.filter(item => item.parent === service?.id)
+  return children.length ? children : serviceTypes.value.filter(item => service?.parent && item.parent === service.parent)
+})
+const serviceAncestors = computed(() => {
+  const result: ServiceTypeOption[] = []
+  let current = activeService.value
+  const seen = new Set<string>()
+  while (current && !seen.has(current.id)) {
+    seen.add(current.id)
+    result.unshift(current)
+    current = serviceTypes.value.find(item => item.id === current?.parent) || null
+  }
+  return result
 })
 
 const filterState = ref<FilterState>({
@@ -49,6 +64,14 @@ const filterState = ref<FilterState>({
   status: "",
 })
 const draftFilterState = ref<FilterState>({ ...filterState.value })
+const effectiveService = computed(() => serviceTypes.value.find(service => service.code === (filterState.value.service_type || selectedServiceCode.value)) || null)
+const isBarbershop = computed(() => ["BARBERSHOP", "BARBER"].includes(effectiveService.value?.code.toUpperCase() || ""))
+const isBarberOnly = computed(() => effectiveService.value?.code.toUpperCase() === "BARBER")
+const serviceFilterOptions = computed(() => {
+  const ids = descendantServiceIds(serviceTypes.value, activeService.value ? [activeService.value.id] : [])
+  return serviceTypes.value.filter(service => ids.has(service.id) && service.id !== activeService.value?.id)
+})
+useHead({ title: computed(() => effectiveService.value?.name || t("clubs.catalog_title") || "Xizmatlar") })
 
 const userCoords = ref<{ latitude: number; longitude: number } | null>(null)
 const locating = ref(false)
@@ -79,10 +102,9 @@ const fetchBranches = async () => {
   clearMessage()
   try {
     const params: BranchListParams = {
-      service_category: selectedServiceCode.value || undefined,
+      service_category: filterState.value.service_type || selectedServiceCode.value || undefined,
       search: filterState.value.search || undefined,
       city: filterState.value.city || undefined,
-      service_type: filterState.value.service_type || undefined,
       ordering: filterState.value.ordering || undefined,
     }
     if (filterState.value.ordering === "distance" && userCoords.value) {
@@ -133,7 +155,7 @@ if (initialBarbers.value) {
 const branches = computed(() => data.value?.results ?? [])
 const totalCount = computed(() => {
   if (isBarbershop.value) {
-    return barbersSubView.value === "barbers" ? barberCount.value : data.value?.count ?? branches.value.length
+    return isBarberOnly.value || barbersSubView.value === "barbers" ? barberCount.value : data.value?.count ?? branches.value.length
   }
   return data.value?.count ?? branches.value.length
 })
@@ -149,7 +171,7 @@ const setService = (code: string) => {
     ...filterState.value,
     service_type: "",
     status: "",
-    ordering: code.toUpperCase().replaceAll("-", "_") === "BARBERSHOP" && ["price", "-price"].includes(filterState.value.ordering)
+    ordering: ["BARBERSHOP", "BARBER"].includes(code.toUpperCase().replaceAll("-", "_")) && ["price", "-price"].includes(filterState.value.ordering)
       ? "-rating"
       : filterState.value.ordering,
   }
@@ -159,6 +181,14 @@ const setService = (code: string) => {
 watch(
   [filterState, selectedServiceCode],
   () => {
+    if (isBarbershop.value && ["price", "-price"].includes(filterState.value.ordering)) {
+      filterState.value = { ...filterState.value, ordering: "-rating" }
+      return
+    }
+    if (!isBarbershop.value && filterState.value.status) {
+      filterState.value = { ...filterState.value, status: "" }
+      return
+    }
     void fetchBranches()
   },
   { deep: true },
@@ -214,7 +244,7 @@ const activeFilterChips = computed(() => {
   if (filterState.value.search) chips.push({ key: "search", label: filterState.value.search })
   if (filterState.value.service_type) {
     const value = filterState.value.service_type
-    const label = ["PS", "PLAYSTATION"].includes(value.toUpperCase()) ? "PlayStation" : "Cyber / PC"
+    const label = serviceTypes.value.find(service => service.code === value)?.name || value
     chips.push({ key: "service_type", label })
   }
   if (filterState.value.city) {
@@ -294,12 +324,20 @@ const openBarberBooking = (barber: BarberItem) => {
 <template>
   <div class="bronla-portal-container">
     <ServiceCategorySelector
-      :services="serviceTypes"
-      :selected-code="selectedServiceCode"
+      :services="rootServices"
+      :selected-code="selectedRoot?.code || null"
       :loading="!serviceTypeData && !serviceTypeError"
       @select="setService"
       @all="allServicesOpen = true"
     />
+
+    <div v-if="serviceAncestors.length > 1" class="service-breadcrumbs">
+      <button v-for="service in serviceAncestors" :key="service.id" type="button" @click="setService(service.code)">{{ service.name }}</button>
+    </div>
+    <div v-if="categoryChildren.length" class="service-child-options">
+      <button v-for="service in categoryChildren.slice(0, 3)" :key="service.id" type="button" :class="{ selected: selectedServiceCode === service.code }" :aria-pressed="selectedServiceCode === service.code" @click="setService(service.code)">{{ service.name }}</button>
+      <button v-if="categoryChildren.length > 3" type="button" @click="allServicesOpen = true">{{ t('catalog.all') }}</button>
+    </div>
 
     <div v-if="activeFilterChips.length" class="active-filter-chips" aria-label="Tanlangan filtrlar">
       <button
@@ -341,7 +379,8 @@ const openBarberBooking = (barber: BarberItem) => {
       <div class="portal-sidebar-wrapper">
         <CatalogSidebarFilter
           v-model="filterState"
-          :category="activeService?.code || ''"
+          :category="effectiveService?.code || ''"
+          :service-options="serviceFilterOptions"
           :sub-view="barbersSubView"
           :locating="locating"
           @locate="locate"
@@ -352,7 +391,7 @@ const openBarberBooking = (barber: BarberItem) => {
       <!-- Right Main Catalog (3-column grid) -->
       <main class="portal-catalog-content">
         <!-- Results Sub-header (only for BARBERSHOP sub-view toggle) -->
-        <div v-if="isBarbershop" class="catalog-results-header">
+        <div v-if="isBarbershop && !isBarberOnly" class="catalog-results-header">
           <div class="barber-subview-toggle">
             <button
               type="button"
@@ -388,7 +427,7 @@ const openBarberBooking = (barber: BarberItem) => {
         <!-- Barbers View -->
         <template v-else-if="isBarbershop">
           <!-- 1. Barbers Sub-view -->
-          <template v-if="barbersSubView === 'barbers'">
+          <template v-if="isBarberOnly || barbersSubView === 'barbers'">
             <div v-if="!barbers.length" class="catalog-empty">
               <span class="empty-icon"><FontAwesomeIcon :icon="faScissors" /></span>
               <p>{{ t("filter.no_barbers_found") }}</p>
@@ -440,15 +479,15 @@ const openBarberBooking = (barber: BarberItem) => {
     <CatalogBottomSheet v-model="allServicesOpen" :title="t('catalog.all_services')" sheet-class="services-sheet">
       <div class="all-services-grid">
         <button
-          v-for="service in serviceTypes"
+          v-for="service in serviceRows"
           :key="service.id"
           type="button"
           class="all-service-card"
-          :class="{ selected: selectedServiceCode === service.code }"
+          :class="{ selected: selectedServiceCode === service.code, 'service-root-card': service.depth === 0 }"
           :aria-pressed="selectedServiceCode === service.code"
           @click="setService(service.code)"
         >
-          <span class="all-service-name">{{ service.name }}</span>
+          <span class="all-service-name">{{ service.label }}</span>
         </button>
         <p v-if="!serviceTypes.length" class="services-empty">Hozircha xizmat turlari yo‘q.</p>
       </div>
@@ -459,7 +498,8 @@ const openBarberBooking = (barber: BarberItem) => {
         <CatalogSidebarFilter
           v-model="draftFilterState"
           :show-sorting="false"
-          :category="activeService?.code || ''"
+          :category="effectiveService?.code || ''"
+          :service-options="serviceFilterOptions"
           :sub-view="barbersSubView"
           :locating="locating"
           @locate="locateDraft"
@@ -508,6 +548,13 @@ const openBarberBooking = (barber: BarberItem) => {
   gap: 7px;
   min-width: 0;
 }
+
+.service-child-options, .service-breadcrumbs { display: flex; gap: 6px; min-width: 0; }
+.service-child-options button { max-width: 31%; min-width: 0; min-height: 32px; padding: 5px 9px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.service-child-options button.selected { color: var(--accent); border-color: var(--accent); }
+.service-breadcrumbs { flex-wrap: wrap; }
+.service-breadcrumbs button { min-height: 32px; padding: 3px 4px; border: 0; background: transparent; color: var(--accent); font-size: 12px; cursor: pointer; }
+.service-breadcrumbs button + button::before { content: '›'; margin-right: 8px; color: var(--muted); }
 
 .active-filter-chip {
   min-height: 34px;
@@ -773,14 +820,17 @@ const openBarberBooking = (barber: BarberItem) => {
 }
 
 .all-service-card.selected { border-color: var(--accent, #6366f1); background: color-mix(in srgb, var(--accent, #6366f1) 8%, var(--surface)); }
+.all-service-card.service-root-card { grid-column: 1 / -1; background: var(--control); }
 .all-service-name { width: 100%; overflow-wrap: anywhere; font-size: 13px; line-height: 1.25; font-weight: 750; }
 .services-empty { grid-column: 1 / -1; padding: 24px; color: var(--muted); text-align: center; }
 
-.mobile-filter-body { padding: 14px 16px 18px; }
-.mobile-filter-body :deep(.filter-sidebar) { padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; gap: 19px; }
+.mobile-filter-body { padding: 10px 14px 12px; }
+.mobile-filter-body :deep(.filter-sidebar) { padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; gap: 10px; }
 .mobile-filter-body :deep(.filter-header) { display: none; }
 .mobile-filter-body :deep(.filter-search-field) { min-height: 46px; }
-.mobile-filter-body :deep(.select-box-item) { min-height: 44px; padding: 8px 6px; }
+.mobile-filter-body :deep(.select-box-item) { min-height: 44px; padding: 4px 6px; }
+.mobile-filter-body :deep(.filter-group) { gap: 4px; }
+.mobile-filter-body :deep(.select-box-list) { gap: 0; }
 .filter-sheet-actions { display: flex; gap: 10px; padding: 12px 16px max(12px, env(safe-area-inset-bottom)); border-top: 1px solid var(--border); background: var(--surface); }
 .filter-clear-button, .filter-apply-button { min-height: 48px; border-radius: 12px; font-size: 13px; font-weight: 750; cursor: pointer; }
 .filter-clear-button { flex: 0 0 100px; border: 1px solid var(--border); background: var(--surface); color: var(--text); }

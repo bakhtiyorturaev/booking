@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { useAdminApi } from "~/api/admin"
 import FreeModeToggle from "~/components/cabinet/FreeModeToggle.vue"
+import type { ServiceTypeManagementItem } from "~/api/serviceTypes"
+import { descendantServiceIds, serviceTreeOptions } from "~/utils/serviceTree"
+import ServiceChecklist from "~/components/cabinet/ServiceChecklist.vue"
 
 definePageMeta({
   alias: ["/site/staff/panel/branches", "/site/client/panel/branches"],
@@ -20,7 +23,7 @@ const { statusLabel } = useCabinetLabels()
 const clubs = ref<any[]>([])
 const branches = ref<any[]>([])
 const cities = ref<any[]>([])
-const services = ref<{ id: string; code: string; name: string }[]>([])
+const services = ref<ServiceTypeManagementItem[]>([])
 const selectedClubId = ref("")
 const selectedBranch = ref<any>(null)
 const branchZones = ref<any[]>([])
@@ -50,9 +53,13 @@ const branchForm = ref({
 
 const branchServiceChoices = computed(() => {
   const club = clubs.value.find(item => item.id === branchForm.value.club)
-  return services.value.filter(service => (club?.available_services || []).includes(service.id))
+  const allowed = descendantServiceIds(services.value, club?.available_services || [])
+  return services.value.filter(service => service.is_active && allowed.has(service.id))
 })
-const zoneServiceChoices = computed(() => services.value.filter(service => (selectedBranch.value?.enabled_services || []).includes(service.id)))
+const zoneServiceChoices = computed(() => {
+  const allowed = descendantServiceIds(services.value, selectedBranch.value?.enabled_services || [])
+  return serviceTreeOptions(services.value.filter(service => service.is_active && allowed.has(service.id)))
+})
 watch(() => branchForm.value.club, () => {
   const allowed = new Set(branchServiceChoices.value.map(service => service.id))
   branchForm.value.enabled_services = branchForm.value.enabled_services.filter(id => allowed.has(id))
@@ -427,7 +434,7 @@ useDialogFocus(showZoneModal, "#cabinet-branches-showZoneModal", () => { showZon
               <input v-model="branchForm.name" type="text" placeholder="Masalan: Chilonzor filiali" required aria-label="Masalan: Chilonzor filiali">
             </div>
 
-            <fieldset class="service-picker"><legend>Filial xizmatlari</legend><label v-for="service in branchServiceChoices" :key="service.id" class="service-choice"><input v-model="branchForm.enabled_services" type="checkbox" :value="service.id">{{ service.name }}</label><p v-if="!branchServiceChoices.length">Avval klubga xizmatlarni biriktiring.</p></fieldset>
+            <fieldset class="service-picker"><legend>Filial xizmatlari</legend><ServiceChecklist v-model="branchForm.enabled_services" :services="branchServiceChoices" /><p v-if="!branchServiceChoices.length">Avval klubga xizmatlarni biriktiring.</p></fieldset>
             <div class="form-row">
               <div class="form-group">
                 <label>Shahar *</label>
@@ -498,7 +505,7 @@ useDialogFocus(showZoneModal, "#cabinet-branches-showZoneModal", () => { showZon
               <input v-model="zoneForm.name" type="text" placeholder="Masalan: 1-stol, maydon yoki xona" required aria-label="Masalan: 1-stol, maydon yoki xona">
             </div>
 
-            <div class="form-group"><label for="zone-service">Xizmat turi</label><select id="zone-service" v-model="zoneForm.service_type"><option value="">Umumiy</option><option v-for="service in zoneServiceChoices" :key="service.id" :value="service.id">{{ service.name }}</option></select></div>
+            <div class="form-group"><label for="zone-service">Xizmat turi</label><select id="zone-service" v-model="zoneForm.service_type"><option value="">Umumiy</option><option v-for="service in zoneServiceChoices" :key="service.id" :value="service.id">{{ service.label }}</option></select></div>
             <div class="form-row">
               <div class="form-group">
                 <label>Resurs turi</label>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { ServiceTypeOption } from "~/api/serviceTypes"
 import { useTranslations } from "~/composables/useTranslations"
 
 export interface FilterState {
@@ -19,12 +20,14 @@ const props = withDefaults(
     subView?: "barbers" | "salons"
     locating?: boolean
     showSorting?: boolean
+    serviceOptions?: ServiceTypeOption[]
   }>(),
   {
     category: "GAMING_CLUB",
     subView: "barbers",
     locating: false,
     showSorting: true,
+    serviceOptions: () => [],
   },
 )
 
@@ -35,8 +38,7 @@ const emit = defineEmits<{
 
 const { t } = useTranslations()
 const categoryCode = computed(() => props.category?.toUpperCase().replaceAll("-", "_") || "")
-const isBarbershop = computed(() => categoryCode.value === "BARBERSHOP")
-const hasGamingFilters = computed(() => categoryCode.value === "GAMING_CLUB")
+const isBarbershop = computed(() => ["BARBERSHOP", "BARBER"].includes(categoryCode.value))
 
 const localState = reactive<FilterState>({
   ...props.modelValue,
@@ -191,47 +193,13 @@ const resetFilters = () => {
       >
     </div>
 
-    <!-- 2. Services / Features (Faqat O'yin klublari uchun) -->
-    <div v-if="hasGamingFilters" class="filter-group">
-      <h4 class="filter-group-heading">
-        {{ t("filter.service_type") || "Xizmat turi" }}
-      </h4>
+    <div v-if="serviceOptions.length" class="filter-group">
+      <h4 class="filter-group-heading">{{ t("filter.service_type") }}</h4>
       <div class="select-box-list">
-        <label
-          class="select-box-item"
-          :class="{ checked: localState.service_type === 'PLAYSTATION' || localState.service_type === 'PS' }"
-          @click.prevent="selectService('PLAYSTATION')"
-        >
-          <span class="custom-checkbox">
-            <svg
-              v-if="localState.service_type === 'PLAYSTATION' || localState.service_type === 'PS'"
-              class="check-icon"
-              viewBox="0 0 16 16"
-              fill="currentColor"
-            >
-              <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z" />
-            </svg>
-          </span>
-          <span class="select-box-label">PlayStation</span>
-        </label>
-
-        <label
-          class="select-box-item"
-          :class="{ checked: localState.service_type === 'COMPUTER' || localState.service_type === 'PC' }"
-          @click.prevent="selectService('COMPUTER')"
-        >
-          <span class="custom-checkbox">
-            <svg
-              v-if="localState.service_type === 'COMPUTER' || localState.service_type === 'PC'"
-              class="check-icon"
-              viewBox="0 0 16 16"
-              fill="currentColor"
-            >
-              <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z" />
-            </svg>
-          </span>
-          <span class="select-box-label">Cyber / PC</span>
-        </label>
+        <button v-for="service in serviceOptions" :key="service.id" type="button" class="select-box-item service-filter-option" :class="{ checked: localState.service_type === service.code }" :aria-pressed="localState.service_type === service.code" @click="selectService(service.code)">
+          <span class="custom-checkbox" aria-hidden="true"><span v-if="localState.service_type === service.code" class="check-icon">✓</span></span>
+          <span class="select-box-label">{{ service.name }}</span>
+        </button>
       </div>
     </div>
 
@@ -479,6 +447,8 @@ const resetFilters = () => {
   user-select: none;
   transition: background-color 0.12s ease;
 }
+
+.service-filter-option { border: 0; background: transparent; text-align: left; font: inherit; width: 100%; }
 
 .select-box-item:hover {
   background: color-mix(in srgb, var(--control) 50%, transparent);

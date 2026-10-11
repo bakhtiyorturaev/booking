@@ -19,6 +19,7 @@ from apps.clubs.models import (
 )
 from apps.core.models import City, District, ServiceType
 from apps.clubs.permissions import is_platform_admin
+from apps.core.services.service_types import descendant_service_ids, root_service
 
 
 def image_url(image, request):
@@ -130,7 +131,8 @@ class ZoneSerializer(CleanModelSerializer):
         service = attrs.get("service_type", self.instance.service_type if self.instance else None)
         if service and service.code in Zone.ResourceType.values:
             attrs["resource_type"] = service.code
-        if service and (not branch or not branch.enabled_services.filter(pk=service.pk).exists()):
+        allowed = descendant_service_ids(branch.enabled_services.values_list("pk", flat=True)) if branch else set()
+        if service and (service.pk not in allowed or not service.is_active):
             raise serializers.ValidationError({"service_type": "Xizmat ushbu filialga biriktirilmagan."})
         return super().validate(attrs)
 
@@ -168,6 +170,18 @@ class PublicZoneSerializer(serializers.ModelSerializer):
             "resource_type",
         )
         read_only_fields = fields
+
+
+class ServiceTypeManagementSerializer(CleanModelSerializer):
+    def validate(self, attrs):
+        if self.instance and attrs.get("code", self.instance.code) != self.instance.code:
+            raise serializers.ValidationError({"code": "Mavjud xizmat kodini o‘zgartirib bo‘lmaydi."})
+        return super().validate(attrs)
+
+    class Meta:
+        model = ServiceType
+        fields = ("id", "code", "name", "name_ru", "name_en", "parent", "is_active", "sort_order")
+        read_only_fields = ("id",)
 
 
 class BranchSummarySerializer(serializers.ModelSerializer):
@@ -333,7 +347,8 @@ class ClubManagementSerializer(CleanModelSerializer):
         if service:
             if not service.is_active and (not self.instance or self.instance.service_type_id != service.pk):
                 raise serializers.ValidationError({"service_type": "Xizmat turi faol emas."})
-            attrs["category"] = service.code if service.code in Club.Category.values else Club.Category.OTHER
+            root = root_service(service)
+            attrs["category"] = root.code if root.code in Club.Category.values else Club.Category.OTHER
             attrs["service_name"] = service.name
         city = attrs.get("billing_city", self.instance.billing_city if self.instance else None)
         district = attrs.get("billing_district", self.instance.billing_district if self.instance else None)
@@ -369,7 +384,7 @@ class ClubManagementSerializer(CleanModelSerializer):
         if any(not service.is_active for service in value):
             raise serializers.ValidationError("Faqat faol xizmatlarni tanlang.")
         if self.instance:
-            selected = {service.pk for service in value}
+            selected = descendant_service_ids(service.pk for service in value)
             assigned = set(ServiceType.objects.filter(offering_branches__club=self.instance).values_list("pk", flat=True))
             if not assigned.issubset(selected):
                 raise serializers.ValidationError("Avval bu xizmatni filiallardan olib tashlang.")
@@ -451,12 +466,12 @@ class BranchManagementSerializer(CleanModelSerializer):
         if services is None and self.instance:
             services = list(self.instance.enabled_services.all())
         if services is not None:
-            allowed = set(club.available_services.values_list("pk", flat=True)) if club else set()
+            allowed = descendant_service_ids(club.available_services.values_list("pk", flat=True)) if club else set()
             if any(service.pk not in allowed or not service.is_active for service in services):
                 raise serializers.ValidationError({"enabled_services": "Faqat ushbu klubga tegishli faol xizmatlarni tanlang."})
             if self.instance:
                 assigned = set(self.instance.zones.exclude(service_type=None).values_list("service_type_id", flat=True))
-                if not assigned.issubset({service.pk for service in services}):
+                if not assigned.issubset(descendant_service_ids(service.pk for service in services)):
                     raise serializers.ValidationError({"enabled_services": "Avval ushbu xizmatning zonalarini o‘zgartiring yoki olib tashlang."})
         return super().validate(attrs)
 

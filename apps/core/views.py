@@ -7,6 +7,7 @@ from rest_framework.permissions import AllowAny
 
 from apps.core.models import ServiceType, normalize_language
 from apps.core.services.translations import get_app_translations
+from apps.core.services.service_types import active_service_ids
 
 
 class PublicServiceTypeSerializer(serializers.ModelSerializer):
@@ -14,7 +15,7 @@ class PublicServiceTypeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ServiceType
-        fields = ("id", "code", "name", "translations")
+        fields = ("id", "code", "name", "parent", "translations")
 
     def get_translations(self, obj):
         return {"uz": obj.name, "ru": obj.name_ru or obj.name, "en": obj.name_en or obj.name}
@@ -60,5 +61,5 @@ class PublicServiceTypeListAPIView(APIView):
         responses={200: PublicServiceTypeSerializer(many=True)},
     )
     def get(self, request):
-        services = ServiceType.objects.filter(is_active=True).order_by("sort_order", "name")
+        services = ServiceType.objects.filter(pk__in=active_service_ids()).order_by("sort_order", "name")
         return Response(PublicServiceTypeSerializer(services, many=True).data)

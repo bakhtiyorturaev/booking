@@ -1,6 +1,7 @@
 import uuid
 
 from django.db.models import F, Min, Prefetch, Q
+from django.db.models.deletion import ProtectedError
 from django.shortcuts import get_object_or_404
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
@@ -21,7 +22,8 @@ from apps.clubs.models import (
     SpecialSchedule,
     Zone,
 )
-from apps.core.models import City, District
+from apps.core.models import City, District, ServiceType
+from apps.core.services.service_types import active_service_ids, ancestor_service_ids, descendant_service_ids
 from apps.clubs.permissions import (
     IsClubOperator,
     IsStaffOrReadOnly,
@@ -43,6 +45,7 @@ from apps.clubs.serializers import (
     ResourceBlockSerializer,
     SpecialScheduleSerializer,
     ZoneSerializer,
+    ServiceTypeManagementSerializer,
 )
 from apps.clubs.public_serializers import PublicBranchListSerializer
 from apps.clubs.services.geo import haversine_km
@@ -433,14 +436,24 @@ class PublicBranchViewSet(viewsets.ReadOnlyModelViewSet):
             if category_val in Club.Category.values:
                 queryset = queryset.filter(club__category=category_val)
         if service_category:
-            service_filter = Q(club__service_type__code__iexact=service_category) | Q(
-                club__available_services__code__iexact=service_category
+            service = ServiceType.objects.filter(code__iexact=service_category, pk__in=active_service_ids()).first()
+            if not service:
+                return queryset.none()
+            service_ids = descendant_service_ids([service.pk], active_only=True)
+            assigned_ids = service_ids | ancestor_service_ids([service.pk])
+            resource_codes = set(ServiceType.objects.filter(pk__in=service_ids).values_list("code", flat=True)) & set(Zone.ResourceType.values)
+            service_filter = Q(enabled_services__in=assigned_ids) | Q(
+                zones__status=Zone.Status.ACTIVE, zones__service_type_id__in=service_ids
             )
+            if resource_codes:
+                service_filter |= Q(enabled_services__isnull=True, zones__status=Zone.Status.ACTIVE, zones__resource_type__in=resource_codes)
+            service_filter |= Q(enabled_services__isnull=True, club__service_type_id__in=service_ids)
+            service_filter |= Q(enabled_services__isnull=True, club__available_services__in=service_ids, zones__isnull=True)
             legacy_category = service_category.upper()
             if legacy_category in Club.Category.values:
                 service_filter |= Q(
                     club__category=legacy_category,
-                    club__service_type__isnull=True,
+                    club__service_type__isnull=True, enabled_services__isnull=True,
                 )
             queryset = queryset.filter(service_filter)
         if city:
@@ -771,11 +784,11 @@ class CabinetClubViewSet(viewsets.ModelViewSet):
             from apps.core.models import ServiceType
             service_id = UUIDField().run_validation(service_type)
             service = ServiceType.objects.filter(pk=service_id).first()
-            scope = Q(service_type_id=service_id)
+            scope = Q(service_type_id__in=descendant_service_ids([service_id])) | Q(available_services__in=descendant_service_ids([service_id]))
             if service and service.code in Club.Category.values:
                 scope |= Q(service_type__isnull=True, category=service.code)
             qs = qs.filter(scope)
-        return qs.order_by("-created_at")
+        return qs.order_by("-created_at").distinct()
 
     def get_permissions(self):
         if self.action in {"list", "create"}:
@@ -957,28 +970,26 @@ class CabinetResourceBlockViewSet(CabinetAccessMixin, viewsets.ModelViewSet):
         )
 
 
-class ServiceTypeViewSet(viewsets.ReadOnlyModelViewSet):
-    permission_classes = [IsAuthenticated]
+class ServiceTypeViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated, IsStaffOrReadOnly]
+    serializer_class = ServiceTypeManagementSerializer
     pagination_class = None
 
     def get_queryset(self):
-        from apps.core.models import ServiceType
-        qs = ServiceType.objects.filter(is_active=True)
+        qs = ServiceType.objects.all()
         user = self.request.user
         if not is_platform_admin(user):
             clubs = Club.objects.filter(owner=user)
             visible = Q(offering_clubs__owner=user) | Q(pk__in=clubs.values("service_type_id")) | Q(code__in=clubs.filter(service_type=None).values("category"))
             if hasattr(user, "barber_profile"):
                 visible |= Q(code="BARBERSHOP")
-            qs = qs.filter(visible).distinct()
+            visible_ids = set(qs.filter(visible).values_list("pk", flat=True))
+            visible_ids = ancestor_service_ids(descendant_service_ids(visible_ids))
+            qs = qs.filter(pk__in=visible_ids, is_active=True).distinct()
         return qs
 
-    def get_serializer_class(self):
-        from apps.core.models import ServiceType
-        from rest_framework import serializers
-
-        class ServiceTypeSerializer(serializers.ModelSerializer):
-            class Meta:
-                model = ServiceType
-                fields = ("id", "code", "name")
-        return ServiceTypeSerializer
+    def perform_destroy(self, instance):
+        try:
+            instance.delete()
+        except ProtectedError as error:
+            raise ValidationError("Xizmat foydalanilmoqda. Uni o‘chirish o‘rniga faol emas holatiga o‘tkazing.") from error

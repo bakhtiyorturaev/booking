@@ -38,7 +38,8 @@ class DistrictAdmin(admin.ModelAdmin):
 
 @admin.register(ServiceType)
 class ServiceTypeAdmin(admin.ModelAdmin):
-    list_display = ("name", "name_ru", "name_en", "code", "is_active", "sort_order")
+    list_display = ("name", "parent", "name_ru", "name_en", "code", "is_active", "sort_order")
+    autocomplete_fields = ("parent",)
     search_fields = ("name", "name_ru", "name_en", "code")
 
     def has_add_permission(self, request):
