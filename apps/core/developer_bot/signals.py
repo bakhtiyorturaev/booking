@@ -6,7 +6,7 @@ from django.dispatch import receiver
 from apps.accounts.models import User
 from apps.bookings.models import Booking, Cancellation
 from apps.core.models import DeveloperBotSettings
-from apps.developer_bot.services import (
+from apps.core.developer_bot.services import (
     clear_developer_bot_settings_cache,
     notify_developer_async,
 )
@@ -23,11 +23,7 @@ def _get_tashkent_tz():
 
 def _after_commit(title, message, category):
     transaction.on_commit(
-        lambda: notify_developer_async(
-            title,
-            message,
-            category=category,
-        )
+        lambda: notify_developer_async(title, message, category=category)
     )
 
 
@@ -100,7 +96,14 @@ def _format_booking_details(booking):
 
 def _format_user_details(user):
     try:
-        full_name = getattr(getattr(user, "profile", None), "full_name", "") or "Ko‘rsatilmagan"
+        full_name = getattr(getattr(user, "profile", None), "full_name", "")
+        if not full_name:
+            if user.username and not user.username.startswith("tg_"):
+                full_name = f"@{user.username}"
+            elif user.telegram_user_id:
+                full_name = f"Telegram ID: {user.telegram_user_id}"
+            else:
+                full_name = "Ko‘rsatilmagan"
         phone = user.phone or "Kiritilmagan"
         tg_user = (
             f"@{user.username}"
@@ -151,11 +154,16 @@ def clear_settings_cache(sender, **kwargs):
 @receiver(post_save, sender=User, dispatch_uid="developer_bot_user_created")
 def notify_user_created(sender, instance, created, **kwargs):
     if created:
-        _after_commit(
-            "Yangi foydalanuvchi ro‘yxatdan o‘tdi",
-            _format_user_details(instance),
-            "notify_user_events",
-        )
+        def send_after_profile_is_saved():
+            user = User.objects.select_related("profile").filter(pk=instance.pk).first()
+            if user is not None:
+                notify_developer_async(
+                    "Yangi foydalanuvchi ro‘yxatdan o‘tdi",
+                    _format_user_details(user),
+                    category="notify_user_events",
+                )
+
+        transaction.on_commit(send_after_profile_is_saved)
 
 
 @receiver(post_save, sender=Booking, dispatch_uid="developer_bot_booking_saved")

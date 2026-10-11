@@ -8,7 +8,7 @@ _bot_executor = concurrent.futures.ThreadPoolExecutor(
 
 
 def _send_to_telegram(configuration, message):
-    from apps.developer_bot.services import get_developer_bot_client
+    from apps.core.developer_bot.services import get_developer_bot_client
 
     try:
         get_developer_bot_client(configuration).send_message(message)
@@ -20,8 +20,8 @@ class TelegramErrorHandler(logging.Handler):
     """Send ERROR and CRITICAL records to the private developer group."""
 
     def emit(self, record):
-        from apps.developer_bot.formatters import format_log_record
-        from apps.developer_bot.services import (
+        from apps.core.developer_bot.formatters import format_log_record
+        from apps.core.developer_bot.services import (
             developer_bot_is_configured,
             get_developer_bot_settings,
         )

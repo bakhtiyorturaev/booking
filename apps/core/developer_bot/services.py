@@ -3,8 +3,8 @@ import time
 
 from django.db import DatabaseError
 
-from apps.developer_bot.client import DeveloperTelegramClient
-from apps.developer_bot.formatters import format_event
+from apps.core.developer_bot.client import DeveloperTelegramClient
+from apps.core.developer_bot.formatters import format_event
 from apps.core.models import DeveloperBotSettings
 
 

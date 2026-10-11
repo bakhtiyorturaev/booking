@@ -48,4 +48,3 @@ class DeveloperTelegramClient:
                 text=clean_text[:4096],
                 disable_web_page_preview=True,
             )
-

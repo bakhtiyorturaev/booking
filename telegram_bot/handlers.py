@@ -2,6 +2,7 @@ import html
 import logging
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
+from requests.exceptions import ConnectionError as TelegramConnectionError, Timeout as TelegramTimeout
 
 from apps.accounts.models import User
 from apps.accounts.services.telegram_web_login import confirm_web_login_from_bot
@@ -55,22 +56,32 @@ def build_user_keyboard(language="uz", site_url=None):
 
 def safe_send_message(client, chat_id, text, reply_markup=None):
     if not chat_id:
-        return
+        return False
     try:
         client.send_message(chat_id, text, reply_markup=reply_markup, parse_mode="HTML")
+        return True
+    except (TelegramConnectionError, TelegramTimeout):
+        return False
     except Exception as err:
         logger.warning("Telegram HTML sendMessage failed for chat_id=%s: %s", chat_id, err)
         try:
             # Fallback without markup
             client.send_message(chat_id, text, reply_markup=None, parse_mode="HTML")
+            return True
+        except (TelegramConnectionError, TelegramTimeout):
+            return False
         except Exception as html_err:
             logger.warning("Telegram fallback HTML failed: %s", html_err)
             try:
                 # Fallback plain text without parse_mode
                 plain_text = text.replace("<b>", "").replace("</b>", "").replace("<code>", "").replace("</code>", "")
                 client.send_message(chat_id, plain_text, reply_markup=None, parse_mode=None)
+                return True
+            except (TelegramConnectionError, TelegramTimeout):
+                return False
             except Exception as final_err:
                 logger.exception("Failed to send telegram message to chat_id=%s: %s", chat_id, final_err)
+                return False
 
 
 def handle_callback(client, callback):

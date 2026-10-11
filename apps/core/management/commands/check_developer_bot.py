@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand, CommandError
 
-from apps.developer_bot.services import (
+from apps.core.developer_bot.services import (
     developer_bot_is_configured,
     get_developer_bot_client,
     notify_developer,

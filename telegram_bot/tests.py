@@ -1,13 +1,16 @@
 from datetime import timedelta
 from unittest.mock import Mock, patch
 
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 from django.utils import timezone
+from requests.exceptions import ConnectionError as TelegramConnectionError
 
 from apps.accounts.models import User, UserProfile
 from apps.bookings.models import Booking, BookingHold
 from apps.clubs.models import Branch, City, Club, Zone
 from telegram_bot.client import TelegramClient
+from telegram_bot.handlers import safe_send_message
+from telegram_bot.management.commands.run_telegram_bot import Command
 from telegram_bot.models import (
     BranchTelegramBinding,
     TelegramBotSettings,
@@ -51,6 +54,58 @@ class TelegramClientSettingsTests(TestCase):
 
         self.assertIn("database-token", post.call_args.args[0])
         self.assertEqual(post.call_args.kwargs["timeout"], 9)
+
+
+class TelegramNetworkOutageTests(SimpleTestCase):
+    @patch("telegram_bot.management.commands.run_telegram_bot.TelegramBotSettings")
+    @patch("telegram_bot.management.commands.run_telegram_bot.dispatch_pending_messages")
+    @patch("telegram_bot.management.commands.run_telegram_bot.process_booking_lifecycle")
+    @patch("telegram_bot.management.commands.run_telegram_bot.time.sleep")
+    @patch("telegram_bot.management.commands.run_telegram_bot.time.monotonic", return_value=100)
+    @patch("telegram_bot.management.commands.run_telegram_bot.logger")
+    @patch("telegram_bot.management.commands.run_telegram_bot.TelegramClient")
+    def test_short_network_outage_does_not_log_error(self, client_class, logger, monotonic, sleep, lifecycle, dispatch, bot_settings):
+        client_class.return_value.get_updates.side_effect = [TelegramConnectionError(), [], KeyboardInterrupt()]
+        bot_settings.objects.filter.return_value.first.return_value = None
+
+        Command().handle()
+
+        logger.error.assert_not_called()
+        logger.exception.assert_not_called()
+        logger.info.assert_called_once_with("Telegram API bilan aloqa tiklandi.")
+        sleep.assert_called_once_with(5)
+
+    @patch("telegram_bot.management.commands.run_telegram_bot.TelegramBotSettings")
+    @patch("telegram_bot.management.commands.run_telegram_bot.dispatch_pending_messages")
+    @patch("telegram_bot.management.commands.run_telegram_bot.process_booking_lifecycle")
+    @patch("telegram_bot.management.commands.run_telegram_bot.time.sleep")
+    @patch("telegram_bot.management.commands.run_telegram_bot.time.monotonic", side_effect=[100, 161, 170])
+    @patch("telegram_bot.management.commands.run_telegram_bot.logger")
+    @patch("telegram_bot.management.commands.run_telegram_bot.TelegramClient")
+    def test_long_network_outage_alerts_once_without_traceback(self, client_class, logger, monotonic, sleep, lifecycle, dispatch, bot_settings):
+        client_class.return_value.get_updates.side_effect = [
+            TelegramConnectionError(), TelegramConnectionError(),
+            TelegramConnectionError(), KeyboardInterrupt(),
+        ]
+        bot_settings.objects.filter.return_value.first.return_value = None
+
+        Command().handle()
+
+        logger.error.assert_called_once()
+        logger.exception.assert_not_called()
+        self.assertEqual(sleep.call_count, 3)
+
+    @patch("telegram_bot.handlers.logger")
+    def test_message_send_does_not_retry_or_log_network_outage(self, logger):
+        client = Mock()
+        client.send_message.side_effect = TelegramConnectionError()
+
+        sent = safe_send_message(client, 123, "Hello")
+
+        self.assertFalse(sent)
+        client.send_message.assert_called_once()
+        logger.exception.assert_not_called()
+        logger.warning.assert_not_called()
 
 
 class TelegramBookingTests(TestCase):
@@ -233,4 +288,3 @@ class TelegramBookingTests(TestCase):
         self.assertEqual(sent_chat_id, "87654321")
         self.assertIn("Master Rustam", sent_text)
         self.assertIn(booking.booking_number, sent_text)
-

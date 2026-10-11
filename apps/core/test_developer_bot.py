@@ -5,15 +5,16 @@ from unittest.mock import Mock, patch
 from django.db import connection
 from django.test import SimpleTestCase, TestCase
 
-from apps.developer_bot.formatters import (
+from apps.accounts.models import User, UserProfile
+from apps.core.developer_bot.formatters import (
     TELEGRAM_MESSAGE_LIMIT,
     format_event,
     format_log_record,
     redact_sensitive_data,
 )
-from apps.developer_bot.logging import TelegramErrorHandler
-from apps.developer_bot.models import DeveloperBotSettings
-from apps.developer_bot.services import (
+from apps.core.developer_bot.logging import TelegramErrorHandler
+from apps.core.models import DeveloperBotSettings
+from apps.core.developer_bot.services import (
     clear_developer_bot_settings_cache,
     developer_bot_is_configured,
     get_developer_bot_client,
@@ -118,8 +119,8 @@ class DeveloperBotConfigurationTests(TestCase):
 
 
 class TelegramErrorHandlerTests(SimpleTestCase):
-    @patch("apps.developer_bot.services.get_developer_bot_settings")
-    @patch("apps.developer_bot.services.get_developer_bot_client")
+    @patch("apps.core.developer_bot.services.get_developer_bot_settings")
+    @patch("apps.core.developer_bot.services.get_developer_bot_client")
     def test_error_record_is_sent(self, get_client, get_configuration):
         client = Mock()
         get_client.return_value = client
@@ -143,3 +144,15 @@ class TelegramErrorHandlerTests(SimpleTestCase):
 
         client.send_message.assert_called_once()
         self.assertIn("Unexpected failure", client.send_message.call_args.args[0])
+
+
+class DeveloperBotUserNotificationTests(TestCase):
+    @patch("apps.core.developer_bot.signals.notify_developer_async")
+    def test_new_telegram_user_notification_uses_saved_profile_name(self, notify):
+        with self.captureOnCommitCallbacks(execute=True):
+            user = User.objects.create_user(username="tg_123456", telegram_user_id=123456)
+            UserProfile.objects.create(user=user, full_name="Aziz Rahimov")
+
+        notify.assert_called_once()
+        self.assertIn("Foydalanuvchi:</b> Aziz Rahimov", notify.call_args.args[1])
+        self.assertNotIn("Ko‘rsatilmagan", notify.call_args.args[1])

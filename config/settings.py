@@ -72,7 +72,6 @@ INSTALLED_APPS = [
     "apps.reviews.apps.ReviewsConfig",
     "apps.audit.apps.AuditConfig",
     "apps.core.apps.CoreConfig",
-    "apps.developer_bot.apps.DeveloperBotConfig",
     "telegram_bot.apps.TelegramBotConfig",
 ]
 
@@ -257,7 +256,7 @@ LOGGING = {
             "level": "INFO",
         },
         "developer_telegram": {
-            "class": "apps.developer_bot.logging.TelegramErrorHandler",
+            "class": "apps.core.developer_bot.logging.TelegramErrorHandler",
             "level": "ERROR",
         },
     },

@@ -463,8 +463,8 @@ def send_customer_booking_notification(booking, event_type, client=None):
 
         client = client or TelegramClient()
         from telegram_bot.handlers import safe_send_message
-        safe_send_message(client, chat_id, text, reply_markup=reply_markup)
-        logger.info("Successfully sent customer booking notification (%s) to chat_id %s", event_type, chat_id)
+        if safe_send_message(client, chat_id, text, reply_markup=reply_markup):
+            logger.info("Successfully sent customer booking notification (%s) to chat_id %s", event_type, chat_id)
     except Exception as err:
         logger.warning("send_customer_booking_notification failed for booking #%s: %s", getattr(booking, "id", "-"), err)
 
