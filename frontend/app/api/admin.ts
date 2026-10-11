@@ -98,7 +98,6 @@ export const useAdminApi = () => {
         headers: { "Accept-Language": language },
       }),
 
-    createBooking: (body: Record<string, unknown>) => client.post<any>("/api/cabinet/bookings/", { local: true, body }),
     createBarber: (body: Record<string, unknown>) => client.post<any>("/api/cabinet/barbers/", { local: true, body }),
 
     getBookings: (params?: Record<string, any>, language = "uz") =>

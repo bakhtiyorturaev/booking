@@ -345,28 +345,3 @@ class BranchAvailabilitySerializer(serializers.Serializer):
     branch_id = serializers.UUIDField()
     date = serializers.DateField()
     zones = ZoneAvailabilitySerializer(many=True)
-
-
-class CabinetBookingCreateSerializer(serializers.Serializer):
-    user = serializers.UUIDField()
-    zone = serializers.PrimaryKeyRelatedField(queryset=Zone.objects.select_related("branch__club"))
-    starts_at = serializers.DateTimeField()
-    ends_at = serializers.DateTimeField()
-    quantity = serializers.IntegerField(min_value=1, default=1)
-
-    def create(self, validated_data):
-        from apps.accounts.models import User
-        from django.db import transaction
-        from django.shortcuts import get_object_or_404
-        from rest_framework.exceptions import PermissionDenied
-        from apps.clubs.permissions import is_platform_admin
-        actor = self.context["request"].user
-        if not is_platform_admin(actor):
-            raise PermissionDenied("clubs.permission_denied")
-        customer = get_object_or_404(User.objects.filter(role=User.Role.CUSTOMER, status=User.Status.ACTIVE), pk=validated_data["user"])
-        try:
-            with transaction.atomic():
-                hold = create_hold(customer, validated_data["zone"].pk, validated_data["starts_at"], validated_data["ends_at"], validated_data["quantity"])
-                return create_booking(customer, hold.pk)
-        except DjangoValidationError as error:
-            _raise_service_error(error)

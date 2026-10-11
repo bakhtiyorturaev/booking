@@ -142,9 +142,6 @@ useDialogFocus(showRoleModal, "#cabinet-users-showRoleModal", () => { showRoleMo
   <div class="admin-page">
     <!-- Header -->
     <div class="page-header">
-      <div>
-        <h1 class="page-title">{{ pageTitle }}</h1>
-      </div>
       <div class="cabinet-header-actions"><button v-if="audience === 'clients'" type="button" class="primary-button" @click="openClientModal"><CabinetIcon name="plus" /> Mijoz qo‘shish</button>
       <button type="button" class="secondary-button" :disabled="isLoading" @click="fetchUsers">
         <span><CabinetIcon name="refresh" /> Yangilash</span>

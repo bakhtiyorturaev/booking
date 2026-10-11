@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import OperatorCreateDialog from "~/components/cabinet/OperatorCreateDialog.vue"
 import { useAdminApi } from "~/api/admin"
 
 definePageMeta({
@@ -158,13 +157,6 @@ useDialogFocus(showCancelModal, "#cabinet-bookings-showCancelModal", () => { sho
 
 <template>
   <div class="admin-page">
-    <div class="page-header booking-actions">
-      <OperatorCreateDialog kind="booking" @saved="fetchBookings" />
-      <button type="button" class="primary-button" :disabled="isLoading" @click="fetchBookings()">
-        <span><CabinetIcon name="refresh" /> Yangilash</span>
-      </button>
-    </div>
-
     <!-- Filters Bar -->
     <div class="filter-bar">
       <div class="search-input-wrap">
@@ -338,10 +330,6 @@ useDialogFocus(showCancelModal, "#cabinet-bookings-showCancelModal", () => { sho
   display: flex;
   flex-direction: column;
   gap: 20px;
-}
-
-.page-header.booking-actions {
-  justify-content: flex-end;
 }
 
 .filter-bar {

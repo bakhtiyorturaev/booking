@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome"
-import { faCalendarCheck, faBuilding, faUsers, faWallet, faArrowRotateRight, faArrowRight, faClock, faCircleCheck, faCalendar } from "@fortawesome/free-solid-svg-icons"
+import { faCalendarCheck, faBuilding, faUsers, faWallet, faArrowRight, faClock, faCircleCheck } from "@fortawesome/free-solid-svg-icons"
 import { useAdminApi } from "~/api/admin"
 
 definePageMeta({
@@ -34,7 +34,6 @@ const isLoading = ref(true)
 const errorMessage = ref("")
 const busyBooking = ref("")
 const updatedAt = ref<Date | null>(null)
-const todayLabel = ref("")
 const statusLabels: Record<string, string> = { CONFIRMED: "Tasdiqlangan", CHECKED_IN: "Boshlangan", COMPLETED: "Tugallangan", CANCELLED: "Bekor qilingan", PENDING_CONFIRMATION: "Kutilmoqda", NO_SHOW: "Kelmadi" }
 const formatPrice = (tiyin: number) => new Intl.NumberFormat("uz-UZ").format(Math.round((tiyin || 0) / 100))
 const formatTime = (value: string) => new Date(value).toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Tashkent" })
@@ -59,20 +58,12 @@ const changeBooking = async (booking: RecentBooking) => {
   finally { busyBooking.value = "" }
 }
 onMounted(() => {
-  const months = ["yanvar", "fevral", "mart", "aprel", "may", "iyun", "iyul", "avgust", "sentabr", "oktabr", "noyabr", "dekabr"]
-  const parts = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "numeric", year: "numeric", timeZone: "Asia/Tashkent" }).formatToParts(new Date())
-  const part = (name: string) => parts.find(value => value.type === name)?.value || ""
-  todayLabel.value = `${Number(part("day"))} ${months[Number(part("month")) - 1]} ${part("year")}`
   void fetchStats()
 })
 </script>
 
 <template>
   <div class="admin-dashboard">
-    <div class="dashboard-header">
-      <div><h1 class="page-title">Umumiy ko‘rinish</h1><span class="dashboard-date"><FontAwesomeIcon :icon="faCalendar" />{{ todayLabel }}</span></div>
-      <button type="button" class="secondary-button" :disabled="isLoading" @click="fetchStats"><FontAwesomeIcon :icon="faArrowRotateRight" :class="{ 'is-spinning': isLoading }" />Yangilash</button>
-    </div>
     <div v-if="errorMessage" class="error-banner" role="alert"><p>{{ errorMessage }}</p><button type="button" class="secondary-button" @click="fetchStats">Qayta urinish</button></div>
     <div v-else-if="isLoading && !stats" class="dashboard-skeleton" role="status" aria-label="Ma’lumotlar yuklanmoqda"><span v-for="n in 4" :key="n" /><div /><p class="sr-only">Yuklanmoqda</p></div>
     <div v-else-if="stats" class="dashboard-content" :aria-busy="isLoading">

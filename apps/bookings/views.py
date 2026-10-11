@@ -180,15 +180,6 @@ class CabinetBookingViewSet(
     pagination_class = BookingPagination
     queryset = Booking.objects.none()
 
-    def create(self, request):
-        if not is_platform_admin(request.user):
-            self.permission_denied(request)
-        from apps.bookings.serializers import CabinetBookingCreateSerializer
-        serializer = CabinetBookingCreateSerializer(data=request.data, context={"request": request})
-        serializer.is_valid(raise_exception=True)
-        booking = serializer.save()
-        return Response(self.get_serializer(booking).data, status=201)
-
     def get_queryset(self):
         queryset = Booking.objects.select_related(
             "user__profile", "zone__branch__club", "barber__club", "barber__branch", "cancellation"

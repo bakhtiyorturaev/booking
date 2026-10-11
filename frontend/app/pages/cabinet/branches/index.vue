@@ -297,10 +297,7 @@ useDialogFocus(showZoneModal, "#cabinet-branches-showZoneModal", () => { showZon
 <template>
   <div class="admin-page">
     <!-- Header -->
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">Filiallar va zonalar</h1>
-      </div>
+    <div v-if="isStaff" class="page-header">
       <div class="header-actions">
         <button type="button" v-if="isStaff" class="primary-button" @click="openCreateBranchModal">
           <span><CabinetIcon name="plus" /> Yangi filial qo'shish</span>

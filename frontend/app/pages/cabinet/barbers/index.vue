@@ -130,11 +130,8 @@ onMounted(() => {
   <div class="admin-barbers-page">
     <!-- Header -->
     <div class="page-header">
-      <div class="header-left">
-        <h1 class="page-title">Sartaroshlar</h1>
-      </div>
       <div class="header-right">
-        <OperatorCreateDialog kind="barber" @saved="fetchBarbers" />
+        <OperatorCreateDialog @saved="fetchBarbers" />
       <button class="btn btn-outline" @click="fetchBarbers()">
           <CabinetIcon name="refresh" /> Yangilash
         </button>

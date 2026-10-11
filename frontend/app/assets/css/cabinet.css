@@ -78,6 +78,17 @@
 .cabinet-shell.cabinet-shell .status-tabs-nav { display: flex; max-width: 100%; gap: 4px; padding: 4px; overflow-x: auto; border: 1px solid var(--panel-border); border-radius: 10px; background: var(--surface); }
 .cabinet-shell.cabinet-shell .tab-btn { border: 0; background: transparent; color: var(--muted); border-radius: 7px; min-height: 36px; padding: 8px 14px; font-size: 12px; white-space: nowrap; }
 .cabinet-shell.cabinet-shell .tab-btn.is-active { background: var(--accent-soft); color: var(--accent); }
+.cabinet-shell.cabinet-shell .billing-toolbar { align-items: center; }
+.cabinet-shell.cabinet-shell .billing-toolbar .search-wrap { flex: 1 1 220px; max-width: 320px; min-width: min(220px, 100%); }
+.cabinet-shell.cabinet-shell .billing-toolbar .status-tabs-nav { flex-shrink: 0; }
+.cabinet-shell.cabinet-shell .billing-toolbar .billing-create { margin-left: auto; }
+@media (max-width: 700px) {
+  .cabinet-shell.cabinet-shell .billing-toolbar .search-wrap { flex: 1 1 160px; width: auto; max-width: none; min-width: 0; }
+  .cabinet-shell.cabinet-shell .filter-bar.billing-toolbar > .secondary-button { flex: 0 0 auto; }
+  .cabinet-shell.cabinet-shell .billing-toolbar .status-tabs-nav { flex: 1 1 100%; min-width: 0; }
+  .cabinet-shell.cabinet-shell .billing-toolbar .tab-btn { flex: 1; padding-inline: 8px; }
+  .cabinet-shell.cabinet-shell .billing-toolbar .billing-create { width: 100%; margin-left: 0; }
+}
 .cabinet-shell.cabinet-shell :is(.kpi-card, .summary-card) { background: var(--surface); border-color: var(--panel-border); border-radius: 12px; box-shadow: none; }
 .cabinet-shell.cabinet-shell .user-avatar-circle { background: var(--accent-soft); color: var(--accent); border: 1px solid var(--panel-border); }
 .cabinet-shell.cabinet-shell .branches-layout-grid { grid-template-columns: minmax(250px, 310px) minmax(0, 1fr); gap: 20px; }

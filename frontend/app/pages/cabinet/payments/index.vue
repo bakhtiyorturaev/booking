@@ -110,15 +110,22 @@ const recordPayment = async () => {
 
 <template>
   <div class="admin-page">
-    <div class="page-header"><h1 class="page-title">To‘lovlar</h1><button v-if="isStaff" class="primary-button" type="button" @click="openPayment()"><CabinetIcon name="plus" /> To‘lov kiritish</button></div>
+    <form class="filter-bar billing-toolbar" @submit.prevent="search">
+      <div class="search-wrap"><input v-model="query" type="search" aria-label="Xizmat yoki egasi" placeholder="Xizmat yoki egasi" class="billing-search"></div>
+      <button class="secondary-button" type="submit" :disabled="loading">Qidirish</button>
+      <div class="status-tabs-nav" aria-label="To‘lov bo‘limlari">
+        <button class="tab-btn" :class="{ 'is-active': tab === 'venues' }" type="button" :aria-pressed="tab === 'venues'" @click="tab = 'venues'">Filiallar</button>
+        <button class="tab-btn" :class="{ 'is-active': tab === 'barbers' }" type="button" :aria-pressed="tab === 'barbers'" @click="tab = 'barbers'">Sartaroshlar</button>
+        <button class="tab-btn" :class="{ 'is-active': tab === 'history' }" type="button" :aria-pressed="tab === 'history'" @click="tab = 'history'">To‘lovlar tarixi</button>
+      </div>
+      <button v-if="isStaff" class="primary-button billing-create" type="button" @click="openPayment()"><CabinetIcon name="plus" /> To‘lov kiritish</button>
+    </form>
     <div v-if="summary" class="billing-summary">
       <div class="summary-card"><span>Jami tushum</span><strong>{{ money(summary.total_tiyin) }}</strong><small>{{ summary.count }} ta to‘lov</small></div>
       <div class="summary-card"><span>Bugun</span><strong>{{ money(summary.today_tiyin) }}</strong></div>
       <div class="summary-card"><span>Naqd</span><strong>{{ money(summary.cash_tiyin) }}</strong></div>
       <div class="summary-card"><span>Karta</span><strong>{{ money(summary.card_tiyin) }}</strong></div>
     </div>
-    <div class="billing-toolbar"><div class="status-tabs-nav" aria-label="To‘lov bo‘limlari"><button class="tab-btn" :class="{ 'is-active': tab === 'venues' }" type="button" :aria-pressed="tab === 'venues'" @click="tab = 'venues'">Filiallar</button><button class="tab-btn" :class="{ 'is-active': tab === 'barbers' }" type="button" :aria-pressed="tab === 'barbers'" @click="tab = 'barbers'">Sartaroshlar</button><button class="tab-btn" :class="{ 'is-active': tab === 'history' }" type="button" :aria-pressed="tab === 'history'" @click="tab = 'history'">To‘lovlar tarixi</button></div></div>
-    <form class="filter-bar" @submit.prevent="search"><div class="search-wrap"><input v-model="query" type="search" aria-label="Xizmat yoki egasi" placeholder="Xizmat yoki egasi" class="billing-search"></div><button class="secondary-button" type="submit" :disabled="loading">Qidirish</button></form>
     <div v-if="error" class="error-banner" role="alert">{{ error }}</div>
     <div v-if="loading" class="loading-container">Yuklanmoqda…</div>
     <div v-else class="table-card">

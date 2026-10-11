@@ -226,10 +226,7 @@ useDialogFocus(showModal, "#cabinet-clubs-showModal", () => { showModal.value = 
 <template>
   <div class="admin-page">
     <!-- Header -->
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">Xizmatlar</h1>
-      </div>
+    <div v-if="isPlatformAdmin" class="page-header">
       <button type="button" v-if="isPlatformAdmin" class="primary-button create-btn" @click="openCreateModal">
         <span><CabinetIcon name="plus" /> Xizmat qo‘shish</span>
       </button>

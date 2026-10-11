@@ -50,7 +50,7 @@ onMounted(() => reload().catch(err => { error.value = cabinetErrorMessage(err) }
 
 <template>
   <div class="service-management">
-    <div class="page-header"><h1>Xizmat turlari</h1><button class="primary-button" type="button" @click="edit()">Xizmat qo‘shish</button></div>
+    <div class="page-header"><button class="primary-button" type="button" @click="edit()">Xizmat qo‘shish</button></div>
     <p v-if="error" class="form-error" role="alert">{{ error }}</p>
     <form v-if="formOpen" class="service-form" @submit.prevent="save">
       <div class="service-form-grid">
