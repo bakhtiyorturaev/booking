@@ -7,6 +7,15 @@ venv
 **/.cache
 **/__pycache__
 *.pyc
+**/tests/
+**/__tests__/
+**/tests.py
+**/test_*.py
+**/*_test.py
+**/*.test.*
+**/*.spec.*
+load_tests/
+telegram_bot/management/commands/create_telegram_test_booking.py
 *.log
 .env
 .env.*
