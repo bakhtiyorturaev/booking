@@ -12,6 +12,8 @@ import TelegramAuthModal from "~/components/auth/TelegramAuthModal.vue"
 const { locale, load: loadTranslations, t } = useTranslations()
 const auth = useAuth("customer")
 const showAuthModal = ref(false)
+const route = useRoute()
+const isHome = computed(() => route.path === "/")
 
 await loadTranslations()
 if (["auth.login_tab", "profile.subscription_paid"].some(code => t(code) === code)) await loadTranslations(locale.value, true)
@@ -26,7 +28,7 @@ const onAuthenticated = async () => {
 </script>
 
 <template>
-  <div class="customer-shell">
+  <div class="customer-shell" :class="{ 'customer-shell--home': isHome }">
     <header class="customer-header">
       <AppBrand />
 
