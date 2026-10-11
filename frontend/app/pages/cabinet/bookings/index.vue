@@ -39,8 +39,8 @@ const cancelReason = ref("")
 const isCancelling = ref(false)
 const cancelError = ref("")
 
-const statusTabs = [
-  { value: "", label: "Barchasi" },
+const statusOptions = [
+  { value: "", label: "Barcha holatlar" },
   { value: "CONFIRMED", label: "Tasdiqlangan" },
   { value: "CHECKED_IN", label: "Jarayonda" },
   { value: "PENDING_CONFIRMATION", label: "Kutilmoqda" },
@@ -158,28 +158,10 @@ useDialogFocus(showCancelModal, "#cabinet-bookings-showCancelModal", () => { sho
 
 <template>
   <div class="admin-page">
-    <!-- Header -->
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">Bronlar</h1>
-      </div>
+    <div class="page-header booking-actions">
       <OperatorCreateDialog kind="booking" @saved="fetchBookings" />
       <button type="button" class="primary-button" :disabled="isLoading" @click="fetchBookings()">
         <span><CabinetIcon name="refresh" /> Yangilash</span>
-      </button>
-    </div>
-
-    <!-- Status Tabs -->
-    <div class="status-tabs-nav">
-      <button
-        v-for="tab in statusTabs"
-        :key="tab.value"
-        type="button"
-        class="tab-btn"
-        :class="{ 'is-active': statusFilter === tab.value }"
-        @click="statusFilter = tab.value; fetchBookings()"
-      >
-        {{ tab.label }}
       </button>
     </div>
 
@@ -197,6 +179,11 @@ useDialogFocus(showCancelModal, "#cabinet-bookings-showCancelModal", () => { sho
         <select v-model="selectedClubId" @change="fetchBookings()" aria-label="Xizmat">
           <option value="">Barcha klublar</option>
           <option v-for="c in clubs" :key="c.id" :value="c.id">{{ c.name }}</option>
+        </select>
+      </div>
+      <div class="select-wrap">
+        <select v-model="statusFilter" @change="fetchBookings()" aria-label="Bron holati">
+          <option v-for="option in statusOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
         </select>
       </div>
       <div class="date-wrap">
@@ -353,55 +340,8 @@ useDialogFocus(showCancelModal, "#cabinet-bookings-showCancelModal", () => { sho
   gap: 20px;
 }
 
-.page-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 16px;
-}
-
-.page-title {
-  margin: 0 0 4px;
-  font-size: 22px;
-  font-weight: 800;
-}
-
-.page-subtitle {
-  margin: 0;
-  font-size: 13px;
-  color: var(--muted);
-}
-
-.status-tabs-nav {
-  display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  padding-bottom: 4px;
-}
-
-.tab-btn {
-  padding: 8px 16px;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.15s ease;
-}
-
-.tab-btn:hover {
-  color: var(--text);
-  border-color: var(--accent);
-}
-
-.tab-btn.is-active {
-  background: var(--accent);
-  color: #fff;
-  border-color: var(--accent);
+.page-header.booking-actions {
+  justify-content: flex-end;
 }
 
 .filter-bar {

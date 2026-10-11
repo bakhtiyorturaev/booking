@@ -16,13 +16,14 @@ export const requestLanguage = (event: ServerEvent) =>
   getRequestHeader(event, "accept-language") || "uz"
 
 export const otpProtectionHeaders = (event: ServerEvent) => {
+  const trustProxy = String(useRuntimeConfig().trustProxyHeaders) === "true"
   const existingDeviceId = getCookie(event, "otp_device")
   const deviceId = existingDeviceId || globalThis.crypto.randomUUID()
   if (!existingDeviceId) {
     setCookie(event, "otp_device", deviceId, {
       httpOnly: true,
       sameSite: "lax",
-      secure: getRequestProtocol(event) === "https",
+      secure: getRequestProtocol(event, { xForwardedProto: trustProxy }) === "https",
       maxAge: 365 * 24 * 60 * 60,
       path: "/",
     })
@@ -30,7 +31,7 @@ export const otpProtectionHeaders = (event: ServerEvent) => {
   return {
     "Accept-Language": requestLanguage(event),
     "X-Device-ID": deviceId,
-    "X-Forwarded-For": getRequestIP(event, { xForwardedFor: true }) || "",
+    "X-Forwarded-For": getRequestIP(event, { xForwardedFor: trustProxy }) || "",
   }
 }
 
@@ -42,6 +43,10 @@ export const djangoRequest = <T>(
   const config = useRuntimeConfig()
   const trustProxy = String(config.trustProxyHeaders) === "true"
   const headers = new Headers(options.headers)
+  if (trustProxy) {
+    // Django must build public URLs with the site's host, not the Docker service name.
+    headers.set("Host", getRequestHost(event, { xForwardedHost: false }))
+  }
   headers.set("X-Forwarded-For", getRequestIP(event, { xForwardedFor: trustProxy }) || "127.0.0.1")
   headers.set("X-Forwarded-Proto", getRequestProtocol(event, { xForwardedProto: trustProxy }))
   return $fetch<T>(path, {

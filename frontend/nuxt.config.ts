@@ -36,6 +36,9 @@ export default defineNuxtConfig({
   modules: ["@nuxt/eslint"],
   runtimeConfig: {
     trustProxyHeaders: process.env.NUXT_TRUST_PROXY_HEADERS || "false",
+    hstsSeconds: process.env.NUXT_HSTS_SECONDS || (process.env.NODE_ENV === "production" ? "3600" : "0"),
+    hstsIncludeSubdomains: process.env.NUXT_HSTS_INCLUDE_SUBDOMAINS || "false",
+    hstsPreload: process.env.NUXT_HSTS_PRELOAD || "false",
     djangoApiBaseUrl: process.env.NUXT_DJANGO_API_BASE_URL || "http://127.0.0.1:8000/api/v1",
     public: {
       apiBaseUrl: process.env.NUXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000/api/v1",

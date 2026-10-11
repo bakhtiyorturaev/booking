@@ -280,11 +280,9 @@ useDialogFocus(showModal, "#cabinet-clubs-showModal", () => { showModal.value = 
               <th scope="col">Nomi</th>
               <th scope="col" v-if="isPlatformAdmin">Egasi</th>
               <th scope="col">Toifa</th>
-              <th scope="col">Slug (URL)</th>
               <th scope="col">Telefon</th>
               <th scope="col">To‘lov muddati</th>
               <th scope="col">Holat</th>
-              <th scope="col">Tekshiruv</th>
               <th scope="col">Reyting</th>
               <th v-if="isPlatformAdmin" scope="col">Amallar</th>
             </tr>
@@ -312,17 +310,11 @@ useDialogFocus(showModal, "#cabinet-clubs-showModal", () => { showModal.value = 
                   {{ c.service_type_name || c.service_name || categoryLabels[c.category] }}
                 </span>
               </td>
-              <td data-label="Slug (URL)"><code>{{ c.slug }}</code></td>
               <td data-label="Telefon">{{ c.phone || "—" }}</td>
               <td data-label="To‘lov muddati"><VenueBillingBadge v-if="c.billing" :billing="c.billing" :club-id="c.id" /><span v-else>—</span></td>
               <td data-label="Holat">
                 <span class="status-badge" :class="c.status.toLowerCase()">
                   {{ statusLabel(c.status) }}
-                </span>
-              </td>
-              <td data-label="Tekshiruv">
-                <span class="verified-badge" :class="{ 'is-v': c.is_verified }">
-                  {{ c.is_verified ? 'Tasdiqlangan' : 'Tasdiqlanmagan' }}
                 </span>
               </td>
               <td data-label="Reyting"><CabinetIcon name="star" /> {{ Number(c.rating || 0).toFixed(1) }} ({{ c.review_count || 0 }})</td>
