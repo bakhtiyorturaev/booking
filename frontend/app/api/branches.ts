@@ -7,6 +7,7 @@ import type {
 
 export interface BranchListParams {
   category?: "GAMING_CLUB" | "BARBERSHOP" | "BILLIARDS" | "OTHER"
+  service_category?: string
   club?: string
   city?: string
   district?: string

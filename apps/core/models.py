@@ -23,6 +23,8 @@ class ServiceType(TimeStampedModel):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     code = models.SlugField(max_length=50, unique=True)
     name = models.CharField(max_length=100)
+    name_ru = models.CharField("Ruscha nom", max_length=100, blank=True, default="")
+    name_en = models.CharField("Inglizcha nom", max_length=100, blank=True, default="")
     is_active = models.BooleanField(default=True)
     sort_order = models.PositiveSmallIntegerField(default=0)
 

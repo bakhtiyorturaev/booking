@@ -1,10 +1,23 @@
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema
+from rest_framework import serializers
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.permissions import AllowAny
 
-from apps.core.models import normalize_language
+from apps.core.models import ServiceType, normalize_language
 from apps.core.services.translations import get_app_translations
+
+
+class PublicServiceTypeSerializer(serializers.ModelSerializer):
+    translations = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ServiceType
+        fields = ("id", "code", "name", "translations")
+
+    def get_translations(self, obj):
+        return {"uz": obj.name, "ru": obj.name_ru or obj.name, "en": obj.name_en or obj.name}
 
 
 class TranslationListAPIView(APIView):
@@ -35,3 +48,17 @@ class TranslationListAPIView(APIView):
             "language": language,
             "translations": get_app_translations(language),
         })
+
+
+class PublicServiceTypeListAPIView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        tags=["Services"],
+        summary="Faol xizmat turlarini olish",
+        responses={200: PublicServiceTypeSerializer(many=True)},
+    )
+    def get(self, request):
+        services = ServiceType.objects.filter(is_active=True).order_by("sort_order", "name")
+        return Response(PublicServiceTypeSerializer(services, many=True).data)

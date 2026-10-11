@@ -16,6 +16,9 @@ const showAuthModal = ref(false)
 await loadTranslations()
 if (["auth.login_tab", "profile.subscription_paid"].some(code => t(code) === code)) await loadTranslations(locale.value, true)
 await auth.load().catch(() => null)
+const favorites = useFavorites()
+onMounted(() => { void favorites.load().catch(() => null) })
+watch(() => auth.user.value?.id, () => { void favorites.load(true).catch(() => null) })
 const onAuthenticated = async () => {
   await auth.load(true)
 

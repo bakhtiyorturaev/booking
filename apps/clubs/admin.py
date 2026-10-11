@@ -55,8 +55,8 @@ class ResourceBlockAdmin(admin.ModelAdmin):
 
 @admin.register(Favorite)
 class FavoriteAdmin(admin.ModelAdmin):
-    list_display = ("user", "club", "created_at")
-    search_fields = ("user__username", "user__phone", "club__name")
+    list_display = ("user", "club", "barber", "created_at")
+    search_fields = ("user__username", "user__phone", "club__name", "barber__full_name")
 
 
 admin.site.register(BranchImage)

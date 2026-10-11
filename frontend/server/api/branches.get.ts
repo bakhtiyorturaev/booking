@@ -3,6 +3,7 @@ import { djangoRequest, proxyDjangoError, requestLanguage } from "~~/server/util
 
 const ALLOWED_QUERY_PARAMS = [
   "category",
+  "service_category",
   "club",
   "city",
   "district",

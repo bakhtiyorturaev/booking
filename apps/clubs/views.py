@@ -412,6 +412,7 @@ class PublicBranchViewSet(viewsets.ReadOnlyModelViewSet):
         ).filter(club__status=Club.Status.ACTIVE)
         club_id = self.request.query_params.get("club")
         category = self.request.query_params.get("category")
+        service_category = (self.request.query_params.get("service_category") or "").strip()
         city = self.request.query_params.get("city") or self.request.query_params.get("city_id")
         district = self.request.query_params.get("district")
         search = (self.request.query_params.get("search") or "").strip()
@@ -431,6 +432,17 @@ class PublicBranchViewSet(viewsets.ReadOnlyModelViewSet):
             category_val = category.strip().upper()
             if category_val in Club.Category.values:
                 queryset = queryset.filter(club__category=category_val)
+        if service_category:
+            service_filter = Q(club__service_type__code__iexact=service_category) | Q(
+                club__available_services__code__iexact=service_category
+            )
+            legacy_category = service_category.upper()
+            if legacy_category in Club.Category.values:
+                service_filter |= Q(
+                    club__category=legacy_category,
+                    club__service_type__isnull=True,
+                )
+            queryset = queryset.filter(service_filter)
         if city:
             queryset = queryset.filter(location_filter("", "city", city))
         if district:
@@ -638,9 +650,8 @@ class FavoriteViewSet(
         return (
             Favorite.objects.filter(
                 user=self.request.user,
-                club__status=Club.Status.ACTIVE,
-            )
-            .select_related("club")
+            ).filter(Q(club__status=Club.Status.ACTIVE) | Q(barber__is_active=True))
+            .select_related("club", "barber", "barber__club", "barber__branch")
             .prefetch_related(
                 Prefetch("club__branches", queryset=active_branch_queryset())
             )
@@ -652,7 +663,7 @@ class FavoriteViewSet(
         try:
             uuid.UUID(str(lookup))
             obj = queryset.filter(
-                Q(id=lookup) | Q(club__id=lookup) | Q(club__branches__id=lookup)
+                Q(id=lookup) | Q(club__id=lookup) | Q(club__branches__id=lookup) | Q(barber_id=lookup)
             ).first()
             if obj:
                 return obj

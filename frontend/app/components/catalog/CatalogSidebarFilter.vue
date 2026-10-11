@@ -15,14 +15,16 @@ export interface FilterState {
 const props = withDefaults(
   defineProps<{
     modelValue: FilterState
-    category?: "GAMING_CLUB" | "BARBERSHOP"
+    category?: string
     subView?: "barbers" | "salons"
     locating?: boolean
+    showSorting?: boolean
   }>(),
   {
     category: "GAMING_CLUB",
     subView: "barbers",
     locating: false,
+    showSorting: true,
   },
 )
 
@@ -32,6 +34,9 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useTranslations()
+const categoryCode = computed(() => props.category?.toUpperCase().replaceAll("-", "_") || "")
+const isBarbershop = computed(() => categoryCode.value === "BARBERSHOP")
+const hasGamingFilters = computed(() => categoryCode.value === "GAMING_CLUB")
 
 const localState = reactive<FilterState>({
   ...props.modelValue,
@@ -61,12 +66,12 @@ const onSearchInput = () => {
 }
 
 const searchPlaceholder = computed(() => {
-  if (props.category === "BARBERSHOP") {
+  if (isBarbershop.value) {
     return props.subView === "barbers"
       ? (t("filter.search_barbers_placeholder") || "Sartarosh ismi...")
       : (t("filter.search_salons_placeholder") || "Sartaroshxona nomi...")
   }
-  return t("filter.search_placeholder") || "Qidirish..."
+  return "Klub yoki filial nomi..."
 })
 
 const allCities = computed(() => [
@@ -103,7 +108,7 @@ const selectedCityLabel = computed(() => {
 })
 
 const sortOptions = computed(() => {
-  if (props.category === "BARBERSHOP") {
+  if (isBarbershop.value) {
     return [
       { value: "-rating", label: t("filter.sort_rating") || "Reyting bo‘yicha" },
       { value: "distance", label: t("filter.sort_nearest") || "Eng yaqin masofada" },
@@ -182,11 +187,12 @@ const resetFilters = () => {
         :placeholder="searchPlaceholder"
         class="filter-search-field"
         @input="onSearchInput"
+        @blur="emitUpdate"
       >
     </div>
 
     <!-- 2. Services / Features (Faqat O'yin klublari uchun) -->
-    <div v-if="props.category === 'GAMING_CLUB'" class="filter-group">
+    <div v-if="hasGamingFilters" class="filter-group">
       <h4 class="filter-group-heading">
         {{ t("filter.service_type") || "Xizmat turi" }}
       </h4>
@@ -230,7 +236,7 @@ const resetFilters = () => {
     </div>
 
     <!-- 3. Sartarosh holati (Faqat Barbershop ustalar uchun) -->
-    <div v-if="props.category === 'BARBERSHOP' && props.subView === 'barbers'" class="filter-group">
+    <div v-if="isBarbershop && props.subView === 'barbers'" class="filter-group">
       <h4 class="filter-group-heading">
         {{ t("barbers.status") || "Usta holati" }}
       </h4>
@@ -324,7 +330,7 @@ const resetFilters = () => {
     </div>
 
     <!-- 5. Saralash -->
-    <div class="filter-group">
+    <div v-if="showSorting" class="filter-group">
       <h4 class="filter-group-heading">
         {{ t("filter.sort_by") || "Saralash" }}
       </h4>

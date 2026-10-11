@@ -1,34 +1,44 @@
 <script setup lang="ts">
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome"
 import {
-  faGamepad,
   faScissors,
   faSliders,
   faStore,
+  faXmark,
 } from "@fortawesome/free-solid-svg-icons"
 import { useBranchesApi, type BranchListParams } from "~/api/branches"
 import { useBarbersApi } from "~/api/barbers"
+import { useServiceTypesApi, type ServiceTypeOption } from "~/api/serviceTypes"
 import BranchCard from "~/components/catalog/BranchCard.vue"
 import BarberCard from "~/components/catalog/BarberCard.vue"
 import BarberBookingModal from "~/components/catalog/BarberBookingModal.vue"
 import CatalogSidebarFilter, { type FilterState } from "~/components/catalog/CatalogSidebarFilter.vue"
+import CatalogBottomSheet from "~/components/catalog/CatalogBottomSheet.vue"
+import ServiceCategorySelector from "~/components/catalog/ServiceCategorySelector.vue"
 import type { BarberItem } from "~/types/barber"
 
 definePageMeta({ layout: "customer" })
 
 const branchesApi = useBranchesApi()
 const barbersApi = useBarbersApi()
+const serviceTypesApi = useServiceTypesApi()
 const { locale, load, t } = useTranslations()
 await load()
 
-const activeCategory = ref<"GAMING_CLUB" | "BARBERSHOP">("GAMING_CLUB")
+const { data: serviceTypeData, error: serviceTypeError } = await useAsyncData("public-service-types", () => serviceTypesApi.list())
+const serviceTypes = computed<ServiceTypeOption[]>(() => Array.isArray(serviceTypeData.value)
+  ? serviceTypeData.value.map(service => ({ ...service, name: service.translations?.[locale.value] || service.name }))
+  : [])
+const selectedServiceCode = ref<string | null>(
+  serviceTypes.value.find(service => service.code.toUpperCase() === "GAMING_CLUB")?.code
+  ?? serviceTypes.value[0]?.code
+  ?? null,
+)
+const activeService = computed(() => serviceTypes.value.find(service => service.code === selectedServiceCode.value) ?? null)
+const isBarbershop = computed(() => activeService.value?.code.toUpperCase().replaceAll("-", "_") === "BARBERSHOP")
 
 useHead({
-  title: computed(() =>
-    activeCategory.value === "BARBERSHOP"
-      ? (t("barbers.all_barbershops") || "Sartaroshxonalar va Sartaroshlar")
-      : (t("clubs.catalog_title") || "Barcha klublar")
-  ),
+  title: computed(() => activeService.value?.name || t("clubs.catalog_title") || "Xizmatlar"),
 })
 
 const filterState = ref<FilterState>({
@@ -38,23 +48,29 @@ const filterState = ref<FilterState>({
   service_type: "",
   status: "",
 })
+const draftFilterState = ref<FilterState>({ ...filterState.value })
 
 const userCoords = ref<{ latitude: number; longitude: number } | null>(null)
 const locating = ref(false)
 const isLoading = ref(false)
 const mobileFilterOpen = ref(false)
+const allServicesOpen = ref(false)
 const { message, show: showMessage, clear: clearMessage } = useTimedMessage()
 
 const barbers = ref<BarberItem[]>([])
+const barberCount = ref(0)
 const selectedBarberForBooking = ref<BarberItem | null>(null)
 const showBookingModal = ref(false)
 const barbersSubView = ref<"barbers" | "salons">("barbers")
 
-function extractList<T>(res: any): T[] {
+function extractList<T>(res: unknown): T[] {
   if (!res) return []
-  if (Array.isArray(res)) return res
-  if (Array.isArray(res.results)) return res.results
-  if (Array.isArray(res.data)) return res.data
+  if (Array.isArray(res)) return res as T[]
+  if (typeof res === "object") {
+    const payload = res as { results?: unknown; data?: unknown }
+    if (Array.isArray(payload.results)) return payload.results as T[]
+    if (Array.isArray(payload.data)) return payload.data as T[]
+  }
   return []
 }
 
@@ -63,7 +79,7 @@ const fetchBranches = async () => {
   clearMessage()
   try {
     const params: BranchListParams = {
-      category: activeCategory.value,
+      service_category: selectedServiceCode.value || undefined,
       search: filterState.value.search || undefined,
       city: filterState.value.city || undefined,
       service_type: filterState.value.service_type || undefined,
@@ -76,7 +92,7 @@ const fetchBranches = async () => {
     const response = await branchesApi.list(params)
     data.value = response
 
-    if (activeCategory.value === "BARBERSHOP") {
+    if (isBarbershop.value) {
       const barberParams: Parameters<typeof barbersApi.getBarbers>[0] = {
         search: filterState.value.search || undefined,
         city: filterState.value.city || undefined,
@@ -89,16 +105,20 @@ const fetchBranches = async () => {
       }
       const barbersRes = await barbersApi.getBarbers(barberParams)
       barbers.value = extractList<BarberItem>(barbersRes)
+      barberCount.value = barbers.value.length
+    } else {
+      barbers.value = []
+      barberCount.value = 0
     }
-  } catch (err: any) {
-    console.error("Fetch catalog error:", err)
+  } catch (error: unknown) {
+    console.error("Fetch catalog error:", error)
   } finally {
     isLoading.value = false
   }
 }
 
-const { data, data: initialBranches } = await useAsyncData("branch-catalog", () => {
-  return branchesApi.list({ category: "GAMING_CLUB", ordering: "-rating" })
+const { data } = await useAsyncData("branch-catalog", () => {
+  return branchesApi.list({ service_category: selectedServiceCode.value || undefined, ordering: "-rating" })
 })
 
 const { data: initialBarbers } = await useAsyncData("barbers-catalog", () => {
@@ -107,32 +127,121 @@ const { data: initialBarbers } = await useAsyncData("barbers-catalog", () => {
 
 if (initialBarbers.value) {
   barbers.value = extractList<BarberItem>(initialBarbers.value)
+  barberCount.value = barbers.value.length
 }
 
 const branches = computed(() => data.value?.results ?? [])
 const totalCount = computed(() => {
-  if (activeCategory.value === "BARBERSHOP") {
-    return barbersSubView.value === "barbers" ? barbers.value.length : branches.value.length
+  if (isBarbershop.value) {
+    return barbersSubView.value === "barbers" ? barberCount.value : data.value?.count ?? branches.value.length
   }
   return data.value?.count ?? branches.value.length
 })
 
-const setCategory = (cat: "GAMING_CLUB" | "BARBERSHOP") => {
-  if (activeCategory.value === cat) return
-  activeCategory.value = cat
-  filterState.value.service_type = ""
-  filterState.value.status = ""
-  filterState.value.ordering = "-rating"
-  void fetchBranches()
+const setService = (code: string) => {
+  if (selectedServiceCode.value === code) {
+    allServicesOpen.value = false
+    return
+  }
+  selectedServiceCode.value = code
+  barbersSubView.value = "barbers"
+  filterState.value = {
+    ...filterState.value,
+    service_type: "",
+    status: "",
+    ordering: code.toUpperCase().replaceAll("-", "_") === "BARBERSHOP" && ["price", "-price"].includes(filterState.value.ordering)
+      ? "-rating"
+      : filterState.value.ordering,
+  }
+  allServicesOpen.value = false
 }
 
 watch(
-  filterState,
+  [filterState, selectedServiceCode],
   () => {
     void fetchBranches()
   },
   { deep: true },
 )
+
+const openMobileFilters = () => {
+  draftFilterState.value = { ...filterState.value }
+  mobileFilterOpen.value = true
+}
+
+const clearMobileFilters = () => {
+  draftFilterState.value = { search: "", city: "", ordering: filterState.value.ordering, service_type: "", status: "" }
+}
+
+const applyMobileFilters = () => {
+  if (draftFilterState.value.ordering !== "distance") userCoords.value = null
+  filterState.value = { ...draftFilterState.value }
+  mobileFilterOpen.value = false
+}
+
+const resetDraftFilters = () => {
+  userCoords.value = null
+}
+
+const draftMatchesApplied = computed(() => JSON.stringify(draftFilterState.value) === JSON.stringify(filterState.value))
+const filterCount = computed(() => [
+  filterState.value.search,
+  filterState.value.city,
+  filterState.value.service_type,
+  filterState.value.status,
+  filterState.value.min_rating,
+  filterState.value.min_price_tiyin,
+  filterState.value.max_price_tiyin,
+].filter(value => value !== undefined && value !== null && value !== "").length)
+
+const mobileSortOptions = computed(() => [
+  { value: "-rating", label: t("filter.sort_rating") },
+  { value: "distance", label: t("filter.sort_nearest") },
+  ...(!isBarbershop.value ? [
+    { value: "price", label: t("filter.sort_price_asc") },
+    { value: "-price", label: t("filter.sort_price_desc") },
+  ] : []),
+])
+
+const changeMobileSort = (event: Event) => {
+  const value = (event.target as HTMLSelectElement).value
+  if (value === "distance") locate()
+  else filterState.value = { ...filterState.value, ordering: value }
+}
+
+const activeFilterChips = computed(() => {
+  const chips: { key: keyof FilterState; label: string }[] = []
+  if (filterState.value.search) chips.push({ key: "search", label: filterState.value.search })
+  if (filterState.value.service_type) {
+    const value = filterState.value.service_type
+    const label = ["PS", "PLAYSTATION"].includes(value.toUpperCase()) ? "PlayStation" : "Cyber / PC"
+    chips.push({ key: "service_type", label })
+  }
+  if (filterState.value.city) {
+    const city = [
+      ["Toshkent", "Toshkent shahri"], ["Toshkent viloyati", "Toshkent viloyati"],
+      ["Samarqand", "Samarqand"], ["Buxoro", "Buxoro"], ["Farg'ona", "Farg‘ona"],
+      ["Andijon", "Andijon"], ["Namangan", "Namangan"], ["Qashqadaryo", "Qashqadaryo"],
+      ["Surxondaryo", "Surxondaryo"], ["Xorazm", "Xorazm"], ["Navoiy", "Navoiy"],
+      ["Jizzax", "Jizzax"], ["Sirdaryo", "Sirdaryo"], ["Qoraqalpog'iston", "Qoraqalpog‘iston"],
+    ].find(([id]) => id === filterState.value.city)
+    chips.push({ key: "city", label: city?.[1] || filterState.value.city })
+  }
+  if (filterState.value.status) chips.push({ key: "status", label: filterState.value.status === "AVAILABLE" ? "Ishda" : "Tanaffusda" })
+  if (filterState.value.ordering) {
+    const labels: Record<string, string> = { distance: t("filter.sort_nearest"), "-rating": t("filter.sort_rating"), price: t("filter.sort_price_asc"), "-price": t("filter.sort_price_desc") }
+    chips.push({ key: "ordering", label: labels[filterState.value.ordering] || filterState.value.ordering })
+  }
+  return chips
+})
+
+const removeFilter = (key: keyof FilterState) => {
+  const next = { ...filterState.value }
+  if (key === "min_rating" || key === "min_price_tiyin" || key === "max_price_tiyin") next[key] = undefined
+  else next[key] = ""
+  if (key === "ordering") userCoords.value = null
+  filterState.value = next
+}
 
 const locate = () => {
   if (!navigator.geolocation || locating.value) return
@@ -155,9 +264,25 @@ const locate = () => {
   )
 }
 
+const locateDraft = () => {
+  if (!navigator.geolocation || locating.value) return
+  locating.value = true
+  navigator.geolocation.getCurrentPosition(
+    ({ coords }) => {
+      userCoords.value = { latitude: coords.latitude, longitude: coords.longitude }
+      draftFilterState.value = { ...draftFilterState.value, ordering: "distance" }
+      locating.value = false
+    },
+    () => {
+      locating.value = false
+      showMessage(t("clubs.not_found"))
+    },
+    { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 },
+  )
+}
+
 const handleReset = () => {
   userCoords.value = null
-  void fetchBranches()
 }
 
 const openBarberBooking = (barber: BarberItem) => {
@@ -168,24 +293,25 @@ const openBarberBooking = (barber: BarberItem) => {
 
 <template>
   <div class="bronla-portal-container">
-    <!-- Category Tabs Navigation -->
-    <div class="category-tabs-bar">
-      <button
-        type="button"
-        class="category-tab-btn"
-        :class="{ active: activeCategory === 'GAMING_CLUB' }"
-        @click="setCategory('GAMING_CLUB')"
-      >
-        <span>{{ t("categories.gaming_clubs") }}</span>
-      </button>
+    <ServiceCategorySelector
+      :services="serviceTypes"
+      :selected-code="selectedServiceCode"
+      :loading="!serviceTypeData && !serviceTypeError"
+      @select="setService"
+      @all="allServicesOpen = true"
+    />
 
+    <div v-if="activeFilterChips.length" class="active-filter-chips" aria-label="Tanlangan filtrlar">
       <button
+        v-for="chip in activeFilterChips"
+        :key="chip.key"
         type="button"
-        class="category-tab-btn"
-        :class="{ active: activeCategory === 'BARBERSHOP' }"
-        @click="setCategory('BARBERSHOP')"
+        class="active-filter-chip"
+        :aria-label="`${chip.label} filtrini olib tashlash`"
+        @click="removeFilter(chip.key)"
       >
-        <span>{{ t("categories.barbershops") }}</span>
+        <span>{{ chip.label }}</span>
+        <FontAwesomeIcon :icon="faXmark" aria-hidden="true" />
       </button>
     </div>
 
@@ -196,18 +322,26 @@ const openBarberBooking = (barber: BarberItem) => {
         <button
           type="button"
           class="mobile-filter-trigger"
-          @click="mobileFilterOpen = !mobileFilterOpen"
+          aria-haspopup="dialog"
+          :aria-expanded="mobileFilterOpen"
+          @click="openMobileFilters"
         >
           <FontAwesomeIcon :icon="faSliders" />
-          <span>{{ t("filter.title") }}</span>
+          <span>{{ t("filter.title") || "Filtr" }}<template v-if="filterCount"> {{ filterCount }}</template></span>
         </button>
+        <label class="mobile-sort-control">
+          <span>{{ t("filter.sort_by") }}</span>
+          <select class="mobile-sort-select" :value="filterState.ordering || '-rating'" :aria-label="t('filter.sort_by')" :disabled="locating" @change="changeMobileSort">
+            <option v-for="option in mobileSortOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+          </select>
+        </label>
       </div>
 
-      <!-- Left Sidebar Filter -->
-      <div class="portal-sidebar-wrapper" :class="{ 'mobile-open': mobileFilterOpen }">
+      <!-- Desktop sidebar -->
+      <div class="portal-sidebar-wrapper">
         <CatalogSidebarFilter
           v-model="filterState"
-          :category="activeCategory"
+          :category="activeService?.code || ''"
           :sub-view="barbersSubView"
           :locating="locating"
           @locate="locate"
@@ -218,7 +352,7 @@ const openBarberBooking = (barber: BarberItem) => {
       <!-- Right Main Catalog (3-column grid) -->
       <main class="portal-catalog-content">
         <!-- Results Sub-header (only for BARBERSHOP sub-view toggle) -->
-        <div v-if="activeCategory === 'BARBERSHOP'" class="catalog-results-header">
+        <div v-if="isBarbershop" class="catalog-results-header">
           <div class="barber-subview-toggle">
             <button
               type="button"
@@ -247,12 +381,12 @@ const openBarberBooking = (barber: BarberItem) => {
 
         <!-- Loading State -->
         <div v-if="isLoading" class="catalog-empty">
-          <span class="empty-icon"><FontAwesomeIcon :icon="activeCategory === 'BARBERSHOP' ? faScissors : faGamepad" /></span>
+          <span class="empty-icon"><FontAwesomeIcon :icon="isBarbershop ? faScissors : faStore" /></span>
           <p>{{ t("common.loading") }}</p>
         </div>
 
         <!-- Barbers View -->
-        <template v-else-if="activeCategory === 'BARBERSHOP'">
+        <template v-else-if="isBarbershop">
           <!-- 1. Barbers Sub-view -->
           <template v-if="barbersSubView === 'barbers'">
             <div v-if="!barbers.length" class="catalog-empty">
@@ -303,6 +437,51 @@ const openBarberBooking = (barber: BarberItem) => {
       </main>
     </div>
 
+    <CatalogBottomSheet v-model="allServicesOpen" :title="t('catalog.all_services')" sheet-class="services-sheet">
+      <div class="all-services-grid">
+        <button
+          v-for="service in serviceTypes"
+          :key="service.id"
+          type="button"
+          class="all-service-card"
+          :class="{ selected: selectedServiceCode === service.code }"
+          :aria-pressed="selectedServiceCode === service.code"
+          @click="setService(service.code)"
+        >
+          <span class="all-service-name">{{ service.name }}</span>
+        </button>
+        <p v-if="!serviceTypes.length" class="services-empty">Hozircha xizmat turlari yo‘q.</p>
+      </div>
+    </CatalogBottomSheet>
+
+    <CatalogBottomSheet v-model="mobileFilterOpen" title="Filtr" sheet-class="filter-sheet">
+      <div class="mobile-filter-body">
+        <CatalogSidebarFilter
+          v-model="draftFilterState"
+          :show-sorting="false"
+          :category="activeService?.code || ''"
+          :sub-view="barbersSubView"
+          :locating="locating"
+          @locate="locateDraft"
+          @reset="resetDraftFilters"
+        />
+      </div>
+      <template #footer>
+        <div class="filter-sheet-actions">
+          <button
+            class="filter-clear-button"
+            type="button"
+            @click="clearMobileFilters"
+          >
+            Tozalash
+          </button>
+          <button class="filter-apply-button" type="button" @click="applyMobileFilters">
+            {{ draftMatchesApplied ? `${totalCount} ta natijani ko‘rsatish` : "Natijalarni ko‘rsatish" }}
+          </button>
+        </div>
+      </template>
+    </CatalogBottomSheet>
+
     <!-- Barber Booking Modal -->
     <BarberBookingModal
       v-model="showBookingModal"
@@ -323,41 +502,33 @@ const openBarberBooking = (barber: BarberItem) => {
   padding: 0 0 40px;
 }
 
-.category-tabs-bar {
+.active-filter-chips {
   display: flex;
-  gap: 6px;
-  padding: 4px;
-  background: var(--surface, #1e293b);
-  border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
-  border-radius: 12px;
-  width: fit-content;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  flex-wrap: wrap;
+  gap: 7px;
+  min-width: 0;
 }
 
-.category-tab-btn {
+.active-filter-chip {
+  min-height: 34px;
+  max-width: min(100%, 260px);
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 6px 14px;
-  border-radius: 9px;
-  border: none;
-  background: transparent;
-  color: var(--muted, #94a3b8);
-  font-size: 13px;
+  gap: 8px;
+  padding: 5px 10px 5px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent, #6366f1) 24%, var(--border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent, #6366f1) 8%, var(--surface));
+  color: var(--accent, #6366f1);
+  font-size: 12px;
   font-weight: 700;
   cursor: pointer;
-  transition: all 0.18s ease;
 }
 
-.category-tab-btn:hover {
-  color: var(--text, #f8fafc);
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.category-tab-btn.active {
-  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
-  color: #ffffff;
-  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+.active-filter-chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .portal-main-layout {
@@ -469,16 +640,48 @@ const openBarberBooking = (barber: BarberItem) => {
   display: none;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 14px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 14px;
+  min-width: 0;
+  gap: 10px;
 }
+
+.mobile-sort-select {
+  min-width: 0;
+  max-width: 58%;
+  min-height: 44px;
+  padding: 8px 30px 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.mobile-sort-control {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.mobile-sort-control::after { content: "⌄"; }
+.mobile-sort-control:focus-within { outline: 2px solid var(--accent); }
+.mobile-sort-control .mobile-sort-select { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; max-width: none; cursor: pointer; }
 
 .mobile-filter-trigger {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  min-height: 44px;
   padding: 8px 14px;
   border-radius: 10px;
   border: 1px solid var(--border);
@@ -498,7 +701,7 @@ const openBarberBooking = (barber: BarberItem) => {
 @media (max-width: 1024px) {
   .portal-main-layout {
     grid-template-columns: 1fr;
-    gap: 18px;
+    gap: 10px;
   }
 
   .mobile-filter-bar {
@@ -508,32 +711,16 @@ const openBarberBooking = (barber: BarberItem) => {
   .portal-sidebar-wrapper {
     display: none;
   }
-
-  .portal-sidebar-wrapper.mobile-open {
-    display: block;
-    animation: fadeIn 0.2s ease;
-  }
 }
 
 @media (max-width: 640px) {
+  :global(.customer-main:has(> .bronla-portal-container)) { padding-top: 8px; }
+  .mobile-filter-bar { gap: 8px; }
+  .mobile-filter-trigger { min-height: 36px; padding: 6px 10px; border-radius: 8px; font-size: 12px; }
+  .mobile-sort-select { flex: 1; max-width: none; min-height: 36px; padding: 6px 10px; border-radius: 8px; font-size: 12px; }
   .bronla-portal-container {
-    gap: 16px;
-    padding: 6px 0 30px;
-  }
-
-  .category-tabs-bar {
-    width: 100%;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
     gap: 6px;
-    padding: 4px;
-  }
-
-  .category-tab-btn {
-    justify-content: center;
-    padding: 9px 8px;
-    font-size: 13px;
-    gap: 6px;
+    padding: 0 0 24px;
   }
 
   .catalog-results-header {
@@ -557,5 +744,52 @@ const openBarberBooking = (barber: BarberItem) => {
   .bronla-cards-grid {
     gap: 8px;
   }
+}
+
+.all-services-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 16px;
+}
+
+.all-service-card {
+  position: relative;
+  min-width: 0;
+  min-height: 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 9px;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 3px 12px rgb(15 23 42 / 5%);
+  text-align: left;
+  cursor: pointer;
+}
+
+.all-service-card.selected { border-color: var(--accent, #6366f1); background: color-mix(in srgb, var(--accent, #6366f1) 8%, var(--surface)); }
+.all-service-name { width: 100%; overflow-wrap: anywhere; font-size: 13px; line-height: 1.25; font-weight: 750; }
+.services-empty { grid-column: 1 / -1; padding: 24px; color: var(--muted); text-align: center; }
+
+.mobile-filter-body { padding: 14px 16px 18px; }
+.mobile-filter-body :deep(.filter-sidebar) { padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; gap: 19px; }
+.mobile-filter-body :deep(.filter-header) { display: none; }
+.mobile-filter-body :deep(.filter-search-field) { min-height: 46px; }
+.mobile-filter-body :deep(.select-box-item) { min-height: 44px; padding: 8px 6px; }
+.filter-sheet-actions { display: flex; gap: 10px; padding: 12px 16px max(12px, env(safe-area-inset-bottom)); border-top: 1px solid var(--border); background: var(--surface); }
+.filter-clear-button, .filter-apply-button { min-height: 48px; border-radius: 12px; font-size: 13px; font-weight: 750; cursor: pointer; }
+.filter-clear-button { flex: 0 0 100px; border: 1px solid var(--border); background: var(--surface); color: var(--text); }
+.filter-apply-button { flex: 1; padding: 0 12px; border: 1px solid var(--accent, #6366f1); background: var(--accent, #6366f1); color: white; }
+.mobile-results-count { color: var(--muted); font-size: 12px; font-weight: 650; }
+
+@media (max-width: 420px) {
+  .filter-clear-button { flex-basis: 84px; }
+  .all-services-grid { gap: 8px; padding: 12px; }
+  .all-service-card { min-height: 44px; padding: 8px 10px; }
 }
 </style>

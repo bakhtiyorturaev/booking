@@ -548,9 +548,15 @@ class Favorite(TimeStampedModel):
     )
     club = models.ForeignKey(
         Club,
+        null=True,
+        blank=True,
         on_delete=models.CASCADE,
         related_name="favorited_by",
         help_text="Sevimli klub.",
+    )
+    barber = models.ForeignKey(
+        "barbers.Barber", on_delete=models.CASCADE, null=True, blank=True,
+        related_name="favorited_by", help_text="Sevimli sartarosh.",
     )
 
     class Meta:
@@ -561,9 +567,15 @@ class Favorite(TimeStampedModel):
             models.UniqueConstraint(
                 fields=["user", "club"],
                 name="unique_user_favorite_club",
-            )
+            ),
+            models.UniqueConstraint(fields=["user", "barber"], name="unique_user_favorite_barber"),
+            models.CheckConstraint(
+                condition=(models.Q(club__isnull=False, barber__isnull=True)
+                           | models.Q(club__isnull=True, barber__isnull=False)),
+                name="favorite_exactly_one_target",
+            ),
         ]
         ordering = ("-created_at",)
 
     def __str__(self):
-        return f"{self.user} — {self.club}"
+        return f"{self.user} — {self.club or self.barber}"

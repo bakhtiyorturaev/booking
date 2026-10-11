@@ -38,8 +38,8 @@ class DistrictAdmin(admin.ModelAdmin):
 
 @admin.register(ServiceType)
 class ServiceTypeAdmin(admin.ModelAdmin):
-    list_display = ("name", "code", "is_active", "sort_order")
-    search_fields = ("name", "code")
+    list_display = ("name", "name_ru", "name_en", "code", "is_active", "sort_order")
+    search_fields = ("name", "name_ru", "name_en", "code")
 
     def has_add_permission(self, request):
         return request.user.is_superuser

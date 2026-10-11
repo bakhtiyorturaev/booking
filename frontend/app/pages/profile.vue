@@ -14,6 +14,9 @@ import {
 import { useAuthApi } from "~/api/auth"
 import { useFavorites } from "~/composables/useFavorites"
 import BranchCard from "~/components/catalog/BranchCard.vue"
+import BarberCard from "~/components/catalog/BarberCard.vue"
+import BarberBookingModal from "~/components/catalog/BarberBookingModal.vue"
+import type { BarberItem } from "~/types/barber"
 import { ApiRequestError } from "~/types/api"
 import type { BranchListSummary } from "~/types/club"
 
@@ -147,6 +150,15 @@ const fields = computed(() => [
   { code: "auth.city", value: profile.value?.city || "", icon: faLocationDot },
   { code: "auth.birth_date", value: formatDate(profile.value?.birth_date), icon: faCalendar },
 ])
+
+const selectedFavoriteBarber = ref<BarberItem | null>(null)
+const favoriteBarberBookingOpen = ref(false)
+const favoriteBarbers = computed(() => favorites.favoritesList.value
+  .map(item => item.barber).filter((barber): barber is BarberItem => Boolean(barber)))
+const bookFavoriteBarber = (barber: BarberItem) => {
+  selectedFavoriteBarber.value = barber
+  favoriteBarberBookingOpen.value = true
+}
 
 const favoriteBranches = computed(() => {
   const list: BranchListSummary[] = []
@@ -322,7 +334,7 @@ const favoriteBranches = computed(() => {
             <FontAwesomeIcon :icon="faHeart" class="favorite-heart-icon" />
             <span>{{ t("profile.favorites") }}</span>
             <span v-if="favoriteBranches.length" class="favorites-count-badge">
-              {{ favoriteBranches.length }}
+              {{ favoriteBranches.length + favoriteBarbers.length }}
             </span>
           </h2>
         </header>
@@ -331,12 +343,13 @@ const favoriteBranches = computed(() => {
           <p>{{ t("common.loading") }}</p>
         </div>
 
-        <div v-else-if="favoriteBranches.length" class="profile-favorites-grid">
+        <div v-else-if="favoriteBranches.length || favoriteBarbers.length" class="profile-favorites-grid">
           <BranchCard
             v-for="branch in favoriteBranches"
             :key="branch.id"
             :branch="branch"
           />
+          <BarberCard v-for="barber in favoriteBarbers" :key="barber.id" :barber="barber" @book="bookFavoriteBarber" />
         </div>
 
         <div v-else class="favorites-empty-state">
@@ -351,6 +364,7 @@ const favoriteBranches = computed(() => {
         </div>
       </article>
     </div>
+    <BarberBookingModal v-model="favoriteBarberBookingOpen" :barber="selectedFavoriteBarber" />
   </section>
 </template>
 

@@ -525,9 +525,12 @@ class FavoriteCreateSerializer(serializers.ModelSerializer):
         if not club:
             try:
                 from apps.barbers.models import Barber
-                barber = Barber.objects.filter(id=raw_id).select_related("club").first()
+                barber = Barber.objects.filter(id=raw_id, is_active=True).select_related("club").first()
                 if barber and barber.club and barber.club.status == Club.Status.ACTIVE:
                     club = barber.club
+                elif barber and not barber.club_id:
+                    attrs["resolved_barber"] = barber
+                    return attrs
             except Exception:
                 pass
 
@@ -540,15 +543,23 @@ class FavoriteCreateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         favorite, _ = Favorite.objects.get_or_create(
             user=self.context["request"].user,
-            club=validated_data["resolved_club"],
+            **({"barber": validated_data["resolved_barber"]} if "resolved_barber" in validated_data
+               else {"club": validated_data["resolved_club"]}),
         )
         return favorite
 
 
 class FavoriteSerializer(serializers.ModelSerializer):
     club = PublicClubListSerializer(read_only=True)
+    barber = serializers.SerializerMethodField()
+
+    def get_barber(self, obj):
+        if not obj.barber_id:
+            return None
+        from apps.barbers.serializers import PublicBarberSerializer
+        return PublicBarberSerializer(obj.barber, context=self.context).data
 
     class Meta:
         model = Favorite
-        fields = ("id", "club")
+        fields = ("id", "club", "barber")
         read_only_fields = fields

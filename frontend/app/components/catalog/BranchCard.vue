@@ -15,13 +15,11 @@ const props = defineProps<{
 
 const { locale, t } = useTranslations()
 const favorites = useFavorites()
+const toast = useToast()
 
 const isFavorite = computed(() => {
   const clubId = props.branch?.club?.id
-  const branchId = props.branch?.id
-  if (clubId && favorites.isFavorite(clubId)) return true
-  if (branchId && favorites.isFavorite(branchId)) return true
-  return props.branch?.is_favorite || false
+  return Boolean(clubId && favorites.isFavorite(clubId))
 })
 
 const formatPrice = (value: number | null) => {
@@ -30,12 +28,13 @@ const formatPrice = (value: number | null) => {
   return `${new Intl.NumberFormat(locale.value).format(value / 100)} ${t("common.currency_uzs")}`
 }
 
-const toggleFavorite = (event: Event) => {
+const toggleFavorite = async (event: Event) => {
   event.preventDefault()
   event.stopPropagation()
-  const targetId = props.branch?.club?.id || props.branch?.id
+  const targetId = props.branch?.club?.id
   if (targetId) {
-    favorites.toggle(targetId)
+    try { await favorites.toggle(targetId) }
+    catch { toast.error(t("favorites.update_error")) }
   }
 }
 
@@ -83,6 +82,8 @@ const ratingScore = computed(() => {
           type="button"
           class="bronla-heart-btn"
           :class="{ active: isFavorite }"
+          :aria-pressed="isFavorite"
+          :disabled="favorites.isPending(branch.club.id) || favorites.loading.value"
           aria-label="Sevimlilar"
           @click="toggleFavorite"
         >

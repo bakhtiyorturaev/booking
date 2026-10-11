@@ -39,7 +39,8 @@ export interface BranchListSummary extends BranchSummary {
 
 export interface FavoriteItem {
   id: string
-  club: ClubSummary
+  club: ClubSummary | null
+  barber?: import("~/types/barber").BarberItem | null
 }
 
 export interface BranchZone {

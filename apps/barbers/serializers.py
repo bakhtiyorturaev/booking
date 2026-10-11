@@ -6,6 +6,8 @@ from apps.clubs.services.geo import haversine_km
 
 
 class PublicBarberSerializer(serializers.ModelSerializer):
+    club_id = serializers.UUIDField(read_only=True, allow_null=True)
+    branch_id = serializers.UUIDField(read_only=True, allow_null=True)
     club_name = serializers.CharField(source="club.name", read_only=True, default="")
     club_slug = serializers.CharField(source="club.slug", read_only=True, default="")
     branch_name = serializers.CharField(source="branch.name", read_only=True, default="")
@@ -44,9 +46,11 @@ class PublicBarberSerializer(serializers.ModelSerializer):
             "review_count",
             "distance_km",
             "club",
+            "club_id",
             "club_name",
             "club_slug",
             "branch",
+            "branch_id",
             "branch_name",
             "branch_address",
             "branch_city",

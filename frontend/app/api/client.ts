@@ -1,4 +1,5 @@
 import { authScopeForPath } from "~~/shared/authScope"
+import { useRequestFetch, useRoute } from "nuxt/app"
 import type { FetchError, FetchOptions } from "ofetch"
 
 import { ApiRequestError, type ApiErrorData } from "~/types/api"
@@ -17,12 +18,12 @@ const isApiError = (value: unknown): value is ApiErrorData => {
 export const useApiClient = () => {
   const config = useRuntimeConfig()
   const requestFetch = useRequestFetch()
-  const nuxtApp = useNuxtApp()
+  const route = useRoute()
 
   const request = async <T>(path: string, options: ApiOptions = {}) => {
     const { local, token, headers, ...fetchOptions } = options
     const requestHeaders = new Headers(headers)
-    if (local && !requestHeaders.has("X-Auth-Scope")) requestHeaders.set("X-Auth-Scope", authScopeForPath(nuxtApp.$router.currentRoute.value.path))
+    if (local && !requestHeaders.has("X-Auth-Scope")) requestHeaders.set("X-Auth-Scope", authScopeForPath(route.path))
     if (token) requestHeaders.set("Authorization", `Bearer ${token}`)
 
     try {

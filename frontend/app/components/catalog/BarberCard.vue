@@ -14,6 +14,7 @@ import { useFavorites } from "~/composables/useFavorites"
 
 const { t } = useTranslations()
 const favorites = useFavorites()
+const toast = useToast()
 
 const props = defineProps<{
   barber: BarberItem
@@ -23,17 +24,17 @@ const emit = defineEmits<{
   (e: "book", barber: BarberItem): void
 }>()
 
-const isFavorite = computed(() => {
-  if (props.barber.club_id) return favorites.isFavorite(props.barber.club_id)
-  return favorites.isFavorite(props.barber.id)
-})
+const favoriteTarget = computed(() => favorites.isFavorite(props.barber.id)
+  ? props.barber.id : props.barber.club_id || props.barber.id)
+const isFavorite = computed(() => favorites.isFavorite(favoriteTarget.value))
 
-const toggleFavorite = (event: Event) => {
+const toggleFavorite = async (event: Event) => {
   event.preventDefault()
   event.stopPropagation()
-  const targetId = props.barber.club_id || props.barber.id
+  const targetId = favoriteTarget.value
   if (targetId) {
-    favorites.toggle(targetId)
+    try { await favorites.toggle(targetId) }
+    catch { toast.error(t("favorites.update_error")) }
   }
 }
 
@@ -128,6 +129,8 @@ const displayLocation = computed(() => {
         type="button"
         class="bronla-heart-btn"
         :class="{ active: isFavorite }"
+        :aria-pressed="isFavorite"
+        :disabled="favorites.isPending(favoriteTarget) || favorites.loading.value"
         aria-label="Sevimlilar"
         @click="toggleFavorite"
       >
