@@ -1,8 +1,10 @@
 import uuid
+from datetime import timedelta
 
-from django.db.models import F, Min, Prefetch, Q
+from django.db.models import Count, F, Min, Prefetch, Q
 from django.db.models.deletion import ProtectedError
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
 from rest_framework import mixins, status, viewsets
@@ -403,14 +405,14 @@ class PublicBranchViewSet(viewsets.ReadOnlyModelViewSet):
     pagination_class = StandardPagination
 
     def get_serializer_class(self):
-        if self.action == "list":
+        if self.action in {"list", "top"}:
             return PublicBranchListSerializer
         return PublicBranchDetailSerializer
 
     def get_queryset(self):
         queryset = (
             active_branch_list_queryset()
-            if self.action == "list"
+            if self.action in {"list", "top"}
             else active_branch_queryset()
         ).filter(club__status=Club.Status.ACTIVE)
         club_id = self.request.query_params.get("club")
@@ -563,6 +565,39 @@ class PublicBranchViewSet(viewsets.ReadOnlyModelViewSet):
         if page is not None:
             return self.get_paginated_response(serializer.data)
         return Response(serializer.data)
+
+    @extend_schema(
+        tags=["Branches"],
+        summary="Oxirgi 30 kunda eng ko‘p bron qilingan filiallar (TOP)",
+        parameters=[
+            OpenApiParameter("service_category", str, description="Xizmat turi kodi (masalan GAMING_CLUB)"),
+            OpenApiParameter("limit", int, description="Natijalar soni (1-24, standart 8)"),
+        ],
+    )
+    @action(detail=False, methods=["get"], url_path="top")
+    def top(self, request):
+        from apps.bookings.models import Booking
+
+        limit = parse_integer_parameter(request, "limit", 1, 24) or 8
+        since = timezone.now() - timedelta(days=30)
+        counted = Booking.objects.filter(created_at__gte=since).exclude(
+            status__in=[Booking.Status.CANCELLED, Booking.Status.NO_SHOW]
+        ).order_by()
+        counts = {}
+        zone_rows = counted.filter(zone__isnull=False).values_list("zone__branch_id").annotate(total=Count("id"))
+        barber_rows = counted.filter(zone__isnull=True, barber__branch__isnull=False).values_list("barber__branch_id").annotate(total=Count("id"))
+        for branch_id, total in [*zone_rows, *barber_rows]:
+            counts[branch_id] = counts.get(branch_id, 0) + total
+
+        # Bronlari bo‘lmagan filiallar ro‘yxat oxirida reyting bo‘yicha turadi.
+        branches = sorted(
+            self.get_queryset(),
+            key=lambda branch: (-counts.get(branch.id, 0), -(branch.club.rating or 0), branch.name.casefold()),
+        )[:limit]
+        data = self.get_serializer(branches, many=True).data
+        for item, branch in zip(data, branches):
+            item["bookings_30d"] = counts.get(branch.id, 0)
+        return Response(data)
 
     def get_serializer_context(self):
         context = super().get_serializer_context()

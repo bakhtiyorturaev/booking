@@ -14,9 +14,8 @@ import BarberCard from "~/components/catalog/BarberCard.vue"
 import BarberBookingModal from "~/components/catalog/BarberBookingModal.vue"
 import CatalogSidebarFilter, { type FilterState } from "~/components/catalog/CatalogSidebarFilter.vue"
 import CatalogBottomSheet from "~/components/catalog/CatalogBottomSheet.vue"
-import ServiceCategorySelector from "~/components/catalog/ServiceCategorySelector.vue"
 import type { BarberItem } from "~/types/barber"
-import { descendantServiceIds, rootService, serviceTreeOptions } from "~/utils/serviceTree"
+import { descendantServiceIds, serviceTreeOptions } from "~/utils/serviceTree"
 
 definePageMeta({ layout: "customer" })
 
@@ -26,18 +25,23 @@ const serviceTypesApi = useServiceTypesApi()
 const { locale, load, t } = useTranslations()
 await load()
 
-const { data: serviceTypeData, error: serviceTypeError } = await useAsyncData("public-service-types", () => serviceTypesApi.list())
+const { data: serviceTypeData } = await useAsyncData("public-service-types", () => serviceTypesApi.list())
 const serviceTypes = computed<ServiceTypeOption[]>(() => Array.isArray(serviceTypeData.value)
   ? serviceTypeData.value.map(service => ({ ...service, name: service.translations?.[locale.value] || service.name }))
   : [])
+const route = useRoute()
+const router = useRouter()
+const queryServiceCode = () => {
+  const code = route.query.service
+  return typeof code === "string" ? serviceTypes.value.find(service => service.code === code)?.code ?? null : null
+}
 const selectedServiceCode = ref<string | null>(
-  serviceTypes.value.find(service => service.code.toUpperCase() === "GAMING_CLUB")?.code
+  queryServiceCode()
+  ?? serviceTypes.value.find(service => service.code.toUpperCase() === "GAMING_CLUB")?.code
   ?? serviceTypes.value[0]?.code
   ?? null,
 )
 const activeService = computed(() => serviceTypes.value.find(service => service.code === selectedServiceCode.value) ?? null)
-const rootServices = computed(() => serviceTypes.value.filter(service => !service.parent))
-const selectedRoot = computed(() => rootService(serviceTypes.value, activeService.value))
 const serviceRows = computed(() => serviceTreeOptions(serviceTypes.value))
 const categoryChildren = computed(() => {
   const service = activeService.value
@@ -165,6 +169,7 @@ const setService = (code: string) => {
     allServicesOpen.value = false
     return
   }
+  void router.replace({ query: { service: code } })
   selectedServiceCode.value = code
   barbersSubView.value = "barbers"
   filterState.value = {
@@ -177,6 +182,19 @@ const setService = (code: string) => {
   }
   allServicesOpen.value = false
 }
+
+// Header kategoriyalari /catalog?service=KOD orqali keladi; ?all=1 "barcha xizmatlar" oynasini ochadi.
+watch(() => route.query.service, () => {
+  const code = queryServiceCode()
+  if (code && code !== selectedServiceCode.value) setService(code)
+})
+const openAllFromQuery = () => {
+  if (route.query.all !== "1") return
+  allServicesOpen.value = true
+  void router.replace({ query: selectedServiceCode.value ? { service: selectedServiceCode.value } : {} })
+}
+watch(() => route.query.all, openAllFromQuery)
+onMounted(openAllFromQuery)
 
 watch(
   [filterState, selectedServiceCode],
@@ -323,14 +341,6 @@ const openBarberBooking = (barber: BarberItem) => {
 
 <template>
   <div class="bronla-portal-container">
-    <ServiceCategorySelector
-      :services="rootServices"
-      :selected-code="selectedRoot?.code || null"
-      :loading="!serviceTypeData && !serviceTypeError"
-      @select="setService"
-      @all="allServicesOpen = true"
-    />
-
     <div v-if="serviceAncestors.length > 1" class="service-breadcrumbs">
       <button v-for="service in serviceAncestors" :key="service.id" type="button" @click="setService(service.code)">{{ service.name }}</button>
     </div>
@@ -552,8 +562,8 @@ const openBarberBooking = (barber: BarberItem) => {
 .service-child-options, .service-breadcrumbs { display: flex; gap: 6px; min-width: 0; }
 .service-child-options button { max-width: 31%; min-width: 0; min-height: 32px; padding: 5px 9px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .service-child-options button.selected { color: var(--accent); border-color: var(--accent); }
-.service-breadcrumbs { flex-wrap: wrap; }
-.service-breadcrumbs button { min-height: 32px; padding: 3px 4px; border: 0; background: transparent; color: var(--accent); font-size: 12px; cursor: pointer; }
+.service-breadcrumbs { flex-wrap: wrap; align-items: center; width: fit-content; max-width: 100%; padding: 2px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+.service-breadcrumbs button { min-height: 32px; padding: 3px 4px; border: 0; background: transparent; color: var(--accent); font-size: 12px; font-weight: 600; cursor: pointer; }
 .service-breadcrumbs button + button::before { content: '›'; margin-right: 8px; color: var(--muted); }
 
 .active-filter-chip {

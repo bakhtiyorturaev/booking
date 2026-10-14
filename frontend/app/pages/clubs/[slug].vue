@@ -40,7 +40,7 @@ const serviceName = (type: string) => t(type === "PLAYSTATION" ? "clubs.service_
 
 <template>
   <section class="club-detail-page">
-    <NuxtLink class="detail-back-link" to="/">
+    <NuxtLink class="detail-back-link" to="/catalog">
       <FontAwesomeIcon :icon="faArrowLeft" />
       {{ t("nav.back_to_clubs") }}
     </NuxtLink>

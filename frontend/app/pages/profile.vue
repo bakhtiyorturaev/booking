@@ -358,7 +358,7 @@ const favoriteBranches = computed(() => {
           </div>
           <h3>{{ t("profile.no_favorites") }}</h3>
           <p>{{ t("profile.no_favorites_desc") }}</p>
-          <NuxtLink to="/" class="favorites-explore-btn">
+          <NuxtLink to="/catalog" class="favorites-explore-btn">
             {{ t("profile.explore_clubs") }}
           </NuxtLink>
         </div>

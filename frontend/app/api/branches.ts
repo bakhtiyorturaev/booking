@@ -30,6 +30,11 @@ export const useBranchesApi = () => {
         local: true,
         query,
       }),
+    top: (query: { service_category?: string; limit?: number } = {}) =>
+      api.get<Array<BranchListSummary & { bookings_30d: number }>>("/api/branches/top", {
+        local: true,
+        query,
+      }),
     get: (id: string) =>
       api.get<BranchDetail>(`/api/branches/${encodeURIComponent(id)}`, {
         local: true,

@@ -397,7 +397,7 @@ const submitBooking = async () => {
   <div class="branch-page-wrapper">
     <!-- Back to catalog button -->
     <div class="branch-top-nav">
-      <NuxtLink class="detail-back-link" to="/">
+      <NuxtLink class="detail-back-link" to="/catalog">
         <FontAwesomeIcon :icon="faArrowLeft" />
         <span>{{ branch?.club?.category === 'BARBERSHOP' ? t("barbers.all_barbershops") : t("clubs.all_clubs") }}</span>
       </NuxtLink>
