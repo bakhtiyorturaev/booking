@@ -357,6 +357,10 @@ class ClubManagementSerializer(CleanModelSerializer):
         user = self.context["request"].user
         if self.instance and not is_platform_admin(user) and any(key in attrs and attrs[key] != getattr(self.instance, key) for key in ("service_type", "billing_city", "billing_district")):
             raise serializers.ValidationError("clubs.permission_denied")
+        latitude = attrs.get("latitude", self.instance.latitude if self.instance else None)
+        longitude = attrs.get("longitude", self.instance.longitude if self.instance else None)
+        if (latitude is None) != (longitude is None):
+            raise serializers.ValidationError({"latitude": "Kenglik va uzunlikni birga kiriting."})
         category = attrs.get("category", self.instance.category if self.instance else Club.Category.GAMING_CLUB)
         service_name = attrs.get("service_name", self.instance.service_name if self.instance else "")
         if category == Club.Category.OTHER and not service_name.strip():
@@ -434,6 +438,9 @@ class ClubManagementSerializer(CleanModelSerializer):
             "phone",
             "email",
             "website",
+            "address",
+            "latitude",
+            "longitude",
             "status",
             "is_verified",
             "rating",

@@ -3,7 +3,6 @@ import VenueBillingBadge from "~/components/cabinet/VenueBillingBadge.vue"
 import { useAdminApi } from "~/api/admin"
 import type { ServiceTypeManagementItem } from "~/api/serviceTypes"
 import { serviceTreeOptions } from "~/utils/serviceTree"
-import ServiceChecklist from "~/components/cabinet/ServiceChecklist.vue"
 
 definePageMeta({
   alias: ["/site/staff/panel/clubs", "/site/client/panel/clubs"],
@@ -25,13 +24,8 @@ const { isStaff: isPlatformAdmin } = useCabinetAccess()
 
 const services = ref<ServiceTypeManagementItem[]>([])
 const serviceChoices = computed(() => serviceTreeOptions(services.value.filter(service => service.is_active)))
-const cities = ref<any[]>([])
-const loadLocations = async () => {
-  try { cities.value = await adminApi.getCities() } catch (error) { errorMessage.value = cabinetErrorMessage(error) }
-}
 const clubs = ref<any[]>([])
 const billingStatuses = useCabinetBillingCache()
-const clientsList = ref<any[]>([])
 const isLoading = ref(true)
 const searchQuery = ref("")
 const selectedStatus = ref("")
@@ -39,50 +33,10 @@ const selectedCategory = ref("")
 const totalCount = ref(0)
 const errorMessage = ref("")
 
-// Modal state
+// Pagination
 const page = ref(1)
 const hasNextPage = ref(false)
 watch([searchQuery, selectedStatus, selectedCategory], () => { page.value = 1 }, { flush: "sync" })
-const showModal = ref(false)
-const showNewClient = ref(false)
-const creatingClient = ref(false)
-const newClient = ref({ full_name: "", phone: "", username: "", password: "" })
-const createClientHere = async () => {
-  if (creatingClient.value) return
-  creatingClient.value = true; modalError.value = ""
-  try {
-    const client = await adminApi.createUser({ ...newClient.value })
-    clientsList.value.push(client)
-    form.value.owner = client.id
-    showNewClient.value = false
-    newClient.value = { full_name: "", phone: "", username: "", password: "" }
-  } catch (error) { modalError.value = cabinetErrorMessage(error) }
-  finally { creatingClient.value = false }
-}
-watch(showModal, visible => { if (!visible) { showNewClient.value = false; newClient.value.password = "" } })
-const editingClub = ref<any>(null)
-const isSaving = ref(false)
-const modalError = ref("")
-
-const form = ref({
-  name: "",
-  owner: null as string | null,
-  category: "GAMING_CLUB",
-  available_services: [] as string[], service_type: "", billing_city: "", billing_district: "",
-  service_name: "",
-  description: "",
-  phone: "",
-  email: "",
-  website: "",
-  status: "ACTIVE",
-  is_verified: true,
-})
-
-watch(() => form.value.service_type, id => {
-  if (id && !form.value.available_services.includes(id)) form.value.available_services.push(id)
-})
-
-const { districts, isDistrictLoading, districtError } = useCityDistricts(() => form.value.billing_city)
 
 const fetchClubs = async () => {
   isLoading.value = true
@@ -107,91 +61,6 @@ const fetchClubs = async () => {
   }
 }
 
-const fetchClients = async () => {
-  if (!isPlatformAdmin.value) return
-  try {
-    let clientPage = 1
-    const clients: any[] = []
-    let next = true
-    while (next) {
-      const res = await adminApi.getUsers({ role: "CLIENT", status: "ACTIVE", page_size: 100, page: clientPage++ })
-      clients.push(...res.results)
-      next = Boolean(res.next)
-    }
-    clientsList.value = clients
-  } catch (err) {
-    console.error("Failed to fetch clients", err)
-  }
-}
-
-const openCreateModal = () => {
-  showNewClient.value = false
-  editingClub.value = null
-  form.value = {
-    name: "",
-    owner: null,
-    category: "GAMING_CLUB",
-  available_services: [] as string[], service_type: "", billing_city: "", billing_district: "",
-    service_name: "",
-    description: "",
-    phone: "",
-    email: "",
-    website: "",
-    status: "ACTIVE",
-    is_verified: Boolean(isPlatformAdmin.value),
-  }
-  modalError.value = ""
-  showModal.value = true
-}
-
-const openEditModal = (club: any) => {
-  showNewClient.value = false
-  editingClub.value = club
-  form.value = {
-    name: club.name,
-    owner: club.owner || club.owner_details?.id || null,
-    category: club.category || "GAMING_CLUB",
-    available_services: [...(club.available_services || [])],
-    service_type: club.service_type || "", billing_city: club.billing_city || "", billing_district: club.billing_district || "",
-    service_name: club.service_name || "",
-    description: club.description || "",
-    phone: club.phone || "",
-    email: club.email || "",
-    website: club.website || "",
-    status: club.status || "ACTIVE",
-    is_verified: club.is_verified || false,
-  }
-  modalError.value = ""
-  showModal.value = true
-}
-
-const saveClub = async () => {
-  if (isSaving.value) return
-  if (!form.value.name.trim()) {
-    modalError.value = "Xizmat nomini kiriting"
-    return
-  }
-
-  isSaving.value = true
-  modalError.value = ""
-
-  try {
-    const { owner, ...rest } = form.value
-    const payload = { ...rest, service_type: rest.service_type || null, billing_city: rest.billing_city || null, billing_district: rest.billing_district || null, ...(isPlatformAdmin.value && owner ? { owner } : {}) }
-    if (editingClub.value) {
-      await adminApi.updateClub(editingClub.value.id, payload)
-    } else {
-      await adminApi.createClub(payload)
-    }
-    showModal.value = false
-    await fetchClubs()
-  } catch (err: any) {
-    modalError.value = cabinetErrorMessage(err)
-  } finally {
-    isSaving.value = false
-  }
-}
-
 const toggleClubStatus = async (club: any) => {
   const nextStatus = club.status === "ACTIVE" ? "INACTIVE" : "ACTIVE"
   try {
@@ -213,14 +82,14 @@ const deleteClub = async (club: any) => {
 }
 
 onMounted(async () => {
-  try { services.value = await adminApi.getServiceTypes(); await loadLocations() } catch (error) { errorMessage.value = cabinetErrorMessage(error) }
-  if (typeof route.query.query === "string") searchQuery.value = route.query.query
-  await Promise.all([fetchClubs(), fetchClients()])
   if (isPlatformAdmin.value && typeof route.query.owner === "string") {
-    openCreateModal(); form.value.owner = route.query.owner
+    await navigateTo({ path: cabinetPath("/clubs/new"), query: { owner: route.query.owner } }, { replace: true })
+    return
   }
+  try { services.value = await adminApi.getServiceTypes() } catch (error) { errorMessage.value = cabinetErrorMessage(error) }
+  if (typeof route.query.query === "string") searchQuery.value = route.query.query
+  await fetchClubs()
 })
-useDialogFocus(showModal, "#cabinet-clubs-showModal", () => { showModal.value = false })
 </script>
 
 <template>
@@ -248,9 +117,9 @@ useDialogFocus(showModal, "#cabinet-clubs-showModal", () => { showModal.value = 
       <button type="button" class="secondary-button" @click="fetchClubs">
         Qidirish
       </button>
-      <button v-if="isPlatformAdmin" type="button" class="primary-button create-btn" @click="openCreateModal">
+      <NuxtLink v-if="isPlatformAdmin" :to="cabinetPath('/clubs/new')" class="primary-button create-btn">
         <CabinetIcon name="plus" /> Xizmat qo‘shish
-      </button>
+      </NuxtLink>
     </div>
 
     <!-- Table content -->
@@ -317,14 +186,14 @@ useDialogFocus(showModal, "#cabinet-clubs-showModal", () => { showModal.value = 
               <td data-label="Reyting"><CabinetIcon name="star" /> {{ Number(c.rating || 0).toFixed(1) }} ({{ c.review_count || 0 }})</td>
               <td v-if="isPlatformAdmin" data-label="Amallar">
                 <div class="table-actions">
-                  <button
-                    type="button"
+                  <NuxtLink
+                    :to="cabinetPath(`/clubs/${c.id}/edit`)"
                     class="action-btn edit"
                     title="Tahrirlash"
-                    @click="openEditModal(c)"
+                    aria-label="Tahrirlash"
                   >
                     <CabinetIcon name="edit" />
-                  </button>
+                  </NuxtLink>
                   <button
                     type="button"
                     class="action-btn delete"
@@ -342,105 +211,10 @@ useDialogFocus(showModal, "#cabinet-clubs-showModal", () => { showModal.value = 
     </div>
 
     <div v-if="totalCount > 20" class="cabinet-pagination"><span>{{ page }}-sahifa · {{ totalCount }} ta</span><div><button type="button" class="secondary-button" :disabled="page === 1 || isLoading" @click="page--; fetchClubs()">Oldingi</button><button type="button" class="secondary-button" :disabled="!hasNextPage || isLoading" @click="page++; fetchClubs()">Keyingi</button></div></div>
-    <!-- Create/Edit Modal -->
-    <Teleport to="body">
-      <div v-if="showModal" id="cabinet-clubs-showModal" class="modal-backdrop cabinet-modal" role="dialog" aria-modal="true" aria-label="Tahrirlash" tabindex="-1" @click.self="showModal = false">
-        <div class="modal-card">
-          <div class="modal-header">
-            <h3>{{ editingClub ? "Xizmatni tahrirlash" : "Yangi xizmat qo'shish" }}</h3>
-            <button type="button" class="modal-close-btn" @click="showModal = false">✕</button>
-          </div>
-
-          <form class="modal-form" @submit.prevent="saveClub">
-            <p v-if="modalError" class="form-error">{{ modalError }}</p>
-
-            <div class="form-row">
-              <div class="form-group">
-                <label>Nomi *</label>
-                <input v-model="form.name" type="text" placeholder="Xizmat nomi" required aria-label="Xizmat nomi">
-              </div>
-              <div class="form-group">
-                <label for="club-service-type">Xizmat turi *</label>
-                <select id="club-service-type" v-model="form.service_type" :disabled="!isPlatformAdmin && Boolean(editingClub)" required aria-label="Xizmat turi"><option value="" disabled>Xizmatni tanlang</option><option v-for="service in serviceChoices" :key="service.id" :value="service.id">{{ service.label }}</option></select>
-              </div>
-            </div>
-
-            <fieldset class="service-picker"><legend>Klub xizmatlari</legend><ServiceChecklist v-model="form.available_services" :services="serviceChoices" /></fieldset>
-            <div class="form-row">
-              <div class="form-group"><label for="billing-city">Shahar</label><select id="billing-city" v-model="form.billing_city" required :disabled="!isPlatformAdmin && Boolean(editingClub)" @change="form.billing_district = ''"><option value="" disabled>Shaharni tanlang</option><option v-for="city in cities" :key="city.id" :value="city.id">{{ city.name }}</option></select></div>
-              <div class="form-group"><label for="billing-district">Tuman</label><select id="billing-district" v-model="form.billing_district" :disabled="isDistrictLoading || !form.billing_city || (!isPlatformAdmin && Boolean(editingClub))" required><option value="" disabled>{{ isDistrictLoading ? "Yuklanmoqda…" : "Tumanni tanlang" }}</option><option v-for="district in districts" :key="district.id" :value="district.id">{{ district.name }}</option></select><small v-if="districtError" role="alert">{{ districtError }}</small><small v-else-if="form.billing_city && !isDistrictLoading && !districts.length">Bu hudud uchun tumanlar hali qo‘shilmagan.</small></div>
-            </div>
-            <div v-if="isPlatformAdmin" class="form-group">
-              <label>Xizmat egasi</label><button type="button" class="secondary-button" @click="showNewClient = !showNewClient">Mijoz qo‘shish</button>
-              <div v-if="showNewClient" class="inline-client-form">
-                <label for="new-owner-name">Ism-familiya</label><input id="new-owner-name" v-model="newClient.full_name" maxlength="150" autocomplete="name">
-                <label for="new-owner-phone">Telefon</label><input id="new-owner-phone" v-model="newClient.phone" type="tel" autocomplete="tel">
-                <label for="new-owner-login">Login</label><input id="new-owner-login" v-model="newClient.username" maxlength="30" autocomplete="off" autocapitalize="none">
-                <label for="new-owner-password">Parol</label><input id="new-owner-password" v-model="newClient.password" type="password" maxlength="128" autocomplete="new-password">
-                <button type="button" class="primary-button" :disabled="creatingClient" @click="createClientHere">{{ creatingClient ? 'Saqlanmoqda…' : 'Mijozni saqlash' }}</button>
-              </div>
-              <select v-model="form.owner" aria-label="Tanlash">
-                <option :value="null">O'zim (Platforma administratori)</option>
-                <option v-for="cl in clientsList" :key="cl.id" :value="cl.id">
-                  {{ cl.profile?.full_name || cl.username }} (@{{ cl.username }})
-                </option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label>Tavsif</label>
-              <textarea v-model="form.description" rows="3" placeholder="Xizmat haqida" />
-            </div>
-
-            <div class="form-row">
-              <div class="form-group">
-                <label>Telefon</label>
-                <input v-model="form.phone" type="tel" placeholder="+998 90 123 45 67">
-              </div>
-              <div class="form-group">
-                <label>Email</label>
-                <input v-model="form.email" type="email" placeholder="info@club.uz">
-              </div>
-            </div>
-
-            <div class="form-row">
-              <div class="form-group">
-                <label>Vebsayt</label>
-                <input v-model="form.website" type="url" placeholder="https://club.uz">
-              </div>
-              <div class="form-group">
-                <label>Holat</label>
-                <select v-model="form.status" aria-label="Tanlash">
-                  <option value="ACTIVE">Faol</option>
-                  <option value="INACTIVE">Nofaol</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="form-checkbox">
-              <label>
-                <input v-model="form.is_verified" type="checkbox">
-                <span>Tekshiruvdan o'tgan deb belgilash (Verified badge)</span>
-              </label>
-            </div>
-
-            <div class="modal-actions">
-              <button type="button" class="secondary-button" @click="showModal = false">
-                Bekor qilish
-              </button>
-              <button type="submit" class="primary-button" :disabled="isSaving || creatingClient || isDistrictLoading">
-                {{ isSaving ? "Saqlanmoqda..." : "Saqlash" }}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </Teleport>
   </div>
 </template>
 
 <style scoped>
-.inline-client-form { display: grid; gap: 8px; padding: 16px; border: 1px solid var(--panel-border); border-radius: 10px; margin: 10px 0; }
 .admin-page {
   display: flex;
   flex-direction: column;
@@ -608,6 +382,9 @@ useDialogFocus(showModal, "#cabinet-clubs-showModal", () => { showModal.value = 
 }
 
 .action-btn {
+  display: inline-flex;
+  align-items: center;
+  color: inherit;
   padding: 6px 8px;
   border-radius: 6px;
   border: 1px solid var(--border);
@@ -636,102 +413,4 @@ useDialogFocus(showModal, "#cabinet-clubs-showModal", () => { showModal.value = 
   color: var(--muted);
 }
 
-/* Modal */
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  display: grid;
-  place-items: center;
-  padding: 16px;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(8px);
-}
-
-.modal-card {
-  width: min(100%, 540px);
-  padding: 24px;
-  background: var(--surface);
-  border: 1px solid var(--panel-border);
-  border-radius: 20px;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
-}
-
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 20px;
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 750;
-}
-
-.modal-close-btn {
-  background: none;
-  border: none;
-  font-size: 16px;
-  color: var(--muted);
-  cursor: pointer;
-}
-
-.modal-form {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  flex: 1;
-}
-
-.form-group label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--muted);
-}
-
-.form-group input, .form-group textarea, .form-group select {
-  padding: 10px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--control);
-  color: var(--text);
-  font-size: 13px;
-}
-
-.form-row {
-  display: flex;
-  gap: 12px;
-}
-
-.form-checkbox label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.form-error {
-  margin: 0;
-  padding: 10px;
-  border-radius: 8px;
-  background: rgba(239, 68, 68, 0.15);
-  color: #ef4444;
-  font-size: 12px;
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 10px;
-}
 </style>

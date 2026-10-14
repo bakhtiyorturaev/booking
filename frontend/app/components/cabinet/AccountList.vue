@@ -140,7 +140,7 @@ useDialogFocus(showRoleModal, "#cabinet-users-showRoleModal", () => { showRoleMo
 
 <template>
   <div class="admin-page">
-    <div v-if="createdClient" class="cabinet-success-banner" role="status"><span>@{{ createdClient.username }} qo‘shildi.</span><NuxtLink :to="{ path: cabinetPath('/clubs'), query: { owner: createdClient.id } }" class="secondary-button">Xizmat qo‘shish</NuxtLink></div>
+    <div v-if="createdClient" class="cabinet-success-banner" role="status"><span>@{{ createdClient.username }} qo‘shildi.</span><NuxtLink :to="{ path: cabinetPath('/clubs/new'), query: { owner: createdClient.id } }" class="secondary-button">Xizmat qo‘shish</NuxtLink></div>
 
     <!-- Filters Bar -->
     <div class="filter-bar cabinet-list-toolbar">
