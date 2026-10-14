@@ -197,7 +197,16 @@ const resetFilters = () => {
       <h4 class="filter-group-heading">{{ t("filter.service_type") }}</h4>
       <div class="select-box-list">
         <button v-for="service in serviceOptions" :key="service.id" type="button" class="select-box-item service-filter-option" :class="{ checked: localState.service_type === service.code }" :aria-pressed="localState.service_type === service.code" @click="selectService(service.code)">
-          <span class="custom-checkbox" aria-hidden="true"><span v-if="localState.service_type === service.code" class="check-icon">✓</span></span>
+          <span class="custom-checkbox" aria-hidden="true">
+            <svg
+              v-if="localState.service_type === service.code"
+              class="check-icon"
+              viewBox="0 0 16 16"
+              fill="currentColor"
+            >
+              <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z" />
+            </svg>
+          </span>
           <span class="select-box-label">{{ service.name }}</span>
         </button>
       </div>
