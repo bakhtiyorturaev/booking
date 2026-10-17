@@ -304,7 +304,7 @@ def create_booking(user, hold_id):
 
 @transaction.atomic
 def cancel_booking(user, booking_id, reason="", *, operator=False):
-    queryset = Booking.objects.select_for_update().select_related("zone__branch__club", "barber__club", "barber__branch")
+    queryset = Booking.objects.select_for_update(of=("self",)).select_related("zone__branch__club", "barber__club", "barber__branch")
     booking = queryset.get(pk=booking_id) if operator else queryset.get(pk=booking_id, user=user)
     if operator:
         from apps.clubs.permissions import can_manage_club, is_platform_admin
@@ -347,7 +347,7 @@ def transition_booking_for_operator(user, booking_id, target_status):
     from apps.clubs.permissions import can_manage_club, is_platform_admin
 
     booking = (
-        Booking.objects.select_for_update()
+        Booking.objects.select_for_update(of=("self",))
         .select_related("zone__branch__club", "barber__club", "barber__branch")
         .get(pk=booking_id)
     )
@@ -421,7 +421,7 @@ def create_barber_booking(user, barber_id, starts_at, ends_at):
     from apps.barbers.services import get_barber_available_slots
     from apps.payments.barber_billing import require_barber_access
     get_user_model().objects.select_for_update().get(pk=user.pk)
-    barber = Barber.objects.select_for_update().select_related("branch__club", "club", "billing").get(pk=barber_id)
+    barber = Barber.objects.select_for_update(of=("self",)).select_related("branch__club", "club", "billing").get(pk=barber_id)
     require_barber_access(barber)
     if starts_at <= timezone.now() or ends_at - starts_at != timedelta(hours=1):
         raise ValidationError("bookings.invalid_time_range", code="bookings.invalid_time_range")
