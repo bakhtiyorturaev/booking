@@ -149,7 +149,11 @@ const handleLogout = async () => {
         <div v-for="group in navGroups" :key="group.label" class="cabinet-nav-group">
           <p class="cabinet-nav-label">{{ group.label }}</p>
           <template v-for="item in group.items" :key="item.to">
-            <template v-if="item.to === cabinetPath('/users')">
+            <template v-if="isStaff && item.to === cabinetPath('/clubs')">
+              <NuxtLink :to="item.to" class="cabinet-nav-link" :class="{ 'is-active': isActive(item) && !route.query.service_type }"><FontAwesomeIcon :icon="item.icon" /><span>{{ item.label }}</span></NuxtLink>
+              <AppCategoryNav cabinet class="cabinet-service-navigation" @navigate="closeSidebar" />
+            </template>
+            <template v-else-if="item.to === cabinetPath('/users')">
               <button type="button" class="cabinet-nav-link clients-menu-toggle" :class="{ 'is-active': isActive(item) }" :aria-expanded="clientsMenuOpen" aria-controls="clients-submenu" @click="clientsMenuOpen = !clientsMenuOpen">
                 <FontAwesomeIcon :icon="item.icon" /><span>{{ item.label }}</span><FontAwesomeIcon :icon="faChevronRight" class="nav-arrow" :class="{ 'submenu-open': clientsMenuOpen }" />
               </button>

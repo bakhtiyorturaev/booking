@@ -29,7 +29,7 @@ const billingStatuses = useCabinetBillingCache()
 const isLoading = ref(true)
 const searchQuery = ref("")
 const selectedStatus = ref("")
-const selectedCategory = ref("")
+const selectedCategory = ref(typeof route.query.service_type === "string" ? route.query.service_type : "")
 const totalCount = ref(0)
 const errorMessage = ref("")
 
@@ -80,6 +80,11 @@ const deleteClub = async (club: any) => {
     console.error("Failed to delete club", err)
   }
 }
+
+watch(() => route.query.service_type, (value) => {
+  selectedCategory.value = typeof value === "string" ? value : ""
+  void fetchClubs()
+})
 
 onMounted(async () => {
   if (isPlatformAdmin.value && typeof route.query.owner === "string") {

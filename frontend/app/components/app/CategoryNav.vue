@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { useServiceTypesApi, type ServiceTypeOption } from "~/api/serviceTypes"
+import { useAdminApi } from "~/api/admin"
 import { serviceTreeOptions } from "~/utils/serviceTree"
+
+const props = defineProps<{ cabinet?: boolean }>()
+const cabinetPath = useCabinetPath()
+const adminApi = useAdminApi()
 
 const emit = defineEmits<{ (event: "navigate"): void }>()
 const route = useRoute()
@@ -8,9 +13,12 @@ const { locale } = useTranslations()
 const serviceTypesApi = useServiceTypesApi()
 
 // Katalog sahifasi bilan bir xil kalit: so'rov bir marta bajariladi.
-const { data } = await useAsyncData("public-service-types", () => serviceTypesApi.list())
+const { data } = await useAsyncData(
+  props.cabinet ? "cabinet-navigation-service-types" : "public-service-types",
+  () => props.cabinet ? adminApi.getServiceTypes() : serviceTypesApi.list(),
+)
 const services = computed<ServiceTypeOption[]>(() => Array.isArray(data.value)
-  ? data.value.map(service => ({ ...service, name: service.translations?.[locale.value] || service.name }))
+  ? data.value.map(service => ({ ...service, name: service.translations?.[locale.value] || (locale.value === "ru" && "name_ru" in service ? service.name_ru as string : locale.value === "en" && "name_en" in service ? service.name_en as string : "") || service.name }))
   : [])
 const expanded = ref<Set<string>>(new Set())
 const hasChildren = (id: string) => services.value.some(service => service.parent === id)
@@ -30,10 +38,16 @@ const serviceRows = computed(() => serviceTreeOptions(services.value).filter(ser
   }
   return true
 }))
-const activeCode = computed(() => route.path === "/catalog" && route.query.all !== "1"
-  ? typeof route.query.service === "string" ? route.query.service
-    : services.value.find(service => service.code.toUpperCase() === "GAMING_CLUB")?.code ?? services.value[0]?.code
-  : null)
+const serviceTarget = (service: ServiceTypeOption) => props.cabinet
+  ? { path: cabinetPath("/clubs"), query: { service_type: service.id } }
+  : { path: "/catalog", query: { service: service.code } }
+const activeCode = computed(() => {
+  if (props.cabinet) return route.path === cabinetPath("/clubs")
+    ? services.value.find(service => service.id === route.query.service_type)?.code ?? null : null
+  if (route.path !== "/catalog" || route.query.all === "1") return null
+  return typeof route.query.service === "string" ? route.query.service
+    : services.value.find(service => service.code.toUpperCase() === "GAMING_CLUB")?.code ?? services.value[0]?.code ?? null
+})
 watch(activeCode, (code) => {
   const next = new Set(expanded.value)
   let service = services.value.find(item => item.code === code)
@@ -53,7 +67,7 @@ watch(activeCode, (code) => {
       <template v-for="service in serviceRows" :key="service.id">
         <div v-if="hasChildren(service.id)" class="category-parent-row" :style="{ paddingInlineStart: `${service.depth * 14}px` }">
           <NuxtLink
-            :to="{ path: '/catalog', query: { service: service.code } }"
+            :to="serviceTarget(service)"
             :class="{ active: activeCode === service.code }"
             :aria-current="activeCode === service.code ? 'page' : undefined"
             @click="emit('navigate')"
@@ -70,7 +84,7 @@ watch(activeCode, (code) => {
         </div>
         <NuxtLink
           v-else
-          :to="{ path: '/catalog', query: { service: service.code } }"
+          :to="serviceTarget(service)"
           :class="{ active: activeCode === service.code }"
           :aria-current="activeCode === service.code ? 'page' : undefined"
           :style="{ paddingInlineStart: `${12 + service.depth * 14}px` }"
