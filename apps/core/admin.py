@@ -39,8 +39,20 @@ class DistrictAdmin(admin.ModelAdmin):
 @admin.register(ServiceType)
 class ServiceTypeAdmin(admin.ModelAdmin):
     list_display = ("name", "parent", "name_ru", "name_en", "code", "is_active", "sort_order")
+    list_filter = ("is_active",)
+    ordering = ("sort_order", "name")
     autocomplete_fields = ("parent",)
     search_fields = ("name", "name_ru", "name_en", "code")
+
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        for field in ("name", "name_ru", "name_en"):
+            if field in form.base_fields:
+                form.base_fields[field].required = True
+        return form
+
+    def get_changeform_initial_data(self, request):
+        return {**super().get_changeform_initial_data(request), "is_active": False}
 
     def has_add_permission(self, request):
         return request.user.is_superuser

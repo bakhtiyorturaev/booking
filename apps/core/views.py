@@ -15,7 +15,7 @@ class PublicServiceTypeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ServiceType
-        fields = ("id", "code", "name", "parent", "translations")
+        fields = ("id", "code", "name", "parent", "translations", "sort_order", "is_active")
 
     def get_translations(self, obj):
         return {"uz": obj.name, "ru": obj.name_ru or obj.name, "en": obj.name_en or obj.name}

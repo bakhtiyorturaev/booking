@@ -2,8 +2,7 @@
 
 - `dev`: shared development branch. Developers push their changes here.
 - `prod`: release branch. The repository owner reviews and promotes tested changes from `dev` through a pull request.
-
-Use `prod` as the GitHub default branch. The repository uses only `dev` and `prod` for ongoing work.
+- `main`: consolidated starting point; ongoing development uses `dev`.
 
 ## Developer workflow
 

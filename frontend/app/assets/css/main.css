@@ -3005,3 +3005,58 @@ a {
     align-items: flex-start;
   }
 }
+
+/* Keep service navigation visible on laptop and desktop screens. */
+.customer-desktop-sidebar { display: none; }
+
+@media (min-width: 1024px) {
+  .customer-desktop-sidebar {
+    position: fixed;
+    z-index: 20;
+    inset: 54px auto 0 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 240px;
+    padding: 14px;
+    overflow-y: auto;
+    border-right: 1px solid var(--panel-border);
+    background: var(--panel);
+  }
+  .customer-main {
+    width: min(1400px, calc(100% - 288px));
+    margin-left: max(264px, calc((100% + 240px - 1400px) / 2));
+    min-width: 0;
+  }
+  .customer-header-start > .customer-menu-button,
+  .customer-drawer,
+  .customer-drawer-backdrop { display: none; }
+}
+
+/* Translucent service navigation with a soft glass rim. */
+.customer-desktop-sidebar,
+.customer-drawer {
+  border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+  background:
+    radial-gradient(ellipse at 0 0, rgba(167, 139, 250, .15), transparent 65%),
+    linear-gradient(145deg, rgba(255, 255, 255, .1), transparent 45%),
+    color-mix(in srgb, var(--panel) 72%, transparent);
+  -webkit-backdrop-filter: blur(28px) saturate(160%);
+  backdrop-filter: blur(28px) saturate(160%);
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, .18), inset -1px -1px 0 rgba(255, 255, 255, .04), 0 12px 36px rgba(0, 0, 0, .14);
+  scrollbar-width: thin;
+}
+.customer-drawer { top: 10px; bottom: 10px; left: 10px; border-radius: 24px; }
+:root[data-theme="light"] .customer-desktop-sidebar,
+:root[data-theme="light"] .customer-drawer {
+  background:
+    radial-gradient(ellipse at 0 0, rgba(139, 92, 246, .09), transparent 65%),
+    linear-gradient(145deg, rgba(255, 255, 255, .85), rgba(255, 255, 255, .5));
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, .95), 0 12px 36px rgba(51, 41, 87, .08);
+}
+@media (min-width: 1024px) {
+  .customer-desktop-sidebar { inset: 66px auto 12px 12px; width: 228px; border-radius: 24px; }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .customer-desktop-sidebar, .customer-drawer { background: var(--panel); }
+}

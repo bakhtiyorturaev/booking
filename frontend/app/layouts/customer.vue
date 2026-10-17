@@ -101,7 +101,15 @@ const onAuthenticated = async () => {
       </div>
     </header>
 
-    <!-- Yon panel: kategoriyalar (hamburger orqali ochiladi) -->
+    <aside class="customer-desktop-sidebar" :aria-label="t('nav.menu') || 'Menyu'">
+      <NuxtLink to="/" exact-active-class="active" class="customer-drawer-home">
+        <FontAwesomeIcon :icon="faHouse" />
+        <span>{{ t("nav.home") }}</span>
+      </NuxtLink>
+      <AppCategoryNav />
+    </aside>
+
+    <!-- Mobile service drawer -->
     <div v-show="menuOpen" class="customer-drawer-backdrop" @click="closeMenu" />
     <aside id="customer-drawer" class="customer-drawer" :class="{ open: menuOpen }" :aria-hidden="!menuOpen" :inert="!menuOpen" :aria-label="t('nav.menu') || 'Menyu'">
       <div class="customer-drawer-head">
@@ -114,7 +122,7 @@ const onAuthenticated = async () => {
         <FontAwesomeIcon :icon="faHouse" />
         <span>{{ t("nav.home") }}</span>
       </NuxtLink>
-      <AppCategoryNav @navigate="closeMenu" />
+      <AppCategoryNav v-if="menuOpen" @navigate="closeMenu" />
     </aside>
 
     <main class="customer-main">

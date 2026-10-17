@@ -173,6 +173,10 @@ class PublicZoneSerializer(serializers.ModelSerializer):
 
 
 class ServiceTypeManagementSerializer(CleanModelSerializer):
+    name_ru = serializers.CharField(max_length=100, allow_blank=False)
+    name_en = serializers.CharField(max_length=100, allow_blank=False)
+    is_active = serializers.BooleanField(default=False)
+
     def validate(self, attrs):
         if self.instance and attrs.get("code", self.instance.code) != self.instance.code:
             raise serializers.ValidationError({"code": "Mavjud xizmat kodini o‘zgartirib bo‘lmaydi."})

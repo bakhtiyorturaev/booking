@@ -29,6 +29,7 @@ from apps.core.services.service_types import active_service_ids, ancestor_servic
 from apps.clubs.permissions import (
     IsClubOperator,
     IsStaffOrReadOnly,
+    IsSuperuserOrReadOnly,
     IsOwnerOrPlatformAdmin,
     can_manage_club,
     is_platform_admin,
@@ -1006,7 +1007,7 @@ class CabinetResourceBlockViewSet(CabinetAccessMixin, viewsets.ModelViewSet):
 
 
 class ServiceTypeViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated, IsStaffOrReadOnly]
+    permission_classes = [IsAuthenticated, IsSuperuserOrReadOnly]
     serializer_class = ServiceTypeManagementSerializer
     pagination_class = None
 

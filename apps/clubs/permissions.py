@@ -73,3 +73,10 @@ class IsStaffOrReadOnly(BasePermission):
 
     def has_permission(self, request, view):
         return request.method in SAFE_METHODS or is_platform_admin(request.user)
+
+
+class IsSuperuserOrReadOnly(BasePermission):
+    def has_permission(self, request, view):
+        return request.method in SAFE_METHODS or bool(
+            request.user and request.user.is_authenticated and request.user.is_superuser
+        )

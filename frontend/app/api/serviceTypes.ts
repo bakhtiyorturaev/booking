@@ -5,6 +5,8 @@ export interface ServiceTypeOption {
   code: string
   name: string
   translations?: Partial<Record<"uz" | "ru" | "en", string>>
+  sort_order: number
+  is_active: boolean
   parent?: string | null
 }
 

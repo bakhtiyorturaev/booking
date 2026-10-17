@@ -1,98 +1,98 @@
 <script setup lang="ts">
-import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome"
-import { faArrowRight, faFire } from "@fortawesome/free-solid-svg-icons"
 import { useBranchesApi } from "~/api/branches"
-import { useServiceTypesApi, type ServiceTypeOption } from "~/api/serviceTypes"
-import BranchCard from "~/components/catalog/BranchCard.vue"
+import type { BranchListSummary } from "~/types/club"
 
 definePageMeta({ layout: "customer" })
-
-const TOP_LIMIT = 8
-
+useHead({ title: "RezervUZ — Yaqin xizmatlarni toping" })
 const branchesApi = useBranchesApi()
-const serviceTypesApi = useServiceTypesApi()
-const { locale, load, t } = useTranslations()
-await load()
-
-useHead({ title: computed(() => `${t("home.top_label")} — ${t("nav.home")}`) })
-
-const { data: serviceTypeData } = await useAsyncData("public-service-types", () => serviceTypesApi.list())
-const roots = computed<ServiceTypeOption[]>(() => Array.isArray(serviceTypeData.value)
-  ? serviceTypeData.value
-    .filter(service => !service.parent)
-    .map(service => ({ ...service, name: service.translations?.[locale.value] || service.name }))
-  : [])
-
-type TopBranch = Awaited<ReturnType<typeof branchesApi.top>>[number]
-
-const { data: topLists, status } = await useAsyncData("home-top-branches", async () => {
-  const lists: Record<string, TopBranch[]> = {}
-  await Promise.all(roots.value.map(async (service) => {
-    try {
-      const result = await branchesApi.top({ service_category: service.code, limit: TOP_LIMIT })
-      lists[service.code] = Array.isArray(result) ? result : []
-    } catch (error) {
-      console.error("Fetch top branches error:", error)
-      lists[service.code] = []
-    }
-  }))
-  return lists
-})
-
-const sections = computed(() => roots.value
-  .map(service => ({ service, branches: topLists.value?.[service.code] ?? [] }))
-  .filter(section => section.branches.length))
+const location = ref<{ latitude: number; longitude: number } | null>(null)
+const locating = ref(false)
+const selectedId = ref<string | null>(null)
+const { data: result, status, error, refresh } = await useAsyncData("home-map-branches", () => branchesApi.list({
+  ...(location.value ? { ...location.value, ordering: "distance" } : { ordering: "-rating" }),
+}), { watch: [location] })
+const branches = computed<BranchListSummary[]>(() => (result.value?.results || []).filter(branch => {
+  if (branch.latitude == null || branch.longitude == null || branch.latitude === "" || branch.longitude === "") return false
+  return Number.isFinite(Number(branch.latitude)) && Number.isFinite(Number(branch.longitude))
+    && Math.abs(Number(branch.latitude)) <= 90 && Math.abs(Number(branch.longitude)) <= 180
+}))
+watch(branches, () => { selectedId.value = null })
+const locate = () => {
+  if (locating.value) return
+  if (!navigator.geolocation) return
+  locating.value = true
+  navigator.geolocation.getCurrentPosition(position => {
+    location.value = { latitude: position.coords.latitude, longitude: position.coords.longitude }
+    locating.value = false
+  }, () => {
+    locating.value = false
+  }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 })
+}
+onMounted(locate)
 </script>
 
 <template>
-  <div class="top-page">
-    <header class="top-page-head">
-      <h1><FontAwesomeIcon :icon="faFire" /> {{ t("home.top_label") }}</h1>
-      <p>{{ t("home.top_subtitle") }}</p>
-    </header>
-
-    <div v-if="status === 'pending' && !sections.length" class="top-empty" aria-live="polite">Yuklanmoqda…</div>
-    <div v-else-if="!sections.length" class="top-empty">{{ t("home.top_empty") }}</div>
-
-    <section v-for="section in sections" :key="section.service.id" class="top-section" :aria-label="`${t('home.top_label')} ${section.service.name}`">
-      <div class="top-section-head">
-        <h2>{{ t("home.top_label") }} <span>{{ section.service.name }}</span></h2>
-        <NuxtLink :to="{ path: '/catalog', query: { service: section.service.code } }" class="top-view-all">
-          {{ t("home.top_view_all") }} <FontAwesomeIcon :icon="faArrowRight" />
-        </NuxtLink>
+  <div class="discovery-page">
+    <section class="discovery-ad" aria-label="RezervUZ reklamasi">
+      <div class="ad-copy">
+        <span class="ad-eyebrow">REZERVUZ · SIZNING VAQTINGIZ QADRLI</span>
+        <h1>Yaqin joy.<br>Qulay vaqt.<br><span>Hammasi bir joyda.</span></h1>
+        <p>O‘yin klublari, sport zallari va sartaroshxonalar. O‘zingizga mos xizmatni toping va vaqtingizni oldindan bron qiling.</p>
+        <div class="ad-benefits" aria-label="RezervUZ bilan qulayliklar">
+          <span>Vaqtingizni tejang</span>
+          <span>Uzoq kutmang</span>
+          <span>Oldindan bron qiling</span>
+        </div>
       </div>
-      <ol class="top-row">
-        <li v-for="(branch, index) in section.branches" :key="branch.id" class="top-item">
-          <span class="top-rank" :class="{ 'top-rank--lead': index < 3 }" aria-hidden="true">{{ index + 1 }}</span>
-          <span v-if="branch.bookings_30d > 0" class="top-bookings">{{ t("home.top_bookings", { count: branch.bookings_30d }) }}</span>
-          <BranchCard :branch="branch" />
-        </li>
-      </ol>
+      <div class="ad-art" aria-hidden="true">
+        <div class="ad-orbit orbit-one" /><div class="ad-orbit orbit-two" />
+        <div class="ad-pin">R<span>REZERVUZ</span></div>
+        <span class="ad-tag tag-one">O‘ynang</span><span class="ad-tag tag-two">Dam oling</span><span class="ad-tag tag-three">Vaqtingizni bron qiling</span>
+      </div>
+      <span class="ad-label">Reklama</span>
+    </section>
+
+    <section class="discovery-nearby" aria-label="Yaqin xizmatlar xaritasi">
+      <div class="map-workspace" :aria-busy="status === 'pending'">
+        <div class="map-panel">
+          <button type="button" class="map-locate" :disabled="locating" :aria-busy="locating" aria-label="Mening joylashuvim" title="Mening joylashuvim" @click="locate"><span aria-hidden="true">◎</span></button>
+          <ClientOnly><DiscoveryNearbyMap :branches="branches" :location="location" :selected-id="selectedId" @select="selectedId = $event" /><template #fallback><div class="map-loading">Xarita yuklanmoqda…</div></template></ClientOnly>
+          <div v-if="error" class="map-progress" role="alert">Xizmatlarni yuklab bo‘lmadi. <button type="button" @click="refresh()">Qayta urinish</button></div>
+          <span v-else-if="status === 'pending'" class="map-progress" role="status">Xizmatlar yuklanmoqda…</span>
+        </div>
+      </div>
     </section>
   </div>
 </template>
 
 <style scoped>
-.top-page { display: flex; flex-direction: column; gap: 22px; width: 100%; max-width: 1440px; margin: 0 auto; padding: 8px 0 40px; }
-.top-page-head h1 { display: flex; align-items: center; gap: 10px; margin: 0; font-size: 24px; font-weight: 850; color: var(--text); }
-.top-page-head h1 svg { color: #f97316; }
-.top-page-head p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
-.top-empty { padding: 40px; border: 1px dashed var(--border); border-radius: 16px; background: var(--surface); color: var(--muted); text-align: center; }
-.top-section { display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1px solid var(--panel-border); border-radius: 18px; background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(10px); }
-.top-section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.top-section-head h2 { margin: 0; font-size: 17px; font-weight: 800; color: var(--text); }
-.top-section-head h2 span { color: var(--accent); }
-.top-view-all { display: inline-flex; align-items: center; gap: 6px; color: var(--accent); font-size: 13px; font-weight: 700; text-decoration: none; white-space: nowrap; }
-.top-view-all:hover { text-decoration: underline; }
-.top-row { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(215px, 235px); gap: 14px; margin: 0; padding: 4px 2px 10px; overflow-x: auto; list-style: none; scroll-snap-type: x proximity; scrollbar-width: thin; }
-.top-item { position: relative; scroll-snap-align: start; min-width: 0; }
-.top-rank { position: absolute; z-index: 2; top: 8px; left: 8px; display: grid; place-items: center; min-width: 28px; height: 28px; padding: 0 6px; border-radius: 8px; background: rgba(15, 23, 42, 0.78); color: #fff; font-size: 13px; font-weight: 850; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); }
-.top-rank--lead { background: linear-gradient(135deg, #f59e0b, #f97316); }
-.top-bookings { position: absolute; z-index: 2; top: 8px; right: 48px; padding: 4px 8px; border-radius: 8px; background: rgba(15, 23, 42, 0.78); color: #fff; font-size: 11px; font-weight: 700; }
-@media (max-width: 640px) {
-  .top-page { gap: 16px; padding-top: 4px; }
-  .top-page-head h1 { font-size: 20px; }
-  .top-section { padding: 10px; border-radius: 14px; }
-  .top-row { grid-auto-columns: minmax(170px, 190px); gap: 10px; }
+.discovery-page { display: grid; gap: 32px; padding-bottom: 24px; }
+.discovery-ad { position: relative; display: grid; grid-template-columns: 1.15fr 1fr; align-items: center; min-height: clamp(340px, 46svh, 520px); overflow: hidden; padding: clamp(24px, 4vw, 56px); border-radius: 24px; background: radial-gradient(ellipse at 80% 25%, #5149a3 0, transparent 55%), linear-gradient(120deg, #14142b, #252154); color: white; }
+.ad-copy { position: relative; z-index: 1; max-width: 540px; }
+.ad-eyebrow { font-size: 10px; font-weight: 750; letter-spacing: .16em; }
+.ad-eyebrow { color: #c4b5fd; }
+h1 { margin: 18px 0; font-size: clamp(30px, 3.7vw, 56px); line-height: 1.08; letter-spacing: -.045em; }
+h1 span { color: #bdb5ff; }
+.ad-copy p { max-width: 390px; color: #d0cde7; font-size: 14px; line-height: 1.7; }
+.ad-benefits { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
+.ad-benefits span { padding: 9px 12px; border: 1px solid #ffffff30; border-radius: 999px; background: #ffffff0d; color: #eeeaff; font-size: 12px; font-weight: 650; }
+.ad-art { position: relative; min-height: 280px; display: grid; place-items: center; }
+.ad-orbit { position: absolute; width: 260px; height: 260px; border: 1px solid #ffffff25; border-radius: 50%; transform: rotate(-25deg) scaleX(1.25); }
+.orbit-two { width: 190px; height: 190px; transform: rotate(30deg) scaleX(1.3); }
+.ad-pin { display: grid; place-content: center; gap: 4px; width: 140px; height: 160px; border: 1px solid #ffffff60; border-radius: 40px 40px 70px 70px; background: linear-gradient(135deg, #a89afa, #5044a6); box-shadow: 0 24px 80px #0005; font-size: 78px; font-weight: 900; text-align: center; transform: rotate(-8deg); }
+.ad-pin span { font-size: 10px; letter-spacing: .12em; }
+.ad-tag { position: absolute; padding: 10px 15px; border: 1px solid #ffffff30; border-radius: 12px; background: #ffffff15; backdrop-filter: blur(8px); font-size: 12px; }
+.tag-one { top: 12px; left: 2%; transform: rotate(-10deg); }.tag-two { right: 0; top: 60px; transform: rotate(10deg); }.tag-three { bottom: 0; left: 12%; }
+.ad-label { position: absolute; bottom: 14px; right: 18px; color: #ffffff80; font-size: 10px; }
+.discovery-nearby { display: grid; gap: 16px; }
+.locate-button { min-height: 44px; padding: 10px 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); color: var(--text); font: inherit; font-size: 13px; cursor: pointer; }.locate-button:disabled { opacity: .6; cursor: wait; }
+.map-workspace { display: grid; grid-template-columns: minmax(0, 1fr); min-height: 440px; height: 55svh; max-height: 650px; overflow: hidden; border: 1px solid var(--border); border-radius: 20px; background: var(--panel); }
+.map-panel { position: relative; min-width: 0; min-height: 0; }.map-loading { display: grid; place-items: center; height: 100%; min-height: 360px; color: var(--muted); }.map-progress { position: absolute; top: 12px; right: 12px; z-index: 1; padding: 10px; border-radius: 10px; background: var(--panel); color: var(--text); font-size: 12px; }
+@media (max-width: 767px) {
+  .discovery-page { gap: 24px; }.discovery-ad { grid-template-columns: 1fr; min-height: 42svh; border-radius: 18px; padding: 28px 22px; }.ad-copy { max-width: 100%; }.ad-art { display: none; }.ad-eyebrow { font-size: 9px; }h1 { font-size: clamp(32px, 8vw, 46px); }.ad-copy p { max-width: 100%; font-size: 13px; }.locate-button { width: 100%; }.map-workspace { display: flex; flex-direction: column; height: auto; max-height: none; }.map-panel { height: 48svh; min-height: 360px; }
 }
+.map-locate { position: absolute; z-index: 2; right: 12px; top: 12px; display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); color: var(--text); font-size: 28px; cursor: pointer; box-shadow: 0 2px 8px #0002; }
+.map-locate:disabled { opacity: .6; cursor: wait; }
+.map-locate:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.map-progress { top: 66px; }
 </style>
