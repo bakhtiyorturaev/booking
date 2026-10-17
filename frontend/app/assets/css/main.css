@@ -3033,26 +3033,36 @@ a {
   .customer-drawer-backdrop { display: none; }
 }
 
-/* Translucent service navigation with a soft glass rim. */
+/* Glass navigation: let the actual background show through the blur. */
 .customer-desktop-sidebar,
 .customer-drawer {
-  border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+  border: 1px solid rgba(255, 255, 255, .3);
   background:
-    radial-gradient(ellipse at 0 0, rgba(167, 139, 250, .15), transparent 65%),
-    linear-gradient(145deg, rgba(255, 255, 255, .1), transparent 45%),
-    color-mix(in srgb, var(--panel) 72%, transparent);
-  -webkit-backdrop-filter: blur(28px) saturate(160%);
-  backdrop-filter: blur(28px) saturate(160%);
-  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, .18), inset -1px -1px 0 rgba(255, 255, 255, .04), 0 12px 36px rgba(0, 0, 0, .14);
+    radial-gradient(ellipse at 5% 0%, rgba(255, 255, 255, .2), transparent 48%),
+    linear-gradient(135deg, rgba(255, 255, 255, .1), transparent 38%, rgba(167, 139, 250, .05)),
+    rgba(15, 23, 42, .24);
+  -webkit-backdrop-filter: blur(18px) saturate(190%);
+  backdrop-filter: blur(18px) saturate(190%);
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, .45),
+    inset -1px -1px 0 rgba(255, 255, 255, .12),
+    inset 0 0 22px rgba(255, 255, 255, .04),
+    0 12px 36px rgba(0, 0, 0, .12);
   scrollbar-width: thin;
 }
 .customer-drawer { top: 10px; bottom: 10px; left: 10px; border-radius: 24px; }
 :root[data-theme="light"] .customer-desktop-sidebar,
 :root[data-theme="light"] .customer-drawer {
+  border-color: rgba(255, 255, 255, .62);
   background:
-    radial-gradient(ellipse at 0 0, rgba(139, 92, 246, .09), transparent 65%),
-    linear-gradient(145deg, rgba(255, 255, 255, .85), rgba(255, 255, 255, .5));
-  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, .95), 0 12px 36px rgba(51, 41, 87, .08);
+    radial-gradient(ellipse at 5% 0%, rgba(255, 255, 255, .35), transparent 48%),
+    linear-gradient(135deg, rgba(255, 255, 255, .2), rgba(255, 255, 255, .04) 45%, rgba(219, 234, 254, .12)),
+    rgba(255, 255, 255, .12);
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, .9),
+    inset -1px -1px 0 rgba(255, 255, 255, .3),
+    inset 0 0 22px rgba(255, 255, 255, .1),
+    0 12px 36px rgba(51, 41, 87, .1);
 }
 @media (min-width: 1024px) {
   .customer-desktop-sidebar { inset: 66px auto 12px 12px; width: 228px; border-radius: 24px; }

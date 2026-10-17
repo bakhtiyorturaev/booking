@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome"
+import { faLocationArrow } from "@fortawesome/free-solid-svg-icons"
 import { useBranchesApi } from "~/api/branches"
 import type { BranchListSummary } from "~/types/club"
 
@@ -55,7 +57,7 @@ onMounted(locate)
     <section class="discovery-nearby" aria-label="Yaqin xizmatlar xaritasi">
       <div class="map-workspace" :aria-busy="status === 'pending'">
         <div class="map-panel">
-          <button type="button" class="map-locate" :disabled="locating" :aria-busy="locating" aria-label="Mening joylashuvim" title="Mening joylashuvim" @click="locate"><span aria-hidden="true">◎</span></button>
+          <button type="button" class="map-locate" :disabled="locating" :aria-busy="locating" aria-label="Mening joylashuvim" title="Mening joylashuvim" @click="locate"><FontAwesomeIcon :icon="faLocationArrow" aria-hidden="true" /></button>
           <ClientOnly><DiscoveryNearbyMap :branches="branches" :location="location" :selected-id="selectedId" @select="selectedId = $event" /><template #fallback><div class="map-loading">Xarita yuklanmoqda…</div></template></ClientOnly>
           <div v-if="error" class="map-progress" role="alert">Xizmatlarni yuklab bo‘lmadi. <button type="button" @click="refresh()">Qayta urinish</button></div>
           <span v-else-if="status === 'pending'" class="map-progress" role="status">Xizmatlar yuklanmoqda…</span>
@@ -89,9 +91,21 @@ h1 span { color: #bdb5ff; }
 .map-workspace { display: grid; grid-template-columns: minmax(0, 1fr); min-height: 440px; height: 55svh; max-height: 650px; overflow: hidden; border: 1px solid var(--border); border-radius: 20px; background: var(--panel); }
 .map-panel { position: relative; min-width: 0; min-height: 0; }.map-loading { display: grid; place-items: center; height: 100%; min-height: 360px; color: var(--muted); }.map-progress { position: absolute; top: 12px; right: 12px; z-index: 1; padding: 10px; border-radius: 10px; background: var(--panel); color: var(--text); font-size: 12px; }
 @media (max-width: 767px) {
-  .discovery-page { gap: 24px; }.discovery-ad { grid-template-columns: 1fr; min-height: 42svh; border-radius: 18px; padding: 28px 22px; }.ad-copy { max-width: 100%; }.ad-art { display: none; }.ad-eyebrow { font-size: 9px; }h1 { font-size: clamp(32px, 8vw, 46px); }.ad-copy p { max-width: 100%; font-size: 13px; }.locate-button { width: 100%; }.map-workspace { display: flex; flex-direction: column; height: auto; max-height: none; }.map-panel { height: 48svh; min-height: 360px; }
+  .discovery-page { gap: 14px; }
+  .discovery-ad { grid-template-columns: 1fr; min-height: 0; border-radius: 16px; padding: 18px 18px 24px; }
+  .ad-copy { max-width: 100%; }
+  .ad-art, .ad-copy p { display: none; }
+  .ad-eyebrow { display: block; font-size: 8px; letter-spacing: .1em; }
+  h1 { margin: 10px 0 12px; font-size: clamp(23px, 6vw, 28px); line-height: 1.1; }
+  .ad-benefits { gap: 5px; margin-top: 0; }
+  .ad-benefits span { padding: 6px 8px; font-size: 10px; line-height: 1.3; }
+  .ad-label { right: 12px; bottom: 7px; font-size: 8px; }
+  .locate-button { width: 100%; }
+  .map-workspace { display: flex; flex-direction: column; height: auto; max-height: none; }
+  .map-panel { height: 48svh; min-height: 360px; }
 }
-.map-locate { position: absolute; z-index: 2; right: 12px; top: 12px; display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); color: var(--text); font-size: 28px; cursor: pointer; box-shadow: 0 2px 8px #0002; }
+
+.map-locate { position: absolute; z-index: 2; right: 12px; top: 12px; display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); color: var(--text); font-size: 19px; cursor: pointer; box-shadow: 0 2px 8px #0002; }
 .map-locate:disabled { opacity: .6; cursor: wait; }
 .map-locate:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .map-progress { top: 66px; }
