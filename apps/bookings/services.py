@@ -72,6 +72,7 @@ def _overlaps(item, starts_at, ends_at):
 def get_branch_availability(branch, target_date, duration_minutes=None):
     if not branch_accepts_bookings(branch):
         return []
+    duration_minutes = duration_minutes or branch.minimum_booking_minutes
     version_key = f"branch_avail_ver:{branch.id}"
     version = cache.get(version_key)
     if version is None:
@@ -84,8 +85,8 @@ def get_branch_availability(branch, target_date, duration_minutes=None):
         return cached_data
 
     window = _schedule_window(branch, target_date)
-    duration_minutes = duration_minutes or branch.minimum_booking_minutes
     if not window:
+        cache.set(cache_key, [], timeout=30)
         return []
 
     opens_at, closes_at = window

@@ -68,7 +68,7 @@ class BranchAvailabilityAPIView(APIView):
                     {
                         "id": item["zone"].id,
                         "name": item["zone"].name,
-                        "capacity": item["zone"].capacity,
+                        "capacity": item["zone"].booking_capacity,
                         "booking_type": item["zone"].booking_type,
                         "unit_count": item["zone"].unit_count,
                         "price_per_hour_tiyin": item["zone"].price_per_hour_tiyin,
