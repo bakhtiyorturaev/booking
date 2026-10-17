@@ -118,6 +118,10 @@ const onAuthenticated = async () => {
           <FontAwesomeIcon :icon="faXmark" />
         </button>
       </div>
+      <NuxtLink v-if="auth.isAuthenticated.value" to="/bookings" exact-active-class="active" class="customer-drawer-home customer-bookings-link" @click="closeMenu">
+        <FontAwesomeIcon :icon="faCalendarCheck" />
+        <span>{{ t("bookings.my_bookings") }}</span>
+      </NuxtLink>
       <NuxtLink to="/" exact-active-class="active" class="customer-drawer-home" @click="closeMenu">
         <FontAwesomeIcon :icon="faHouse" />
         <span>{{ t("nav.home") }}</span>
@@ -138,6 +142,14 @@ const onAuthenticated = async () => {
 </template>
 
 <style scoped>
+.customer-bookings-link {
+  min-height: 48px;
+  margin-bottom: 6px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
 .login-trigger-btn {
   border: 0;
   cursor: pointer;

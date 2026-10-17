@@ -2,6 +2,8 @@
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome"
 import {
   faCalendar,
+  faCalendarCheck,
+  faChevronRight,
   faHeart,
   faLocationDot,
   faPen,
@@ -262,6 +264,12 @@ const favoriteBranches = computed(() => {
       </div>
 
       <!-- Personal Details Card -->
+      <NuxtLink to="/bookings" class="profile-bookings-link">
+        <span class="profile-bookings-icon"><FontAwesomeIcon :icon="faCalendarCheck" /></span>
+        <span>{{ t("bookings.my_bookings") }}</span>
+        <FontAwesomeIcon :icon="faChevronRight" class="profile-bookings-arrow" />
+      </NuxtLink>
+
       <article class="profile-section-card">
         <header class="profile-section-header">
           <h2>{{ t("profile.personal_details") }}</h2>
@@ -369,6 +377,12 @@ const favoriteBranches = computed(() => {
 </template>
 
 <style scoped>
+.profile-bookings-link { display: flex; align-items: center; gap: 14px; min-height: 70px; padding: 14px 18px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); color: var(--text); text-decoration: none; font-size: 16px; font-weight: 750; }
+.profile-bookings-icon { display: grid; place-items: center; width: 42px; height: 42px; flex-shrink: 0; border-radius: 12px; background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); font-size: 20px; }
+.profile-bookings-arrow { margin-left: auto; color: var(--muted); font-size: 14px; }
+.profile-bookings-link:hover { border-color: var(--accent); }
+.profile-bookings-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
 .profile-page-wrapper {
   width: 100%;
   padding: 24px 16px 64px;

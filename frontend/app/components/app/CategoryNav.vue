@@ -34,23 +34,40 @@ const activeCode = computed(() => route.path === "/catalog" && route.query.all !
   ? typeof route.query.service === "string" ? route.query.service
     : services.value.find(service => service.code.toUpperCase() === "GAMING_CLUB")?.code ?? services.value[0]?.code
   : null)
+watch(activeCode, (code) => {
+  const next = new Set(expanded.value)
+  let service = services.value.find(item => item.code === code)
+  const seen = new Set<string>()
+  while (service?.parent && !seen.has(service.id)) {
+    seen.add(service.id)
+    next.add(service.parent)
+    service = services.value.find(item => item.id === service?.parent)
+  }
+  expanded.value = next
+}, { immediate: true })
 </script>
 
 <template>
   <div class="service-navigation">
     <nav class="category-list" aria-label="Xizmat turlari">
       <template v-for="service in serviceRows" :key="service.id">
-        <button
-          v-if="hasChildren(service.id)"
-          type="button"
-          class="category-parent"
-          :aria-expanded="expanded.has(service.id)"
-          :style="{ paddingInlineStart: `${12 + service.depth * 14}px` }"
-          @click="toggle(service.id)"
-        >
-          <span>{{ service.name }}</span>
-          <span class="category-chevron" :class="{ expanded: expanded.has(service.id) }" aria-hidden="true">⌄</span>
-        </button>
+        <div v-if="hasChildren(service.id)" class="category-parent-row" :style="{ paddingInlineStart: `${service.depth * 14}px` }">
+          <NuxtLink
+            :to="{ path: '/catalog', query: { service: service.code } }"
+            :class="{ active: activeCode === service.code }"
+            :aria-current="activeCode === service.code ? 'page' : undefined"
+            @click="emit('navigate')"
+          >{{ service.name }}</NuxtLink>
+          <button
+            type="button"
+            class="category-parent category-expand"
+            :aria-label="service.name"
+            :aria-expanded="expanded.has(service.id)"
+            @click="toggle(service.id)"
+          >
+            <span class="category-chevron" :class="{ expanded: expanded.has(service.id) }" aria-hidden="true">⌄</span>
+          </button>
+        </div>
         <NuxtLink
           v-else
           :to="{ path: '/catalog', query: { service: service.code } }"
@@ -72,6 +89,9 @@ const activeCode = computed(() => route.path === "/catalog" && route.query.all !
 .category-list a:hover, .category-parent:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .category-list a.active { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
 .category-list a:focus-visible, .category-parent:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.category-parent-row { display: flex; align-items: center; min-width: 0; }
+.category-parent-row > a { flex: 1; min-width: 0; }
+.category-parent-row > .category-expand { justify-content: center; flex: 0 0 44px; width: 44px; padding: 10px; }
 .category-chevron { transition: transform 0.2s; }
 .category-chevron.expanded { transform: rotate(180deg); }
 @media (prefers-reduced-motion: reduce) { .category-chevron { transition: none; } }

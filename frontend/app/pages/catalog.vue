@@ -43,11 +43,6 @@ const selectedServiceCode = ref<string | null>(
 )
 const activeService = computed(() => serviceTypes.value.find(service => service.code === selectedServiceCode.value) ?? null)
 const serviceRows = computed(() => serviceTreeOptions(serviceTypes.value))
-const categoryChildren = computed(() => {
-  const service = activeService.value
-  const children = serviceTypes.value.filter(item => item.parent === service?.id)
-  return children.length ? children : serviceTypes.value.filter(item => service?.parent && item.parent === service.parent)
-})
 const serviceAncestors = computed(() => {
   const result: ServiceTypeOption[] = []
   let current = activeService.value
@@ -344,10 +339,6 @@ const openBarberBooking = (barber: BarberItem) => {
     <div v-if="serviceAncestors.length > 1" class="service-breadcrumbs">
       <button v-for="service in serviceAncestors" :key="service.id" type="button" @click="setService(service.code)">{{ service.name }}</button>
     </div>
-    <div v-if="categoryChildren.length" class="service-child-options">
-      <button v-for="service in categoryChildren.slice(0, 3)" :key="service.id" type="button" :class="{ selected: selectedServiceCode === service.code }" :aria-pressed="selectedServiceCode === service.code" @click="setService(service.code)">{{ service.name }}</button>
-      <button v-if="categoryChildren.length > 3" type="button" @click="allServicesOpen = true">{{ t('catalog.all') }}</button>
-    </div>
 
     <div v-if="activeFilterChips.length" class="active-filter-chips" aria-label="Tanlangan filtrlar">
       <button
@@ -559,9 +550,7 @@ const openBarberBooking = (barber: BarberItem) => {
   min-width: 0;
 }
 
-.service-child-options, .service-breadcrumbs { display: flex; gap: 6px; min-width: 0; }
-.service-child-options button { max-width: 31%; min-width: 0; min-height: 32px; padding: 5px 9px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
-.service-child-options button.selected { color: var(--accent); border-color: var(--accent); }
+.service-breadcrumbs { display: flex; gap: 6px; min-width: 0; }
 .service-breadcrumbs { flex-wrap: wrap; align-items: center; width: fit-content; max-width: 100%; padding: 2px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
 .service-breadcrumbs button { min-height: 32px; padding: 3px 4px; border: 0; background: transparent; color: var(--accent); font-size: 12px; font-weight: 600; cursor: pointer; }
 .service-breadcrumbs button + button::before { content: '›'; margin-right: 8px; color: var(--muted); }
