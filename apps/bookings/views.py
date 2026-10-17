@@ -190,6 +190,10 @@ class CabinetBookingViewSet(
                 | Q(barber__club__owner=self.request.user)
                 | Q(barber__user=self.request.user)
             )
+        barber_id = self.request.query_params.get("barber_id")
+        if barber_id:
+            from rest_framework.serializers import UUIDField
+            queryset = queryset.filter(barber_id=UUIDField().run_validation(barber_id))
         booking_status = self.request.query_params.get("status")
         if booking_status in Booking.Status.values:
             queryset = queryset.filter(status=booking_status)

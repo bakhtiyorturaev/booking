@@ -16,6 +16,7 @@ useHead({
   title: "Sartaroshlar boshqaruvi",
 })
 
+const route = useRoute()
 const cabinetPath = useCabinetPath()
 const { isStaff } = useCabinetAccess()
 const adminApi = useAdminApi()
@@ -25,7 +26,7 @@ const isLoading = ref(true)
 const searchQuery = ref("")
 const selectedAffiliation = ref("")
 const selectedRealtimeStatus = ref("")
-const selectedActive = ref("")
+const selectedActive = ref(route.query.status === "ACTIVE" ? "true" : "")
 const errorMessage = ref("")
 const page = ref(1)
 const pageSize = 20
@@ -41,6 +42,8 @@ const fetchBarbers = async (resetPage = true) => {
   errorMessage.value = ""
   try {
     const params: Record<string, any> = { page: page.value, page_size: pageSize }
+    if (typeof route.query.club_id === "string") params.club_id = route.query.club_id
+    if (typeof route.query.branch_id === "string") params.branch_id = route.query.branch_id
     if (searchQuery.value) params.search = searchQuery.value
     if (selectedAffiliation.value) params.affiliation_status = selectedAffiliation.value
     if (selectedActive.value) params.active = selectedActive.value
@@ -121,6 +124,11 @@ const getAffiliationBadgeClass = (status: string) => {
   }
 }
 
+watch(() => [route.query.club_id, route.query.branch_id, route.query.status], () => {
+  selectedActive.value = route.query.status === "ACTIVE" ? "true" : ""
+  void fetchBarbers()
+})
+
 onMounted(() => {
   fetchBarbers()
 })
@@ -150,7 +158,7 @@ onMounted(() => {
       </div>
 
       <div class="filter-selects">
-        <select v-if="!isStaff" v-model="selectedActive" class="filter-select" aria-label="Holat" @change="fetchBarbers()"><option value="">Barchasi</option><option value="true">Faol</option><option value="false">Muzlatilgan</option></select>
+        <select v-model="selectedActive" class="filter-select" aria-label="Holat" @change="fetchBarbers()"><option value="">Barchasi</option><option value="true">Faol</option><option value="false">Muzlatilgan</option></select>
         <select v-if="isStaff" v-model="selectedAffiliation" class="filter-select" @change="fetchBarbers()" aria-label="Birikish holati">
           <option value="">Barcha birikish holatlari</option>
           <option value="PENDING">Kutilmoqda</option>
@@ -167,7 +175,7 @@ onMounted(() => {
           <option value="DAY_OFF"> Dam olish kuni</option>
         </select>
       </div>
-      <OperatorCreateDialog @saved="fetchBarbers" />
+      <OperatorCreateDialog :club-id="typeof route.query.club_id === 'string' ? route.query.club_id : undefined" :branch-id="typeof route.query.branch_id === 'string' ? route.query.branch_id : undefined" @saved="fetchBarbers" />
     </div>
 
     <!-- Barbers Table -->
@@ -272,6 +280,7 @@ onMounted(() => {
             <!-- Actions -->
             <td v-if="isStaff" data-label="Amallar" class="text-right">
               <div class="actions-group">
+                <NuxtLink :to="{ path: cabinetPath('/bookings'), query: { barber_id: barber.id } }" class="secondary-button">Bronlar</NuxtLink>
                 <FreeModeToggle v-if="isStaff" kind="barber" :id="barber.id" :name="barber.full_name" :is-free="barber.is_free" @changed="fetchBarbers" />
                 <BarberScheduleDialog v-if="isStaff" :barber="barber" @saved="fetchBarbers" />
                 <template v-if="isStaff && barber.can_manage_affiliation && barber.affiliation_status === 'PENDING'">

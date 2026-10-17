@@ -15,6 +15,7 @@ useHead({
   title: "Filiallar va Zonalar",
 })
 
+const route = useRoute()
 const cabinetPath = useCabinetPath()
 const adminApi = useAdminApi()
 const { isStaff } = useCabinetAccess()
@@ -24,7 +25,7 @@ const clubs = ref<any[]>([])
 const branches = ref<any[]>([])
 const cities = ref<any[]>([])
 const services = ref<ServiceTypeManagementItem[]>([])
-const selectedClubId = ref("")
+const selectedClubId = ref(typeof route.query.club_id === "string" ? route.query.club_id : "")
 const selectedBranch = ref<any>(null)
 const branchZones = ref<any[]>([])
 
@@ -99,6 +100,9 @@ const fetchData = async () => {
       adminApi.getServiceTypes(),
     ])
     clubs.value = clubsRes.results || clubsRes.data || clubsRes || []
+    if (selectedClubId.value && !clubs.value.some(club => club.id === selectedClubId.value)) {
+      clubs.value.push(await adminApi.getClub(selectedClubId.value))
+    }
     services.value = serviceRes
     cities.value = citiesRes.results || citiesRes.data || citiesRes || []
 
@@ -109,6 +113,11 @@ const fetchData = async () => {
     isLoading.value = false
   }
 }
+
+watch(() => route.query.club_id, () => {
+  selectedClubId.value = typeof route.query.club_id === "string" ? route.query.club_id : ""
+  void fetchBranches()
+})
 
 let branchLoadVersion = 0
 let zoneLoadVersion = 0
@@ -154,7 +163,7 @@ const openCreateBranchModal = () => {
   editingBranch.value = null
   branchForm.value = {
     club: selectedClubId.value || (clubs.value[0]?.id || ""),
-    enabled_services: [],
+    enabled_services: [...(clubs.value.find(club => club.id === (selectedClubId.value || clubs.value[0]?.id))?.available_services || [])],
     name: "",
     city: cities.value[0]?.id || "",
     district: "",
@@ -338,6 +347,7 @@ useDialogFocus(showZoneModal, "#cabinet-branches-showZoneModal", () => { showZon
               <span class="bic-name">{{ b.name }}</span>
               <span class="status-badge" :class="b.status.toLowerCase()">{{ statusLabel(b.status) }}</span>
             </div>
+            <NuxtLink v-if="clubs.find(club => club.id === (b.club?.id || b.club))?.category === 'BARBERSHOP'" :to="{ path: cabinetPath('/barbers'), query: { club_id: b.club?.id || b.club, branch_id: b.id } }" class="secondary-button" @click.stop>Sartaroshlar</NuxtLink>
             <p class="branch-services">{{ services.filter(service => (b.enabled_services || []).includes(service.id)).map(service => service.name).join(" · ") }}</p>
             <p class="bic-address"><CabinetIcon name="location" /> {{ b.address }}</p>
             <div class="bic-footer">

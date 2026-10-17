@@ -1,4 +1,5 @@
 import datetime
+import html
 import logging
 from zoneinfo import ZoneInfo
 
@@ -177,16 +178,20 @@ def send_barber_booking_notification(booking):
 
         message_text = (
             f"💈 <b>Yangi mijoz yozildi!</b>\n\n"
-            f"👤 <b>Mijoz:</b> {customer_name}\n"
-            f"📞 <b>Telefon:</b> {customer_phone}\n"
+            f"👤 <b>Mijoz:</b> {html.escape(customer_name)}\n"
+            f"📞 <b>Telefon:</b> {html.escape(customer_phone)}\n"
             f"📅 <b>Sana:</b> {starts_at_local.strftime('%d.%m.%Y')}\n"
             f"⏰ <b>Vaqt:</b> {starts_at_local.strftime('%H:%M')} - {ends_at_local.strftime('%H:%M')}\n"
-            f"📍 <b>Sartaroshxona:</b> {salon_name} {f'({branch_name})' if branch_name else ''}\n\n"
+            f"📍 <b>Sartaroshxona:</b> {html.escape(salon_name)} {html.escape(branch_name)}\n\n"
             f"💰 <b>To'lov:</b> Sartaroshxonada joyida kelishiladi\n"
             f"🔖 <b>Bron raqami:</b> <code>#{booking.booking_number}</code>"
         )
 
-        client.send_message(chat_id=telegram_user_id, text=message_text, parse_mode="HTML")
+        keyboard = {"inline_keyboard": [[
+            {"text": "Qabul qilish", "callback_data": f"barber_accept:{booking.pk}"},
+            {"text": "Bekor qilish", "callback_data": f"barber_cancel:{booking.pk}"},
+        ]]}
+        client.send_message(chat_id=telegram_user_id, text=message_text, parse_mode="HTML", reply_markup=keyboard)
         logger.info("Successfully sent booking notification to barber telegram %s", telegram_user_id)
     except Exception as e:
         logger.warning("Could not send barber telegram notification: %s", e)

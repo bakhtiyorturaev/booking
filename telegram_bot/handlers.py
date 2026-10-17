@@ -7,6 +7,7 @@ from requests.exceptions import ConnectionError as TelegramConnectionError, Time
 from apps.accounts.models import User
 from apps.accounts.services.telegram_web_login import confirm_web_login_from_bot
 from apps.accounts.services.telegram_miniapp import save_telegram_contact
+from telegram_bot.barber_actions import handle_barber_callback, handle_barber_reason
 from telegram_bot.models import TelegramBookingMessage, TelegramGroup
 from telegram_bot.services import (
     cancel_booking_from_telegram,
@@ -85,6 +86,8 @@ def safe_send_message(client, chat_id, text, reply_markup=None):
 
 
 def handle_callback(client, callback):
+    if handle_barber_callback(client, callback):
+        return
     callback_id = callback["id"]
     message = callback.get("message", {})
     chat_id = message.get("chat", {}).get("id")
@@ -133,6 +136,8 @@ def handle_callback(client, callback):
 
 
 def handle_message(client, message):
+    if handle_barber_reason(client, message):
+        return
     chat_id = message.get("chat", {}).get("id")
     text = (message.get("text") or "").strip()
     user = message.get("from", {})

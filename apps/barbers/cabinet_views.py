@@ -41,6 +41,9 @@ class CabinetBarberViewSet(viewsets.ModelViewSet):
 
         if affiliation:
             qs = qs.filter(affiliation_status=affiliation)
+        branch_id = self.request.query_params.get("branch_id")
+        if branch_id:
+            qs = qs.filter(branch_id=UUIDField().run_validation(branch_id))
         if club_id:
             qs = qs.filter(club_id=UUIDField().run_validation(club_id))
         if query:

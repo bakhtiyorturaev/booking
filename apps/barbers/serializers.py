@@ -143,6 +143,10 @@ class CabinetBarberSerializer(serializers.ModelSerializer):
         days = attrs.get("working_days", self.instance.working_days if self.instance else [])
         if not isinstance(days, list) or any(type(day) is not int or day < 1 or day > 7 for day in days):
             raise serializers.ValidationError({"working_days": "Hafta kunlari 1 dan 7 gacha bo‘lishi kerak."})
+        start = attrs.get("work_start_time", self.instance.work_start_time if self.instance else None)
+        end = attrs.get("work_end_time", self.instance.work_end_time if self.instance else None)
+        if start and end and start == end:
+            raise serializers.ValidationError({"work_end_time": "Ish boshlanishi va tugashi bir xil bo‘lmasligi kerak."})
         city = attrs.get("billing_city", self.instance.billing_city if self.instance else None)
         district = attrs.get("billing_district", self.instance.billing_district if self.instance else None)
         if district and district.city_id != (city.pk if city else None):

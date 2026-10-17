@@ -28,7 +28,7 @@ const clubs = ref<any[]>([])
 const billingStatuses = useCabinetBillingCache()
 const isLoading = ref(true)
 const searchQuery = ref("")
-const selectedStatus = ref("")
+const selectedStatus = ref(typeof route.query.status === "string" ? route.query.status : "")
 const selectedCategory = ref(typeof route.query.service_type === "string" ? route.query.service_type : "")
 const totalCount = ref(0)
 const errorMessage = ref("")
@@ -81,8 +81,9 @@ const deleteClub = async (club: any) => {
   }
 }
 
-watch(() => route.query.service_type, (value) => {
-  selectedCategory.value = typeof value === "string" ? value : ""
+watch(() => [route.query.service_type, route.query.status], () => {
+  selectedCategory.value = typeof route.query.service_type === "string" ? route.query.service_type : ""
+  selectedStatus.value = typeof route.query.status === "string" ? route.query.status : ""
   void fetchClubs()
 })
 
@@ -99,6 +100,7 @@ onMounted(async () => {
 
 <template>
   <div class="admin-page">
+    <header v-if="selectedCategory" class="service-context-heading"><h1>{{ services.find(service => service.id === selectedCategory)?.name || 'Xizmatlar' }}</h1><p>Ushbu xizmatga tegishli muassasalarni boshqaring va yangisini qo‘shing.</p></header>
     <!-- Filters Bar -->
     <div class="filter-bar cabinet-list-toolbar">
       <div class="search-box">
@@ -122,7 +124,7 @@ onMounted(async () => {
       <button type="button" class="secondary-button" @click="fetchClubs">
         Qidirish
       </button>
-      <NuxtLink v-if="isPlatformAdmin" :to="cabinetPath('/clubs/new')" class="primary-button create-btn">
+      <NuxtLink v-if="isPlatformAdmin" :to="{ path: cabinetPath('/clubs/new'), query: selectedCategory ? { service_type: selectedCategory } : {} }" class="primary-button create-btn">
         <CabinetIcon name="plus" /> Xizmat qo‘shish
       </NuxtLink>
     </div>
@@ -164,7 +166,7 @@ onMounted(async () => {
                 <div class="club-info">
                   <div class="club-avatar">{{ c.name.slice(0, 1).toUpperCase() }}</div>
                   <div>
-                    <span class="club-title">{{ c.name }}</span>
+                    <NuxtLink :to="{ path: cabinetPath(`/clubs/${c.id}/edit`), query: selectedCategory ? { service_type: selectedCategory } : {} }" class="club-title">{{ c.name }}</NuxtLink>
                     <span v-if="c.email" class="club-sub">{{ c.email }}</span>
                   </div>
                 </div>
@@ -191,6 +193,8 @@ onMounted(async () => {
               <td data-label="Reyting"><CabinetIcon name="star" /> {{ Number(c.rating || 0).toFixed(1) }} ({{ c.review_count || 0 }})</td>
               <td v-if="isPlatformAdmin" data-label="Amallar">
                 <div class="table-actions">
+                  <NuxtLink :to="{ path: cabinetPath('/branches'), query: { club_id: c.id } }" class="secondary-button">Filiallar</NuxtLink>
+                  <NuxtLink v-if="c.category === 'BARBERSHOP'" :to="{ path: cabinetPath('/barbers'), query: { club_id: c.id } }" class="secondary-button">Sartaroshlar</NuxtLink>
                   <NuxtLink
                     :to="cabinetPath(`/clubs/${c.id}/edit`)"
                     class="action-btn edit"
@@ -220,6 +224,9 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+.service-context-heading h1 { margin: 0 0 6px; font-size: 23px; }
+.service-context-heading p { margin: 0 0 16px; color: var(--muted); font-size: 13px; }
+
 .admin-page {
   display: flex;
   flex-direction: column;

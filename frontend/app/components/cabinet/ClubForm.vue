@@ -3,7 +3,7 @@ import "leaflet/dist/leaflet.css"
 import type { Map as LeafletMap, Marker as LeafletMarker } from "leaflet"
 import { useAdminApi } from "~/api/admin"
 import type { ServiceTypeManagementItem } from "~/api/serviceTypes"
-import { serviceTreeOptions } from "~/utils/serviceTree"
+import { descendantServiceIds, serviceTreeOptions } from "~/utils/serviceTree"
 import ServiceChecklist from "~/components/cabinet/ServiceChecklist.vue"
 
 const props = defineProps<{ clubId?: string }>()
@@ -19,12 +19,16 @@ const adminApi = useAdminApi()
 const { isStaff: isPlatformAdmin } = useCabinetAccess()
 
 const isEdit = computed(() => Boolean(props.clubId))
-const listPath = computed(() => cabinetPath("/clubs"))
+const listPath = computed(() => ({ path: cabinetPath("/clubs"), query: typeof route.query.service_type === "string" ? { service_type: route.query.service_type, status: "ACTIVE" } : {} }))
 
 useHead({ title: computed(() => (isEdit.value ? "Xizmatni tahrirlash" : "Yangi xizmat qo‘shish")) })
 
+const loadedCategory = ref("")
 const services = ref<ServiceTypeManagementItem[]>([])
-const serviceChoices = computed(() => serviceTreeOptions(services.value.filter(service => service.is_active)))
+const serviceChoices = computed(() => {
+  const scope = !isEdit.value && typeof route.query.service_type === "string" ? descendantServiceIds(services.value, [route.query.service_type]) : null
+  return serviceTreeOptions(services.value.filter(service => service.is_active && (!scope || scope.has(service.id))))
+})
 const cities = ref<any[]>([])
 const clientsList = ref<any[]>([])
 
@@ -168,6 +172,7 @@ const loadClients = async () => {
 const loadClub = async () => {
   if (!props.clubId) return
   const club = await adminApi.getClub(props.clubId)
+  loadedCategory.value = club.category || ""
   form.value = {
     name: club.name || "",
     owner: club.owner || club.owner_details?.id || null,
@@ -262,6 +267,10 @@ onMounted(async () => {
     cities.value = cityList
     await Promise.all([loadClients(), loadClub()])
     if (!isEdit.value) {
+      if (typeof route.query.service_type === "string" && services.value.some(service => service.id === route.query.service_type && service.is_active)) {
+        form.value.service_type = route.query.service_type
+        form.value.available_services = [route.query.service_type]
+      }
       form.value.is_verified = Boolean(isPlatformAdmin.value)
       if (isPlatformAdmin.value && typeof route.query.owner === "string") form.value.owner = route.query.owner
     }
@@ -289,6 +298,11 @@ onBeforeUnmount(() => {
       <h1>{{ isEdit ? "Xizmatni tahrirlash" : "Yangi xizmat qo‘shish" }}</h1>
     </div>
 
+    <nav v-if="isEdit && !isLoading" class="club-related-nav" aria-label="Muassasa bo‘limlari">
+      <NuxtLink :to="{ path: cabinetPath('/branches'), query: { club_id: props.clubId } }" class="secondary-button">Filiallar va xizmatlar</NuxtLink>
+      <NuxtLink v-if="loadedCategory === 'BARBERSHOP'" :to="{ path: cabinetPath('/barbers'), query: { club_id: props.clubId } }" class="secondary-button">Sartaroshlar</NuxtLink>
+      <NuxtLink :to="{ path: cabinetPath('/bookings'), query: { club_id: props.clubId } }" class="secondary-button">Bronlar</NuxtLink>
+    </nav>
     <div v-if="isLoading" class="club-form-loading">
       <span class="auth-spinner" />
       <p>Yuklanmoqda...</p>
@@ -437,6 +451,8 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.club-related-nav { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+
 .club-form-page { display: flex; flex-direction: column; gap: 16px; max-width: 880px; width: 100%; margin: 0 auto; }
 .club-form-header { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .club-form-header h1 { margin: 0; font-size: 22px; font-weight: 800; }

@@ -80,10 +80,10 @@ const navGroups = computed(() => [
     { to: cabinetPath('/payments'), label: "To‘lovlar", icon: faCreditCard },
   ] },
   { label: "Boshqaruv", items: [
-    { to: cabinetPath('/clubs'), label: "Xizmatlar", icon: faBuilding },
+    { to: cabinetPath('/clubs'), label: "Faol xizmatlar", icon: faBuilding },
     ...(user.value?.is_superuser ? [{ to: cabinetPath('/service-types'), label: "Xizmat turlari", icon: faCodeBranch }] : []),
     { to: cabinetPath('/branches'), label: "Filiallar va zonalar", icon: faCodeBranch },
-    { to: cabinetPath('/barbers'), label: "Sartaroshlar", icon: faScissors },
+    ...(!isStaff.value ? [{ to: cabinetPath('/barbers'), label: "Sartaroshlar", icon: faScissors }] : []),
     { to: cabinetPath('/users'), label: "Mijozlar", icon: faUsers },
   ] },
 ].map(group => ({ ...group, items: group.items.filter(item => isStaff.value || (item.to === cabinetPath('/bookings') || (user.value?.cabinet_sections || []).some(section => item.to === cabinetPath('/' + section)))) })))
@@ -150,7 +150,7 @@ const handleLogout = async () => {
           <p class="cabinet-nav-label">{{ group.label }}</p>
           <template v-for="item in group.items" :key="item.to">
             <template v-if="isStaff && item.to === cabinetPath('/clubs')">
-              <NuxtLink :to="item.to" class="cabinet-nav-link" :class="{ 'is-active': isActive(item) && !route.query.service_type }"><FontAwesomeIcon :icon="item.icon" /><span>{{ item.label }}</span></NuxtLink>
+              <NuxtLink :to="{ path: item.to, query: { status: 'ACTIVE' } }" class="cabinet-nav-link" :class="{ 'is-active': isActive(item) && !route.query.service_type }"><FontAwesomeIcon :icon="item.icon" /><span>{{ item.label }}</span></NuxtLink>
               <AppCategoryNav cabinet class="cabinet-service-navigation" @navigate="closeSidebar" />
             </template>
             <template v-else-if="item.to === cabinetPath('/users')">

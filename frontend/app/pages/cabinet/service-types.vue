@@ -27,7 +27,10 @@ const parentChoices = computed(() => {
   const excluded = editingId.value ? descendantServiceIds(services.value, [editingId.value]) : new Set<string>()
   return rows.value.filter(service => !excluded.has(service.id))
 })
-const reload = async () => { services.value = await api.getServiceTypes() }
+const reload = async () => {
+  services.value = await api.getServiceTypes()
+  await refreshNuxtData("cabinet-navigation-service-types")
+}
 const edit = (service?: ServiceTypeManagementItem) => {
   editingId.value = service?.id || null
   form.value = service ? { code: service.code, name: service.name, name_ru: service.name_ru, name_en: service.name_en, parent: service.parent || null, is_active: service.is_active, sort_order: service.sort_order } : emptyForm()

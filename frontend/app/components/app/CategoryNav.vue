@@ -18,7 +18,16 @@ const { data } = await useAsyncData(
   () => props.cabinet ? adminApi.getServiceTypes() : serviceTypesApi.list(),
 )
 const services = computed<ServiceTypeOption[]>(() => Array.isArray(data.value)
-  ? data.value.map(service => ({ ...service, name: service.translations?.[locale.value] || (locale.value === "ru" && "name_ru" in service ? service.name_ru as string : locale.value === "en" && "name_en" in service ? service.name_en as string : "") || service.name }))
+  ? data.value.filter(service => {
+    const seen = new Set<string>()
+    let current: ServiceTypeOption | undefined = service
+    while (current) {
+      if (seen.has(current.id) || current.is_active === false) return false
+      seen.add(current.id)
+      current = data.value?.find(item => item.id === current?.parent)
+    }
+    return true
+  }).map(service => ({ ...service, name: service.translations?.[locale.value] || (locale.value === "ru" && "name_ru" in service ? service.name_ru as string : locale.value === "en" && "name_en" in service ? service.name_en as string : "") || service.name }))
   : [])
 const expanded = ref<Set<string>>(new Set())
 const hasChildren = (id: string) => services.value.some(service => service.parent === id)
@@ -39,10 +48,10 @@ const serviceRows = computed(() => serviceTreeOptions(services.value).filter(ser
   return true
 }))
 const serviceTarget = (service: ServiceTypeOption) => props.cabinet
-  ? { path: cabinetPath("/clubs"), query: { service_type: service.id } }
+  ? { path: cabinetPath(service.code.toUpperCase() === "BARBER" ? "/barbers" : "/clubs"), query: { service_type: service.id, status: "ACTIVE" } }
   : { path: "/catalog", query: { service: service.code } }
 const activeCode = computed(() => {
-  if (props.cabinet) return route.path === cabinetPath("/clubs")
+  if (props.cabinet) return [cabinetPath("/clubs"), cabinetPath("/barbers")].includes(route.path)
     ? services.value.find(service => service.id === route.query.service_type)?.code ?? null : null
   if (route.path !== "/catalog" || route.query.all === "1") return null
   return typeof route.query.service === "string" ? route.query.service

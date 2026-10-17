@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useAdminApi } from "~/api/admin"
+const props = defineProps<{ clubId?: string; branchId?: string }>()
 const emit = defineEmits<{ saved: [] }>()
 const { isStaff } = useCabinetAccess()
 const api = useAdminApi()
@@ -10,7 +11,7 @@ const error = ref("")
 const customers = ref<any[]>([])
 const resources = ref<any[]>([])
 const cities = ref<any[]>([])
-const form = ref({ user: "", resource: "", full_name: "", phone: "", billing_city: "", billing_district: "" })
+const form = ref({ user: "", resource: "", full_name: "", phone: "", billing_city: "", billing_district: "", work_start_time: "09:00", work_end_time: "20:00" })
 const { districts, isDistrictLoading, districtError } = useCityDistricts(() => form.value.billing_city)
 const title = "Sartarosh qo‘shish"
 const dialogId = "operator-barber-dialog"
@@ -23,11 +24,11 @@ const allPages = async (fetcher: (params: Record<string, any>) => Promise<any>, 
 }
 const begin = async () => {
   open.value = true; loading.value = true; error.value = ""
-  form.value = { user: "", resource: "", full_name: "", phone: "", billing_city: "", billing_district: "" }
+  form.value = { user: "", resource: "", full_name: "", phone: "", billing_city: "", billing_district: "", work_start_time: "09:00", work_end_time: "20:00" }
   try {
     const results = await Promise.all([
       allPages(api.getUsers, { status: "ACTIVE" }),
-      allPages(api.getBranches, {}),
+      allPages(api.getBranches, props.clubId ? { club_id: props.clubId } : {}),
     ])
     customers.value = results[0].filter(account => ["CUSTOMER", "CLIENT"].includes(account.role))
     resources.value = results[1]
@@ -35,6 +36,8 @@ const begin = async () => {
     const clubs = await allPages(api.getClubs, { category: "BARBERSHOP" })
     const ids = new Set(clubs.map(club => club.id))
     resources.value = resources.value.filter(branch => ids.has(typeof branch.club === "string" ? branch.club : branch.club?.id))
+    if (props.branchId && resources.value.some(branch => branch.id === props.branchId)) form.value.resource = props.branchId
+    else if (props.clubId && resources.value.length) form.value.resource = resources.value[0].id
   } catch (cause) { error.value = cabinetErrorMessage(cause) }
   finally { loading.value = false }
 }
@@ -43,7 +46,8 @@ const save = async () => {
   saving.value = true; error.value = ""
   try {
     const branch = resources.value.find(item => item.id === form.value.resource)
-    await api.createBarber({ user: form.value.user, branch: branch?.id || null, club: branch ? (typeof branch.club === "string" ? branch.club : branch.club.id) : null, billing_city: branch ? null : form.value.billing_city || null, billing_district: branch ? null : form.value.billing_district || null, full_name: form.value.full_name, phone: form.value.phone, affiliation_status: "APPROVED", working_days: [1, 2, 3, 4, 5, 6, 7] })
+    if (props.clubId && !branch) throw new Error("Avval ushbu sartaroshxona uchun filial yarating va uni tanlang.")
+    await api.createBarber({ user: form.value.user, branch: branch?.id || null, club: branch ? (typeof branch.club === "string" ? branch.club : branch.club.id) : null, billing_city: branch ? null : form.value.billing_city || null, billing_district: branch ? null : form.value.billing_district || null, full_name: form.value.full_name, phone: form.value.phone, affiliation_status: "APPROVED", status: "AVAILABLE", work_start_time: form.value.work_start_time, work_end_time: form.value.work_end_time, working_days: [1, 2, 3, 4, 5, 6, 7] })
     open.value = false; emit("saved"); useToast().success("Saqlandi.")
   } catch (cause) { error.value = cabinetErrorMessage(cause) }
   finally { saving.value = false }
@@ -58,10 +62,14 @@ const save = async () => {
           <p v-if="error" class="form-error" role="alert">{{ error }}</p><p v-if="loading">Yuklanmoqda…</p>
           <template v-else>
             <div class="form-group"><label :for="`${dialogId}-user`">Akkaunt</label><select :id="`${dialogId}-user`" v-model="form.user" required :disabled="saving"><option value="" disabled>Tanlang</option><option v-for="customer in customers" :key="customer.id" :value="customer.id">{{ customer.profile?.full_name || customer.username }} — {{ customer.phone }}</option></select></div>
-            <div class="form-group"><label :for="`${dialogId}-resource`">Filial</label><select :id="`${dialogId}-resource`" v-model="form.resource" :disabled="saving"><option value="">Mustaqil sartarosh</option><option v-for="resource in resources" :key="resource.id" :value="resource.id">{{ resource.branch_name || resource.club_name }} — {{ resource.name }}</option></select></div>
-            <div v-if="!form.resource" class="form-group"><label :for="`${dialogId}-city`">Shahar</label><select :id="`${dialogId}-city`" v-model="form.billing_city" required :disabled="saving" @change="form.billing_district = ''"><option value="" disabled>Tanlang</option><option v-for="city in cities" :key="city.id" :value="city.id">{{ city.name }}</option></select></div><div v-if="!form.resource" class="form-group"><label :for="`${dialogId}-district`">Tuman</label><select :id="`${dialogId}-district`" v-model="form.billing_district" required :disabled="saving || isDistrictLoading || !form.billing_city"><option value="" disabled>{{ isDistrictLoading ? 'Yuklanmoqda…' : 'Tumanni tanlang' }}</option><option v-for="district in districts" :key="district.id" :value="district.id">{{ district.name }}</option></select><small v-if="districtError" role="alert">{{ districtError }}</small><small v-else-if="form.billing_city && !isDistrictLoading && !districts.length">Bu hudud uchun tumanlar hali qo‘shilmagan.</small></div><div class="form-group"><label :for="`${dialogId}-name`">Ism-familiya</label><input :id="`${dialogId}-name`" v-model="form.full_name" maxlength="180" required :disabled="saving"></div><div class="form-group"><label :for="`${dialogId}-phone`">Telefon</label><input :id="`${dialogId}-phone`" v-model="form.phone" type="tel" :disabled="saving"></div>
+            <p class="account-hint">Botda bronni qabul qilish uchun sartarosh avval o‘z Telegram akkauntidan saytga kirib, botda /start bosishi kerak. Shu akkauntni tanlang.</p>
+            <div class="form-group"><label :for="`${dialogId}-resource`">Filial</label><select :id="`${dialogId}-resource`" v-model="form.resource" :disabled="saving"><option v-if="!clubId" value="">Mustaqil sartarosh</option><option v-else value="" disabled>Filialni tanlang</option><option v-for="resource in resources" :key="resource.id" :value="resource.id">{{ resource.branch_name || resource.club_name }} — {{ resource.name }}</option></select></div>
+            <div v-if="!form.resource && !clubId" class="form-group"><label :for="`${dialogId}-city`">Shahar</label><select :id="`${dialogId}-city`" v-model="form.billing_city" required :disabled="saving" @change="form.billing_district = ''"><option value="" disabled>Tanlang</option><option v-for="city in cities" :key="city.id" :value="city.id">{{ city.name }}</option></select></div><div v-if="!form.resource && !clubId" class="form-group"><label :for="`${dialogId}-district`">Tuman</label><select :id="`${dialogId}-district`" v-model="form.billing_district" required :disabled="saving || isDistrictLoading || !form.billing_city"><option value="" disabled>{{ isDistrictLoading ? 'Yuklanmoqda…' : 'Tumanni tanlang' }}</option><option v-for="district in districts" :key="district.id" :value="district.id">{{ district.name }}</option></select><small v-if="districtError" role="alert">{{ districtError }}</small><small v-else-if="form.billing_city && !isDistrictLoading && !districts.length">Bu hudud uchun tumanlar hali qo‘shilmagan.</small></div><div class="form-group"><label :for="`${dialogId}-name`">Ism-familiya</label><input :id="`${dialogId}-name`" v-model="form.full_name" maxlength="180" required :disabled="saving"></div><div class="form-group"><label :for="`${dialogId}-phone`">Telefon</label><input :id="`${dialogId}-phone`" v-model="form.phone" type="tel" :disabled="saving"></div>
+            <div class="form-group"><label :for="`${dialogId}-start`">Ish boshlanishi</label><input :id="`${dialogId}-start`" v-model="form.work_start_time" type="time" required :disabled="saving"></div>
+            <div class="form-group"><label :for="`${dialogId}-end`">Ish tugashi</label><input :id="`${dialogId}-end`" v-model="form.work_end_time" type="time" required :disabled="saving"></div>
+            <p v-if="clubId && !resources.length" class="form-error">Avval sartaroshxonaga filial qo‘shing.</p>
           </template>
-          <div class="modal-actions"><button type="button" class="secondary-button" :disabled="saving" @click="close">Bekor qilish</button><button type="submit" class="primary-button" :disabled="saving || loading || (!form.resource && isDistrictLoading)">{{ saving ? 'Saqlanmoqda…' : 'Saqlash' }}</button></div>
+          <div class="modal-actions"><button type="button" class="secondary-button" :disabled="saving" @click="close">Bekor qilish</button><button type="submit" class="primary-button" :disabled="saving || loading || (Boolean(clubId) && !form.resource) || (!form.resource && isDistrictLoading)">{{ saving ? 'Saqlanmoqda…' : 'Saqlash' }}</button></div>
         </form>
       </div>
     </div>

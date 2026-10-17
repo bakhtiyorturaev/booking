@@ -11,6 +11,7 @@ useHead({
   title: "Bronlar boshqaruvi",
 })
 
+const route = useRoute()
 const cabinetPath = useCabinetPath()
 const adminApi = useAdminApi()
 const { isStaff } = useCabinetAccess()
@@ -26,7 +27,7 @@ const hasNextPage = ref(false)
 let loadVersion = 0
 
 const statusFilter = ref("")
-const selectedClubId = ref("")
+const selectedClubId = ref(typeof route.query.club_id === "string" ? route.query.club_id : "")
 const selectedDate = ref("")
 const searchQuery = ref("")
 const totalCount = ref(0)
@@ -64,6 +65,7 @@ const fetchBookings = async (resetPage = true) => {
   errorMessage.value = ""
   try {
     const params: Record<string, any> = { page: page.value, page_size: pageSize }
+    if (typeof route.query.barber_id === "string") params.barber_id = route.query.barber_id
     if (statusFilter.value) params.status = statusFilter.value
     if (selectedClubId.value) params.club_id = selectedClubId.value
     if (selectedDate.value) params.date = selectedDate.value
@@ -81,6 +83,11 @@ const fetchBookings = async (resetPage = true) => {
     if (version === loadVersion) isLoading.value = false
   }
 }
+
+watch(() => [route.query.barber_id, route.query.club_id], () => {
+  selectedClubId.value = typeof route.query.club_id === "string" ? route.query.club_id : ""
+  void fetchBookings()
+})
 
 const handleCheckIn = async (bId: string) => {
   try {

@@ -115,7 +115,7 @@ const handleConfirmBooking = async () => {
       selectedSlot.value.ends_at,
     )
     successBooking.value = booking
-    toast.success(t("barbers.booking_success_title"))
+    toast.success(booking.status === "PENDING_CONFIRMATION" ? t("bookings.status_pending") : t("barbers.booking_success_title"))
     emit("booked", booking)
   } catch (err: any) {
     const errText = err?.message || t("barbers.booking_error_slot_taken")
@@ -139,7 +139,7 @@ const closeModal = () => {
       <!-- Success Screen -->
       <div v-if="successBooking" class="success-screen">
         <FontAwesomeIcon :icon="faCircleCheck" class="success-check-icon" />
-        <h2>{{ t("barbers.booking_success_title") }}</h2>
+        <h2>{{ successBooking.status === "PENDING_CONFIRMATION" ? t("bookings.status_pending") : t("barbers.booking_success_title") }}</h2>
         <p class="success-desc">
           {{ t("barbers.booking_success_desc", { name: barber.full_name }) }}
         </p>

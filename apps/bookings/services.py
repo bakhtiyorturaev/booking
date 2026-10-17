@@ -433,11 +433,11 @@ def create_barber_booking(user, barber_id, starts_at, ends_at):
         raise ValidationError("bookings.zone_not_available", code="bookings.zone_not_available")
     if Booking.objects.filter(user=user, status__in=BLOCKING_BOOKING_STATUSES, ends_at__gt=timezone.now()).exists():
         raise ValidationError("bookings.active_booking_exists", code="bookings.active_booking_exists")
-    booking = Booking.objects.create(user=user, barber=barber, starts_at=starts_at, ends_at=ends_at, quantity=1, unit_price_tiyin=0, total_price_tiyin=0, status=Booking.Status.CONFIRMED, confirmed_at=timezone.now())
+    booking = Booking.objects.create(user=user, barber=barber, starts_at=starts_at, ends_at=ends_at, quantity=1, unit_price_tiyin=0, total_price_tiyin=0, status=Booking.Status.PENDING_CONFIRMATION)
     def notify():
         from apps.barbers.services import send_barber_booking_notification
         from telegram_bot.services import send_customer_booking_notification
         send_barber_booking_notification(booking)
-        send_customer_booking_notification(booking, Booking.Status.CONFIRMED)
+        send_customer_booking_notification(booking, Booking.Status.PENDING_CONFIRMATION)
     transaction.on_commit(notify)
     return booking
