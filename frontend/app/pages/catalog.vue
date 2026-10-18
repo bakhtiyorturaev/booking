@@ -824,7 +824,7 @@ const openBarberBooking = (barber: BarberItem) => {
 .services-empty { grid-column: 1 / -1; padding: 24px; color: var(--muted); text-align: center; }
 
 .mobile-filter-body { padding: 10px 14px 12px; }
-.mobile-filter-body :deep(.filter-sidebar) { padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; gap: 10px; }
+.mobile-filter-body :deep(.filter-sidebar) { position: static; top: auto; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; gap: 10px; }
 .mobile-filter-body :deep(.filter-header) { display: none; }
 .mobile-filter-body :deep(.filter-search-field) { min-height: 46px; }
 .mobile-filter-body :deep(.select-box-item) { min-height: 44px; padding: 4px 6px; }

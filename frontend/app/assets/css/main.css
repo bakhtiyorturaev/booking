@@ -488,6 +488,7 @@ a {
 
 .customer-shell {
   position: relative;
+  display: flow-root;
   min-height: 100vh;
   background: var(--page);
 }
@@ -507,16 +508,15 @@ a {
 .customer-header {
   position: sticky;
   z-index: 10;
-  top: 0;
+  top: 12px;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
   min-height: 54px;
-  padding: 0 clamp(20px, 4vw, 60px);
-  border-bottom: 1px solid var(--panel-border);
-  background: color-mix(in srgb, var(--panel) 92%, transparent);
-  backdrop-filter: blur(18px);
+  margin: 12px clamp(12px, 2vw, 24px) 0;
+  padding: 0 clamp(16px, 3vw, 28px);
+  border-radius: 20px;
 }
 
 .customer-nav {
@@ -3033,7 +3033,10 @@ a {
   .customer-drawer-backdrop { display: none; }
 }
 
-/* Glass navigation: let the actual background show through the blur. */
+/* Shared glass navigation chrome, reused by the header, drawer, filters,
+   bottom sheets and popovers. Lets the actual background show through the
+   blur. Consumers set their own border-radius/shadow. */
+.glass-panel,
 .customer-desktop-sidebar,
 .customer-drawer {
   border: 1px solid rgba(255, 255, 255, .3);
@@ -3051,6 +3054,7 @@ a {
   scrollbar-width: thin;
 }
 .customer-drawer { top: 10px; bottom: 10px; left: 10px; border-radius: 24px; }
+:root[data-theme="light"] .glass-panel,
 :root[data-theme="light"] .customer-desktop-sidebar,
 :root[data-theme="light"] .customer-drawer {
   border-color: rgba(255, 255, 255, .62);
@@ -3065,10 +3069,10 @@ a {
     0 12px 36px rgba(51, 41, 87, .1);
 }
 @media (min-width: 1024px) {
-  .customer-desktop-sidebar { inset: 66px auto 12px 12px; width: 228px; border-radius: 24px; }
+  .customer-desktop-sidebar { inset: 78px auto 12px 12px; width: 228px; border-radius: 24px; }
 }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .customer-desktop-sidebar, .customer-drawer { background: var(--panel); }
+  .glass-panel, .customer-desktop-sidebar, .customer-drawer { background: var(--panel); }
 }
 
 /* Give light-mode navigation a distinct blue hover background. */

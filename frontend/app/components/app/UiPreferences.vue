@@ -83,7 +83,7 @@ onUnmounted(() => {
       </button>
 
       <Transition name="dropdown-fade">
-        <div v-if="isLangMenuOpen" class="locale-menu-popover">
+        <div v-if="isLangMenuOpen" class="locale-menu-popover glass-panel">
           <button
             v-for="lang in languages"
             :key="lang.code"
@@ -164,16 +164,17 @@ onUnmounted(() => {
   top: calc(100% + 8px);
   right: 0;
   min-width: 165px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 20px;
   padding: 6px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
-  backdrop-filter: blur(12px);
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, .18), inset -1px -1px 0 rgba(255, 255, 255, .04), 0 10px 26px rgba(0, 0, 0, .22);
   z-index: 1000;
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+:root[data-theme="light"] .locale-menu-popover {
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, .95), 0 10px 26px rgba(51, 41, 87, .1);
 }
 
 .locale-option-item {

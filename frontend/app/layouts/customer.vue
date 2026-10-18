@@ -26,7 +26,8 @@ watch(() => route.fullPath, () => { menuOpen.value = false })
 const onKeydown = (event: KeyboardEvent) => { if (event.key === "Escape") closeMenu() }
 onMounted(() => window.addEventListener("keydown", onKeydown))
 onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown))
-const isHome = computed(() => route.path === "/" || route.path === "/catalog")
+const SKYLINE_ROUTES = ["/", "/catalog", "/bookings", "/profile"]
+const isHome = computed(() => SKYLINE_ROUTES.includes(route.path))
 
 await loadTranslations()
 if (["auth.login_tab", "profile.subscription_paid"].some(code => t(code) === code)) await loadTranslations(locale.value, true)
@@ -42,7 +43,7 @@ const onAuthenticated = async () => {
 
 <template>
   <div class="customer-shell" :class="{ 'customer-shell--home': isHome }">
-    <header class="customer-header">
+    <header class="customer-header glass-panel">
       <div class="customer-header-start">
         <button
           ref="menuButton"
@@ -59,10 +60,6 @@ const onAuthenticated = async () => {
       </div>
 
       <nav class="customer-nav" :aria-label="t('nav.main')">
-        <NuxtLink to="/" exact-active-class="active">
-          <FontAwesomeIcon :icon="faHouse" />
-          <span>{{ t("nav.home") }}</span>
-        </NuxtLink>
         <NuxtLink v-if="auth.isAuthenticated.value" to="/bookings" exact-active-class="active">
           <FontAwesomeIcon :icon="faCalendarCheck" />
           <span>{{ t("bookings.my_bookings") }}</span>

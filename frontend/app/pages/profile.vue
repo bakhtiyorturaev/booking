@@ -64,6 +64,7 @@ const { message, show: showMessage, clear: clearMessage } = useTimedMessage()
 
 const form = reactive({
   full_name: "",
+  phone: "",
   city: "",
   birth_date: "",
 })
@@ -89,6 +90,7 @@ const userInitials = computed(() => {
 
 const resetForm = () => {
   form.full_name = profile.value?.full_name || ""
+  form.phone = user.value?.phone || ""
   form.city = profile.value?.city || ""
   form.birth_date = profile.value?.birth_date || ""
 }
@@ -284,6 +286,10 @@ const favoriteBranches = computed(() => {
             <label class="form-field">
               <span class="field-label">{{ t("auth.full_name") }}</span>
               <input v-model="form.full_name" type="text" placeholder="Ism-familiya">
+            </label>
+            <label class="form-field">
+              <span class="field-label">{{ t("auth.phone_number") }}</span>
+              <input v-model="form.phone" type="tel" placeholder="+998901234567">
             </label>
             <label class="form-field">
               <span class="field-label">{{ t("auth.city") }}</span>

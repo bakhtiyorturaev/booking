@@ -166,7 +166,7 @@ const resetFilters = () => {
 </script>
 
 <template>
-  <aside class="filter-sidebar">
+  <aside class="filter-sidebar glass-panel">
     <!-- Header -->
     <div class="filter-header">
       <h3 class="filter-title">
@@ -338,9 +338,7 @@ const resetFilters = () => {
 
 <style scoped>
 .filter-sidebar {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 24px;
   padding: 16px 14px;
   display: flex;
   flex-direction: column;
@@ -460,7 +458,11 @@ const resetFilters = () => {
 .service-filter-option { border: 0; background: transparent; text-align: left; font: inherit; width: 100%; }
 
 .select-box-item:hover {
-  background: color-mix(in srgb, var(--control) 50%, transparent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.select-box-item.checked {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
 }
 
 .custom-checkbox {
@@ -517,11 +519,4 @@ const resetFilters = () => {
   opacity: 0.9;
 }
 
-@media (max-width: 900px) {
-  .filter-sidebar {
-    position: static;
-    border-radius: 12px;
-    padding: 14px 12px;
-  }
-}
 </style>

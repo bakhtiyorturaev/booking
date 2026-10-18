@@ -39,6 +39,7 @@ export interface UserProfileData {
 
 export interface ProfileUpdatePayload {
   full_name?: string
+  phone?: string
   birth_date?: string | null
   city?: string
   preferred_language?: Locale

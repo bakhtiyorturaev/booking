@@ -70,7 +70,7 @@ onBeforeUnmount(() => {
       <div v-if="modelValue" class="sheet-backdrop" @click.self="close">
         <section
           ref="dialog"
-          class="sheet-panel"
+          class="sheet-panel glass-panel"
           :class="sheetClass"
           role="dialog"
           aria-modal="true"
@@ -109,10 +109,8 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid var(--border, #e2e8f0);
   border-bottom: 0;
   border-radius: 22px 22px 0 0;
-  background: var(--surface, #fff);
   color: var(--text, #172033);
   box-shadow: 0 -16px 48px rgb(15 23 42 / 18%);
   outline: none;

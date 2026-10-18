@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
@@ -34,6 +35,12 @@ class UserProfileUpdateSerializer(serializers.Serializer):
         allow_blank=True,
         error_messages={"max_length": "auth.name_too_long"},
     )
+    phone = serializers.CharField(
+        max_length=20,
+        required=False,
+        allow_blank=True,
+        error_messages={"max_length": "auth.invalid_phone_format"},
+    )
     birth_date = serializers.DateField(
         required=False,
         allow_null=True,
@@ -50,6 +57,19 @@ class UserProfileUpdateSerializer(serializers.Serializer):
         required=False,
     )
 
+    def validate_phone(self, value):
+        phone = normalize_phone(value)
+        if not phone:
+            return ""
+        try:
+            phone_validator(phone)
+        except DjangoValidationError as error:
+            raise serializers.ValidationError("auth.invalid_phone_format", code="auth.invalid_phone_format") from error
+        user = self.context["request"].user
+        if User.objects.filter(phone=phone).exclude(pk=user.pk).exists():
+            raise serializers.ValidationError("auth.phone_already_registered", code="auth.phone_already_registered")
+        return phone
+
     def validate_birth_date(self, value):
         if value and value > timezone.localdate():
             raise serializers.ValidationError("auth.invalid_birth_date", code="auth.invalid_birth_date")
@@ -57,6 +77,12 @@ class UserProfileUpdateSerializer(serializers.Serializer):
 
     @transaction.atomic
     def update(self, instance, validated_data):
+        phone = validated_data.pop("phone", None)
+        if phone:
+            user = self.context["request"].user
+            if user.phone != phone:
+                user.phone = phone
+                user.save(update_fields=["phone"])
         for field, value in validated_data.items():
             setattr(instance, field, value)
         instance.save()
