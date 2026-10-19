@@ -1,15 +1,12 @@
 <script setup lang="ts">
-import "leaflet/dist/leaflet.css"
-import type { Map as LeafletMap, Marker as LeafletMarker } from "leaflet"
 import { useAdminApi } from "~/api/admin"
 import type { ServiceTypeManagementItem } from "~/api/serviceTypes"
-import { descendantServiceIds, serviceTreeOptions } from "~/utils/serviceTree"
-import ServiceChecklist from "~/components/cabinet/ServiceChecklist.vue"
+import { descendantServiceIds, rootService, serviceTreeOptions } from "~/utils/serviceTree"
+import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome"
+import { faArrowLeft, faImage, faPlus, faXmark } from "@fortawesome/free-solid-svg-icons"
 
 const props = defineProps<{ clubId?: string }>()
 
-const DEFAULT_LAT = 41.2995
-const DEFAULT_LNG = 69.2401
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"]
 
@@ -21,7 +18,6 @@ const { isStaff: isPlatformAdmin } = useCabinetAccess()
 const isEdit = computed(() => Boolean(props.clubId))
 const listPath = computed(() => ({ path: cabinetPath("/clubs"), query: typeof route.query.service_type === "string" ? { service_type: route.query.service_type, status: "ACTIVE" } : {} }))
 
-useHead({ title: computed(() => (isEdit.value ? "Xizmatni tahrirlash" : "Yangi xizmat qo‘shish")) })
 
 const loadedCategory = ref("")
 const services = ref<ServiceTypeManagementItem[]>([])
@@ -49,6 +45,29 @@ const form = ref({
   status: "ACTIVE",
   is_verified: false,
 })
+
+const selectedService = computed(() => services.value.find(service => service.id === (form.value.service_type || route.query.service_type)) || null)
+const serviceName = computed(() => selectedService.value?.name || "Muassasa")
+const formTitle = computed(() => `${serviceName.value} ${isEdit.value ? 'ma’lumotlarini tahrirlash' : 'qo‘shish'}`)
+const isBarbershop = computed(() => rootService(services.value, selectedService.value)?.code.toUpperCase() === "BARBERSHOP" || loadedCategory.value === "BARBERSHOP")
+const hasServiceContext = computed(() => typeof route.query.service_type === "string" && services.value.some(service => service.id === route.query.service_type))
+const includedServices = computed(() => {
+  if (!selectedService.value) return []
+  const scope = descendantServiceIds(services.value, [selectedService.value.id])
+  return services.value.filter(service => service.is_active && scope.has(service.id))
+})
+const additionalServiceOptions = computed(() => includedServices.value.filter(service => service.id !== form.value.service_type))
+const selectedAdditionalServices = computed(() => additionalServiceOptions.value.filter(service => form.value.available_services.includes(service.id)))
+const addService = (event: Event) => {
+  const select = event.target as HTMLSelectElement
+  const id = select.value
+  if (additionalServiceOptions.value.some(service => service.id === id) && !form.value.available_services.includes(id)) {
+    form.value.available_services.push(id)
+  }
+  select.value = ""
+}
+const removeService = (id: string) => { form.value.available_services = form.value.available_services.filter(value => value !== id) }
+useHead({ title: formTitle })
 
 watch(() => form.value.service_type, id => {
   if (id && !form.value.available_services.includes(id)) form.value.available_services.push(id)
@@ -85,71 +104,6 @@ const pickImage = (event: Event, kind: "logo" | "cover") => {
   const url = URL.createObjectURL(file)
   objectUrls.push(url)
   if (kind === "logo") { logoFile.value = file; logoPreview.value = url } else { coverFile.value = file; coverPreview.value = url }
-}
-
-// Xarita
-const mapEl = ref<HTMLElement | null>(null)
-let L: typeof import("leaflet") | null = null
-let mapInstance: LeafletMap | null = null
-let markerInstance: LeafletMarker | null = null
-
-const setLocation = (lat: number, lng: number) => {
-  form.value.latitude = Number(lat.toFixed(6))
-  form.value.longitude = Number(lng.toFixed(6))
-  if (!L || !mapInstance) return
-  if (markerInstance) {
-    markerInstance.setLatLng([lat, lng])
-    return
-  }
-  const marker = L.marker([lat, lng], { draggable: true }).addTo(mapInstance)
-  marker.on("dragend", () => {
-    const position = marker.getLatLng()
-    setLocation(position.lat, position.lng)
-  })
-  markerInstance = marker
-}
-
-const clearLocation = () => {
-  form.value.latitude = null
-  form.value.longitude = null
-  markerInstance?.remove()
-  markerInstance = null
-}
-
-const useMyLocation = () => {
-  if (!navigator.geolocation) return
-  navigator.geolocation.getCurrentPosition(
-    position => {
-      setLocation(position.coords.latitude, position.coords.longitude)
-      mapInstance?.setView([position.coords.latitude, position.coords.longitude], 16)
-    },
-    () => { errorMessage.value = "Joylashuvni aniqlab bo‘lmadi. Xaritadan qo‘lda tanlang." },
-    { enableHighAccuracy: true, timeout: 10000 },
-  )
-}
-
-const initMap = async () => {
-  if (!mapEl.value || mapInstance) return
-  const leaflet = await import("leaflet")
-  L = ((leaflet as any).default ?? leaflet) as typeof import("leaflet")
-  const [{ default: iconUrl }, { default: iconRetinaUrl }, { default: shadowUrl }] = await Promise.all([
-    import("leaflet/dist/images/marker-icon.png"),
-    import("leaflet/dist/images/marker-icon-2x.png"),
-    import("leaflet/dist/images/marker-shadow.png"),
-  ])
-  delete (L.Icon.Default.prototype as any)._getIconUrl
-  L.Icon.Default.mergeOptions({ iconUrl, iconRetinaUrl, shadowUrl })
-
-  const hasPoint = form.value.latitude != null && form.value.longitude != null
-  mapInstance = L.map(mapEl.value).setView([form.value.latitude ?? DEFAULT_LAT, form.value.longitude ?? DEFAULT_LNG], hasPoint ? 16 : 12)
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    attribution: "© OpenStreetMap contributors",
-    maxZoom: 19,
-    // Sayt `Referrer-Policy: same-origin` yuboradi, OSM esa tile so'rovlarida Referer talab qiladi.
-    referrerPolicy: "strict-origin-when-cross-origin",
-  }).addTo(mapInstance)
-  mapInstance.on("click", (event: any) => setLocation(event.latlng.lat, event.latlng.lng))
-  if (hasPoint) setLocation(form.value.latitude!, form.value.longitude!)
 }
 
 const loadClients = async () => {
@@ -229,15 +183,19 @@ const buildPayload = () => {
   data.append("email", f.email)
   data.append("website", f.website)
   data.append("address", f.address)
-  if (f.latitude != null && f.longitude != null) {
-    data.append("latitude", f.latitude.toFixed(6))
-    data.append("longitude", f.longitude.toFixed(6))
-  }
+  data.append("latitude", f.latitude == null ? "" : f.latitude.toFixed(6))
+  data.append("longitude", f.longitude == null ? "" : f.longitude.toFixed(6))
   data.append("status", f.status)
   data.append("is_verified", f.is_verified ? "true" : "false")
   if (logoFile.value) data.append("logo", logoFile.value)
   if (coverFile.value) data.append("cover", coverFile.value)
   return data
+}
+
+const coordinateValue = (value: unknown, limit: number): number | null | undefined => {
+  if (value == null || value === "") return null
+  const number = Number(value)
+  return Number.isFinite(number) && Math.abs(number) <= limit ? number : undefined
 }
 
 const save = async () => {
@@ -246,6 +204,18 @@ const save = async () => {
     errorMessage.value = "Xizmat nomini kiriting"
     return
   }
+  const latitude = coordinateValue(form.value.latitude, 90)
+  const longitude = coordinateValue(form.value.longitude, 180)
+  if (latitude === undefined || longitude === undefined) {
+    errorMessage.value = "Latitude −90 dan 90 gacha, longitude −180 dan 180 gacha son bo‘lishi kerak."
+    return
+  }
+  if (latitude === null || longitude === null) {
+    errorMessage.value = "Latitude va longitude qiymatlarini kiritish majburiy."
+    return
+  }
+  form.value.latitude = latitude
+  form.value.longitude = longitude
   isSaving.value = true
   errorMessage.value = ""
   try {
@@ -279,201 +249,168 @@ onMounted(async () => {
   } finally {
     isLoading.value = false
   }
-  await nextTick()
-  await initMap()
 })
 
 onBeforeUnmount(() => {
-  mapInstance?.remove()
-  mapInstance = null
-  markerInstance = null
   objectUrls.forEach(url => URL.revokeObjectURL(url))
 })
 </script>
 
 <template>
   <div class="club-form-page">
-    <div class="club-form-header">
-      <NuxtLink :to="listPath" class="secondary-button">← Xizmatlarga qaytish</NuxtLink>
-      <h1>{{ isEdit ? "Xizmatni tahrirlash" : "Yangi xizmat qo‘shish" }}</h1>
-    </div>
+    <header class="club-form-header">
+      <NuxtLink :to="listPath" class="back-link" aria-label="Xizmatlarga qaytish"><FontAwesomeIcon :icon="faArrowLeft" /></NuxtLink>
+      <h1>{{ formTitle }}</h1>
+    </header>
 
     <nav v-if="isEdit && !isLoading" class="club-related-nav" aria-label="Muassasa bo‘limlari">
-      <NuxtLink :to="{ path: cabinetPath('/branches'), query: { club_id: props.clubId } }" class="secondary-button">Filiallar va xizmatlar</NuxtLink>
-      <NuxtLink v-if="loadedCategory === 'BARBERSHOP'" :to="{ path: cabinetPath('/barbers'), query: { club_id: props.clubId } }" class="secondary-button">Sartaroshlar</NuxtLink>
-      <NuxtLink :to="{ path: cabinetPath('/bookings'), query: { club_id: props.clubId } }" class="secondary-button">Bronlar</NuxtLink>
+      <NuxtLink :to="{ path: cabinetPath('/branches'), query: { club_id: props.clubId } }">Filiallar</NuxtLink>
+      <NuxtLink v-if="loadedCategory === 'BARBERSHOP'" :to="{ path: cabinetPath('/barbers'), query: { club_id: props.clubId } }">Sartaroshlar</NuxtLink>
+      <NuxtLink :to="{ path: cabinetPath('/bookings'), query: { club_id: props.clubId } }">Bronlar</NuxtLink>
     </nav>
-    <div v-if="isLoading" class="club-form-loading">
-      <span class="auth-spinner" />
-      <p>Yuklanmoqda...</p>
-    </div>
+    <div v-if="isLoading" class="club-form-loading"><span class="auth-spinner" />Yuklanmoqda…</div>
 
-    <form v-show="!isLoading" class="club-form-card" @submit.prevent="save">
+    <form v-show="!isLoading" class="venue-form" :aria-busy="isSaving" @submit.prevent="save">
       <p v-if="errorMessage" class="form-error" role="alert">{{ errorMessage }}</p>
-
-      <section class="club-form-section">
-        <h2>Asosiy ma’lumotlar</h2>
-        <div class="form-row">
-          <div class="form-group">
-            <label for="club-name">Nomi *</label>
-            <input id="club-name" v-model="form.name" type="text" placeholder="Xizmat nomi" required>
+      <div class="form-main">
+        <section class="form-card" aria-labelledby="venue-details-title">
+          <h2 id="venue-details-title">Asosiy ma’lumotlar</h2>
+          <div class="field-grid">
+            <div class="form-group"><label for="club-name">Nomi <span>*</span></label><input id="club-name" v-model="form.name" type="text" :placeholder="`${serviceName} nomi`" required maxlength="255"></div>
+            <div class="form-group"><label for="club-phone">Telefon</label><input id="club-phone" v-model="form.phone" type="tel" autocomplete="tel" placeholder="+998 90 123 45 67" maxlength="20"></div>
           </div>
-          <div class="form-group">
-            <label for="club-service-type">Xizmat turi *</label>
-            <select id="club-service-type" v-model="form.service_type" :disabled="!isPlatformAdmin && isEdit" required>
-              <option value="" disabled>Xizmatni tanlang</option>
-              <option v-for="service in serviceChoices" :key="service.id" :value="service.id">{{ service.label }}</option>
-            </select>
+          <div v-if="!hasServiceContext || isEdit" class="form-group">
+            <label for="club-service-type">Xizmat turi <span>*</span></label>
+            <select id="club-service-type" v-model="form.service_type" :disabled="!isPlatformAdmin && isEdit" required><option value="" disabled>Tanlang</option><option v-for="service in serviceChoices" :key="service.id" :value="service.id">{{ service.label }}</option></select>
           </div>
-        </div>
-        <fieldset class="service-picker">
-          <legend>Klub xizmatlari</legend>
-          <ServiceChecklist v-model="form.available_services" :services="serviceChoices" />
-        </fieldset>
-        <div class="form-group">
-          <label for="club-description">Tavsif</label>
-          <textarea id="club-description" v-model="form.description" rows="3" placeholder="Xizmat haqida" />
-        </div>
-      </section>
-
-      <section class="club-form-section">
-        <h2>Rasmlar</h2>
-        <div class="form-row">
-          <div class="form-group">
-            <label for="club-logo">Logotip</label>
-            <input id="club-logo" type="file" accept="image/jpeg,image/png,image/webp" @change="pickImage($event, 'logo')">
-            <img v-if="logoPreview" :src="logoPreview" alt="Logotip" class="club-logo-preview">
-          </div>
-          <div class="form-group">
-            <label for="club-cover">Muqova rasmi</label>
-            <input id="club-cover" type="file" accept="image/jpeg,image/png,image/webp" @change="pickImage($event, 'cover')">
-            <img v-if="coverPreview" :src="coverPreview" alt="Muqova" class="club-cover-preview">
-          </div>
-        </div>
-        <small class="club-form-hint">JPG, PNG yoki WEBP, 5 MB gacha.</small>
-      </section>
-
-      <section class="club-form-section">
-        <h2>Joylashuv</h2>
-        <div class="form-row">
-          <div class="form-group">
-            <label for="billing-city">Shahar *</label>
-            <select id="billing-city" v-model="form.billing_city" required :disabled="!isPlatformAdmin && isEdit" @change="form.billing_district = ''">
-              <option value="" disabled>Shaharni tanlang</option>
-              <option v-for="city in cities" :key="city.id" :value="city.id">{{ city.name }}</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label for="billing-district">Tuman *</label>
-            <select id="billing-district" v-model="form.billing_district" required :disabled="isDistrictLoading || !form.billing_city || (!isPlatformAdmin && isEdit)">
-              <option value="" disabled>{{ isDistrictLoading ? "Yuklanmoqda…" : "Tumanni tanlang" }}</option>
-              <option v-for="district in districts" :key="district.id" :value="district.id">{{ district.name }}</option>
-            </select>
-            <small v-if="districtError" role="alert">{{ districtError }}</small>
-            <small v-else-if="form.billing_city && !isDistrictLoading && !districts.length">Bu hudud uchun tumanlar hali qo‘shilmagan.</small>
-          </div>
-        </div>
-        <div class="form-group">
-          <label for="club-address">Manzil</label>
-          <input id="club-address" v-model="form.address" type="text" placeholder="Ko‘cha, uy, mo‘ljal...">
-        </div>
-        <div class="form-group">
-          <label>Xaritadan joyni tanlang</label>
-          <div ref="mapEl" class="club-location-map" />
-          <div class="club-map-actions">
-            <small class="club-form-hint">
-              <template v-if="form.latitude != null && form.longitude != null">Tanlangan: {{ form.latitude.toFixed(6) }}, {{ form.longitude.toFixed(6) }}</template>
-              <template v-else>Xaritada bosing yoki belgini sudrab joyni ko‘rsating.</template>
-            </small>
-            <div class="club-map-buttons">
-              <button type="button" class="secondary-button" @click="useMyLocation">Mening joylashuvim</button>
-              <button v-if="form.latitude != null" type="button" class="secondary-button" @click="clearLocation">Tozalash</button>
+          <div v-if="additionalServiceOptions.length" class="form-group">
+            <label for="club-additional-service">Qo‘shimcha xizmatlar</label>
+            <select id="club-additional-service" @change="addService"><option value="" selected disabled>Xizmat tanlang</option><option v-for="service in additionalServiceOptions" :key="service.id" :value="service.id" :disabled="form.available_services.includes(service.id)">{{ service.name }}</option></select>
+            <div v-if="selectedAdditionalServices.length" class="selected-services">
+              <span v-for="service in selectedAdditionalServices" :key="service.id" class="service-chip">{{ service.name }}<button type="button" :aria-label="`${service.name} xizmatini olib tashlash`" @click="removeService(service.id)"><FontAwesomeIcon :icon="faXmark" /></button></span>
             </div>
           </div>
-        </div>
-      </section>
-
-      <section class="club-form-section">
-        <h2>Aloqa</h2>
-        <div class="form-row">
-          <div class="form-group">
-            <label for="club-phone">Telefon</label>
-            <input id="club-phone" v-model="form.phone" type="tel" placeholder="+998 90 123 45 67">
+          <div class="form-group"><label for="club-description">Qisqa tavsif</label><textarea id="club-description" v-model="form.description" rows="3" placeholder="Muassasa haqida qisqacha" /></div>
+          <div v-if="!isBarbershop" class="field-grid">
+            <div class="form-group"><label for="club-email">Email</label><input id="club-email" v-model="form.email" type="email" autocomplete="email" placeholder="info@example.uz"></div>
+            <div class="form-group"><label for="club-website">Vebsayt</label><input id="club-website" v-model="form.website" type="url" placeholder="https://"></div>
           </div>
-          <div class="form-group">
-            <label for="club-email">Email</label>
-            <input id="club-email" v-model="form.email" type="email" placeholder="info@club.uz">
-          </div>
-        </div>
-        <div class="form-group">
-          <label for="club-website">Vebsayt</label>
-          <input id="club-website" v-model="form.website" type="url" placeholder="https://club.uz">
-        </div>
-      </section>
+        </section>
 
-      <section class="club-form-section">
-        <h2>Boshqaruv</h2>
-        <div v-if="isPlatformAdmin" class="form-group">
-          <label for="club-owner">Xizmat egasi</label>
-          <button type="button" class="secondary-button" @click="showNewClient = !showNewClient">Mijoz qo‘shish</button>
-          <div v-if="showNewClient" class="inline-client-form">
-            <label for="new-owner-name">Ism-familiya</label><input id="new-owner-name" v-model="newClient.full_name" maxlength="150" autocomplete="name">
-            <label for="new-owner-phone">Telefon</label><input id="new-owner-phone" v-model="newClient.phone" type="tel" autocomplete="tel">
-            <label for="new-owner-login">Login</label><input id="new-owner-login" v-model="newClient.username" maxlength="30" autocomplete="off" autocapitalize="none">
-            <label for="new-owner-password">Parol</label><input id="new-owner-password" v-model="newClient.password" type="password" maxlength="128" autocomplete="new-password">
-            <button type="button" class="primary-button" :disabled="creatingClient" @click="createClientHere">{{ creatingClient ? "Saqlanmoqda…" : "Mijozni saqlash" }}</button>
+        <section class="form-card" aria-labelledby="venue-location-title">
+          <h2 id="venue-location-title">Manzil</h2>
+          <div class="field-grid">
+            <div class="form-group"><label for="billing-city">Shahar <span>*</span></label><select id="billing-city" v-model="form.billing_city" required :disabled="!isPlatformAdmin && isEdit" @change="form.billing_district = ''"><option value="" disabled>Shaharni tanlang</option><option v-for="city in cities" :key="city.id" :value="city.id">{{ city.name }}</option></select></div>
+            <div class="form-group"><label for="billing-district">Tuman <span>*</span></label><select id="billing-district" v-model="form.billing_district" required :disabled="isDistrictLoading || !form.billing_city || (!isPlatformAdmin && isEdit)"><option value="" disabled>{{ isDistrictLoading ? 'Yuklanmoqda…' : 'Tumanni tanlang' }}</option><option v-for="district in districts" :key="district.id" :value="district.id">{{ district.name }}</option></select><small v-if="districtError" role="alert">{{ districtError }}</small><small v-else-if="form.billing_city && !isDistrictLoading && !districts.length">Bu shahar uchun tumanlar kiritilmagan.</small></div>
           </div>
-          <select id="club-owner" v-model="form.owner">
-            <option :value="null">O‘zim (Platforma administratori)</option>
-            <option v-for="cl in clientsList" :key="cl.id" :value="cl.id">{{ cl.profile?.full_name || cl.username }} (@{{ cl.username }})</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label for="club-status">Holat</label>
-          <select id="club-status" v-model="form.status">
-            <option value="ACTIVE">Faol</option>
-            <option value="INACTIVE">Nofaol</option>
-          </select>
-        </div>
-        <div v-if="isPlatformAdmin" class="form-checkbox">
-          <label><input v-model="form.is_verified" type="checkbox"><span>Tekshiruvdan o‘tgan deb belgilash (Verified badge)</span></label>
-        </div>
-      </section>
-
-      <div class="club-form-actions">
-        <NuxtLink :to="listPath" class="secondary-button">Bekor qilish</NuxtLink>
-        <button type="submit" class="primary-button" :disabled="isSaving || creatingClient || isDistrictLoading">
-          {{ isSaving ? "Saqlanmoqda..." : "Saqlash" }}
-        </button>
+          <div class="form-group"><label for="club-address">Ko‘cha va uy</label><input id="club-address" v-model="form.address" type="text" autocomplete="street-address" maxlength="300" placeholder="Masalan, Amir Temur ko‘chasi, 12"></div>
+          <div class="field-grid coordinates-grid">
+            <div class="form-group"><label for="club-latitude">Latitude <span>*</span></label><input id="club-latitude" v-model.number="form.latitude" type="number" required inputmode="decimal" min="-90" max="90" step="0.000001" placeholder="41.311081"></div>
+            <div class="form-group"><label for="club-longitude">Longitude <span>*</span></label><input id="club-longitude" v-model.number="form.longitude" type="number" required inputmode="decimal" min="-180" max="180" step="0.000001" placeholder="69.240562"></div>
+          </div>
+        </section>
       </div>
+
+      <div class="form-aside">
+        <section class="form-card" aria-labelledby="venue-images-title">
+          <h2 id="venue-images-title">Rasmlar</h2>
+          <label class="cover-upload" for="club-cover">
+            <img v-if="coverPreview" :src="coverPreview" alt="Muqova" class="cover-preview">
+            <span v-else class="upload-placeholder"><FontAwesomeIcon :icon="faImage" /><span>Muqova yuklash</span></span>
+            <span v-if="coverPreview" class="replace-image">Almashtirish</span>
+            <input id="club-cover" class="file-input" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Muqova yuklash" @change="pickImage($event, 'cover')">
+          </label>
+          <label class="logo-upload" for="club-logo">
+            <span class="logo-thumbnail"><img v-if="logoPreview" :src="logoPreview" alt="Logotip"><FontAwesomeIcon v-else :icon="faPlus" /></span>
+            <span class="logo-copy"><strong>Logotip</strong><small>{{ logoPreview ? 'Almashtirish' : 'Rasm tanlash' }}</small></span>
+            <input id="club-logo" class="file-input" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Logotip yuklash" @change="pickImage($event, 'logo')">
+          </label>
+          <small class="upload-hint">JPG, PNG, WEBP · 5 MB gacha</small>
+        </section>
+
+        <section class="form-card" aria-labelledby="venue-settings-title">
+          <h2 id="venue-settings-title">Sozlamalar</h2>
+          <template v-if="isPlatformAdmin">
+            <div class="form-group"><div class="label-row"><label for="club-owner">Egasi</label><button type="button" class="text-button" :aria-expanded="showNewClient" aria-controls="new-owner-fields" @click="showNewClient = !showNewClient"><FontAwesomeIcon :icon="showNewClient ? faXmark : faPlus" />{{ showNewClient ? 'Yopish' : 'Yangi' }}</button></div><select id="club-owner" v-model="form.owner"><option :value="null">O‘zim</option><option v-for="client in clientsList" :key="client.id" :value="client.id">{{ client.profile?.full_name || client.username }}</option></select></div>
+            <div v-if="showNewClient" id="new-owner-fields" class="inline-client-form">
+              <div class="form-group"><label for="new-owner-name">Ism-familiya</label><input id="new-owner-name" v-model="newClient.full_name" maxlength="150" autocomplete="name"></div>
+              <div class="form-group"><label for="new-owner-phone">Telefon</label><input id="new-owner-phone" v-model="newClient.phone" type="tel" autocomplete="tel"></div>
+              <div class="form-group"><label for="new-owner-login">Login</label><input id="new-owner-login" v-model="newClient.username" maxlength="30" autocomplete="off" autocapitalize="none"></div>
+              <div class="form-group"><label for="new-owner-password">Parol</label><input id="new-owner-password" v-model="newClient.password" type="password" maxlength="128" autocomplete="new-password"></div>
+              <button type="button" class="secondary-button" :disabled="creatingClient" @click="createClientHere">{{ creatingClient ? 'Saqlanmoqda…' : 'Egani qo‘shish' }}</button>
+            </div>
+          </template>
+          <div class="form-group"><label for="club-status">Holat</label><select id="club-status" v-model="form.status"><option value="ACTIVE">Faol</option><option value="INACTIVE">Nofaol</option></select></div>
+          <label v-if="isPlatformAdmin" class="verified-control"><span>Tasdiqlangan</span><input v-model="form.is_verified" type="checkbox" role="switch" aria-label="Tasdiqlangan muassasa"></label>
+        </section>
+      </div>
+
+      <footer class="club-form-actions"><NuxtLink :to="listPath" class="cancel-link">Bekor qilish</NuxtLink><button type="submit" class="primary-button save-button" :disabled="isSaving || creatingClient || isDistrictLoading">{{ isSaving ? 'Saqlanmoqda…' : isEdit ? 'Saqlash' : 'Qo‘shish' }}</button></footer>
     </form>
   </div>
 </template>
 
 <style scoped>
-.club-related-nav { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
-
-.club-form-page { display: flex; flex-direction: column; gap: 16px; max-width: 880px; width: 100%; margin: 0 auto; }
-.club-form-header { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-.club-form-header h1 { margin: 0; font-size: 22px; font-weight: 800; }
+.club-form-page { width: 100%; max-width: 1120px; margin: 0 auto; padding-bottom: 16px; }
+.club-form-header { display: flex; align-items: center; gap: 14px; margin-bottom: 26px; }
+.club-form-header h1 { margin: 0; font-size: clamp(20px, 2.2vw, 26px); font-weight: 750; letter-spacing: -.035em; line-height: 1.25; }
+.back-link { display: grid; place-items: center; width: 38px; height: 38px; flex-shrink: 0; border: 1px solid var(--border); border-radius: 12px; color: var(--muted); background: var(--surface); font-size: 14px; text-decoration: none; }
+.back-link:hover { color: var(--accent); border-color: var(--accent); }
+.club-related-nav { display: flex; flex-wrap: wrap; gap: 6px; margin: -10px 0 20px; }
+.club-related-nav a { padding: 9px 14px; border: 1px solid var(--border); border-radius: 9px; color: var(--muted); background: var(--surface); text-decoration: none; font-size: 13px; }
 .club-form-loading { display: flex; flex-direction: column; align-items: center; padding: 60px; gap: 12px; color: var(--muted); }
-.club-form-card { display: flex; flex-direction: column; gap: 22px; padding: 24px; background: var(--surface); border: 1px solid var(--panel-border); border-radius: 20px; }
-.club-form-section { display: flex; flex-direction: column; gap: 14px; }
-.club-form-section h2 { margin: 0; font-size: 15px; font-weight: 750; padding-bottom: 8px; border-bottom: 1px solid var(--panel-border); }
-.form-row { display: flex; gap: 12px; flex-wrap: wrap; }
-.form-row > .form-group { min-width: 220px; }
-.form-group { display: flex; flex-direction: column; gap: 6px; flex: 1; }
-.form-group label { font-size: 12px; font-weight: 600; color: var(--muted); }
-.form-group input, .form-group textarea, .form-group select { padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--control); color: var(--text); font-size: 13px; }
-.form-checkbox label { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
-.form-error { margin: 0; padding: 10px; border-radius: 8px; background: rgba(239, 68, 68, 0.15); color: #ef4444; font-size: 12px; }
-.inline-client-form { display: grid; gap: 8px; padding: 16px; border: 1px solid var(--panel-border); border-radius: 10px; margin: 10px 0; }
-.club-logo-preview { width: 96px; height: 96px; object-fit: cover; border-radius: 10px; border: 1px solid var(--border); margin-top: 6px; }
-.club-cover-preview { width: 100%; max-width: 280px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 10px; border: 1px solid var(--border); margin-top: 6px; }
-.club-location-map { height: 340px; border-radius: 12px; border: 1px solid var(--border); overflow: hidden; z-index: 0; }
-.club-map-actions { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
-.club-map-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
-.club-form-hint { font-size: 11px; color: var(--muted); }
-.club-form-actions { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
-@media (max-width: 640px) { .club-form-card { padding: 16px; } .club-location-map { height: 280px; } }
+.venue-form { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 20px; align-items: start; }
+.form-main, .form-aside { display: grid; gap: 20px; min-width: 0; }
+.form-card { display: grid; gap: 18px; min-width: 0; padding: 24px; border: 1px solid var(--panel-border); border-radius: 16px; background: var(--surface); box-shadow: 0 2px 6px #0f172a03; }
+.form-card h2 { margin: 0 0 2px; color: var(--text); font-size: 14px; font-weight: 750; }
+.field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; min-width: 0; }
+.form-group { display: grid; gap: 7px; align-content: start; min-width: 0; }
+.form-group label { color: var(--muted); font-size: 12px; font-weight: 600; }
+.form-group label > span { color: var(--accent); }
+.form-group input, .form-group textarea, .form-group select { display: block; width: 100%; min-width: 0; min-height: 44px; margin: 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--control); color: var(--text); font: inherit; font-size: 13px; transition: border-color .15s, box-shadow .15s; }
+.form-group input::placeholder, .form-group textarea::placeholder { color: var(--muted); opacity: .65; }
+.form-group input:focus, .form-group textarea:focus, .form-group select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent); }
+.form-group textarea { resize: vertical; min-height: 88px; }
+.form-group select { cursor: pointer; padding-right: 24px; }
+.form-group :disabled { opacity: .55; cursor: not-allowed; }
+.form-group small { color: var(--muted); font-size: 11px; line-height: 1.5; }
+.coordinates-grid input { font-variant-numeric: tabular-nums; }
+.selected-services { display: flex; flex-wrap: wrap; gap: 6px; }
+.service-chip { display: inline-flex; align-items: center; gap: 8px; padding: 5px 6px 5px 10px; border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent); border-radius: 8px; color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, transparent); font-size: 12px; }
+.service-chip button { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 6px; color: inherit; background: transparent; cursor: pointer; }
+.service-chip button:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.cover-upload { position: relative; display: grid; place-items: center; min-height: 140px; overflow: hidden; border: 1px dashed color-mix(in srgb, var(--muted) 40%, transparent); border-radius: 12px; background: var(--control); cursor: pointer; }
+.upload-placeholder { display: grid; justify-items: center; gap: 12px; padding: 20px; color: var(--muted); font-size: 12px; }
+.upload-placeholder > svg { font-size: 26px; opacity: .55; }
+.cover-preview { width: 100%; height: 150px; object-fit: cover; }
+.replace-image { position: absolute; right: 8px; bottom: 8px; padding: 5px 8px; border-radius: 6px; color: white; background: #0f172abf; font-size: 11px; }
+.file-input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.cover-upload:focus-within, .logo-upload:focus-within { outline: 2px solid var(--accent); outline-offset: 3px; }
+.logo-upload { position: relative; display: flex; align-items: center; gap: 12px; border-radius: 10px; cursor: pointer; }
+.logo-thumbnail { display: grid; place-items: center; width: 48px; height: 48px; flex-shrink: 0; overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--control); color: var(--muted); font-size: 15px; }
+.logo-thumbnail img { width: 100%; height: 100%; object-fit: cover; }
+.logo-copy { display: grid; gap: 4px; }.logo-copy strong { color: var(--text); font-size: 12px; font-weight: 650; }.logo-copy small, .upload-hint { color: var(--muted); font-size: 11px; }
+.label-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 22px; }
+.text-button { display: inline-flex; align-items: center; gap: 5px; padding: 2px 0; border: 0; background: transparent; color: var(--accent); font: inherit; font-size: 11px; cursor: pointer; }
+.inline-client-form { display: grid; gap: 12px; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--control); }
+.verified-control { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 4px; color: var(--muted); font-size: 12px; cursor: pointer; }
+.verified-control input { appearance: none; position: relative; width: 36px; height: 21px; margin: 0; flex-shrink: 0; border: 1px solid var(--border); border-radius: 99px; background: var(--control); cursor: pointer; }
+.verified-control input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 13px; height: 13px; border-radius: 50%; background: var(--muted); }
+.verified-control input:checked { border-color: var(--accent); background: var(--accent); }
+.verified-control input:checked::after { transform: translateX(15px); background: white; }
+.verified-control input:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.form-error { grid-column: 1 / -1; margin: 0; padding: 12px 16px; border: 1px solid color-mix(in srgb, var(--danger) 25%, transparent); border-radius: 12px; background: var(--danger-soft); color: var(--danger); font-size: 13px; }
+.club-form-actions { position: sticky; bottom: 12px; z-index: 5; grid-column: 1 / -1; display: flex; justify-content: flex-end; align-items: center; gap: 24px; padding: 14px 18px; border: 1px solid var(--panel-border); border-radius: 14px; background: color-mix(in srgb, var(--surface) 94%, transparent); backdrop-filter: blur(12px); }
+.cancel-link { color: var(--muted); text-decoration: none; font-size: 13px; }.cancel-link:hover { color: var(--text); }
+.save-button { min-width: 130px; min-height: 42px; border-radius: 10px; font-size: 13px; }
+.back-link:focus-visible, .text-button:focus-visible, .service-chip button:focus-visible, .cancel-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+@media (max-width: 1100px) { .venue-form { grid-template-columns: minmax(0, 1fr) 250px; gap: 16px; }.form-card { padding: 20px; }.field-grid { gap: 12px; } }
+@media (max-width: 900px) { .venue-form { grid-template-columns: 1fr; }.form-aside { grid-template-columns: repeat(2, minmax(0, 1fr)); }.form-card { padding: 20px; } }
+@media (max-width: 600px) {
+  .club-form-header { margin-bottom: 18px; gap: 10px; }.club-form-header h1 { font-size: 20px; }.back-link { width: 34px; height: 34px; }
+  .venue-form, .form-main, .form-aside { gap: 14px; }.form-aside, .field-grid { grid-template-columns: 1fr; }.coordinates-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .form-card { padding: 18px; gap: 16px; border-radius: 14px; }.form-group input, .form-group select, .form-group textarea { font-size: 16px; }
+  .club-form-actions { bottom: max(8px, env(safe-area-inset-bottom)); padding: 12px 14px; }.save-button { min-width: 140px; }.cover-upload { min-height: 120px; }
+}
+@media (prefers-reduced-motion: reduce) { .form-group input, .form-group select, .form-group textarea { transition: none; } }
 </style>

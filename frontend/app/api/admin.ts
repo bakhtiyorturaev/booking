@@ -57,6 +57,8 @@ export const useAdminApi = () => {
         headers: { "Accept-Language": language },
       }),
 
+    getBranch: (id: string) => client.get<any>(`/api/cabinet/branches/${encodeURIComponent(id)}/`, { local: true }),
+
     createBranch: (payload: any, language = "uz") =>
       client.post<any>("/api/cabinet/branches/", {
         body: payload,

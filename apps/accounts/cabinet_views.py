@@ -57,6 +57,9 @@ class CabinetUserViewSet(
         elif audience == "customers":
             qs = qs.filter(role=User.Role.CUSTOMER, owned_clubs__isnull=True, barber_profile__isnull=True)
 
+        if self.request.query_params.get("available_for_barber") == "true":
+            qs = qs.filter(barber_profile__isnull=True, role__in=[User.Role.CUSTOMER, User.Role.CLIENT])
+
         query = self.request.query_params.get("query", "").strip()
         role = self.request.query_params.get("role", "").strip()
         user_status = self.request.query_params.get("status", "").strip()

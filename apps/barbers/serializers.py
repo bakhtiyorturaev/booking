@@ -20,16 +20,28 @@ class PublicBarberSerializer(serializers.ModelSerializer):
         read_only=True,
     )
     distance_km = serializers.SerializerMethodField()
+    latitude = serializers.SerializerMethodField()
+    longitude = serializers.SerializerMethodField()
+
+    def get_latitude(self, obj):
+        point = obj.map_coordinates
+        return str(point[0]) if point else None
+
+    def get_longitude(self, obj):
+        point = obj.map_coordinates
+        return str(point[1]) if point else None
+
 
     def get_distance_km(self, obj):
-        if not obj.branch or obj.branch.latitude is None or obj.branch.longitude is None:
+        point = obj.map_coordinates
+        if point is None:
             return None
         latitude = self.context.get("latitude")
         longitude = self.context.get("longitude")
         if latitude is None or longitude is None:
             return None
         try:
-            return haversine_km(float(latitude), float(longitude), float(obj.branch.latitude), float(obj.branch.longitude))
+            return haversine_km(float(latitude), float(longitude), float(point[0]), float(point[1]))
         except (TypeError, ValueError):
             return None
 
@@ -45,6 +57,8 @@ class PublicBarberSerializer(serializers.ModelSerializer):
             "rating",
             "review_count",
             "distance_km",
+            "latitude",
+            "longitude",
             "club",
             "club_id",
             "club_name",
@@ -137,6 +151,10 @@ class CabinetBarberSerializer(serializers.ModelSerializer):
         return barber_billing_status(obj)
 
     def validate(self, attrs):
+        latitude = attrs.get("latitude", self.instance.latitude if self.instance else None)
+        longitude = attrs.get("longitude", self.instance.longitude if self.instance else None)
+        if (latitude is None) != (longitude is None):
+            raise serializers.ValidationError({"latitude": "Latitude va longitude birga kiritilishi kerak.", "longitude": "Latitude va longitude birga kiritilishi kerak."})
         user = attrs.get("user", self.instance.user if self.instance else None)
         if user and (not user.is_active or user.role not in {"CUSTOMER", "CLIENT"}):
             raise serializers.ValidationError({"user": "Faol mijoz yoki sartarosh akkauntini tanlang."})
@@ -171,6 +189,8 @@ class CabinetBarberSerializer(serializers.ModelSerializer):
             "billing",
             "user",
             "user_username",
+            "latitude",
+            "longitude",
             "full_name",
             "phone",
             "photo",

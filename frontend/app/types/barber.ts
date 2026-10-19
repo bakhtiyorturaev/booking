@@ -37,6 +37,8 @@ export interface BarberItem {
   branch_address?: string
   branch_city?: string
   branch_district?: string
+  latitude?: string | null
+  longitude?: string | null
   distance_km?: number | null
   work_start_time: string
   work_end_time: string

@@ -63,6 +63,16 @@ class Barber(models.Model):
     )
     billing_city = models.ForeignKey("core.City", on_delete=models.PROTECT, null=True, blank=True, related_name="billing_barbers")
     billing_district = models.ForeignKey("core.District", on_delete=models.PROTECT, null=True, blank=True, related_name="billing_barbers")
+    latitude = models.DecimalField(
+        max_digits=9, decimal_places=6, null=True, blank=True,
+        validators=[MinValueValidator(-90), MaxValueValidator(90)],
+        verbose_name="Latitude",
+    )
+    longitude = models.DecimalField(
+        max_digits=9, decimal_places=6, null=True, blank=True,
+        validators=[MinValueValidator(-180), MaxValueValidator(180)],
+        verbose_name="Longitude",
+    )
     affiliation_status = models.CharField(
         max_length=15,
         choices=AffiliationStatus.choices,
@@ -110,6 +120,16 @@ class Barber(models.Model):
 
     def __str__(self):
         return self.full_name or f"Barber #{self.id}"
+
+    @property
+    def map_coordinates(self):
+        if self.latitude is not None and self.longitude is not None:
+            return self.latitude, self.longitude
+        if self.branch_id and self.branch.latitude is not None and self.branch.longitude is not None:
+            return self.branch.latitude, self.branch.longitude
+        if self.club_id and self.club.latitude is not None and self.club.longitude is not None:
+            return self.club.latitude, self.club.longitude
+        return None
 
     def default_working_days(self):
         return [1, 2, 3, 4, 5, 6]

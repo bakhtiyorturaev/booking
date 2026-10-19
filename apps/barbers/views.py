@@ -80,9 +80,10 @@ class PublicBarberViewSet(viewsets.ReadOnlyModelViewSet):
                 items = list(queryset)
 
                 def get_dist(b):
-                    if b.branch and b.branch.latitude is not None and b.branch.longitude is not None:
+                    point = b.map_coordinates
+                    if point is not None:
                         try:
-                            return haversine_km(lat_f, lng_f, float(b.branch.latitude), float(b.branch.longitude))
+                            return haversine_km(lat_f, lng_f, float(point[0]), float(point[1]))
                         except (ValueError, TypeError):
                             return float("inf")
                     return float("inf")
