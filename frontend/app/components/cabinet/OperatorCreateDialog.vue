@@ -123,7 +123,7 @@ const save = async () => {
   if (linked.value && (!selectedSalon.value || !selectedBranch.value)) { error.value = "Sartaroshxona va filialni tanlang."; return }
   const latitude = coordinate(form.value.latitude, 90)
   const longitude = coordinate(form.value.longitude, 180)
-  if (latitude == null || longitude == null) { error.value = "Latitude va longitude qiymatlarini to‘g‘ri kiriting."; return }
+  if (!linked.value && (latitude == null || longitude == null)) { error.value = "Latitude va longitude qiymatlarini to‘g‘ri kiriting."; return }
   saving.value = true
   try {
     await api.createBarber({
@@ -131,7 +131,7 @@ const save = async () => {
       branch: linked.value ? selectedBranch.value?.value : null,
       billing_city: linked.value ? null : form.value.billing_city || null,
       billing_district: linked.value ? null : form.value.billing_district || null,
-      latitude: latitude.toFixed(6), longitude: longitude.toFixed(6),
+      latitude: linked.value ? null : latitude?.toFixed(6), longitude: linked.value ? null : longitude?.toFixed(6),
       full_name: form.value.full_name.trim(), phone: form.value.phone,
       affiliation_status: linked.value ? "APPROVED" : "NONE", status: "AVAILABLE",
       work_start_time: form.value.work_start_time, work_end_time: form.value.work_end_time,
@@ -162,7 +162,7 @@ const save = async () => {
                 <div class="form-group"><label>Filial <span>*</span></label><RemoteSelect :key="`branch-${session}-${selectedSalon?.value || ''}`" :model-value="selectedBranch" :fetch-options="searchBranches" label="Filial" placeholder="Filialni qidirish…" :disabled="saving || !selectedSalon || Boolean(branchId)" @update:model-value="chooseBranch" /></div>
               </template>
               <div v-else class="field-grid"><div class="form-group"><label for="barber-city">Shahar <span>*</span></label><select id="barber-city" v-model="form.billing_city" required :disabled="saving" @change="form.billing_district = ''"><option value="" disabled>Tanlang</option><option v-for="city in cities" :key="city.id" :value="city.id">{{ city.name }}</option></select></div><div class="form-group"><label for="barber-district">Tuman <span>*</span></label><select id="barber-district" v-model="form.billing_district" required :disabled="saving || isDistrictLoading || !form.billing_city"><option value="" disabled>{{ isDistrictLoading ? 'Yuklanmoqda…' : 'Tanlang' }}</option><option v-for="district in districts" :key="district.id" :value="district.id">{{ district.name }}</option></select><small v-if="districtError" role="alert">{{ districtError }}</small></div></div>
-              <div class="field-grid compact-grid"><div class="form-group"><label for="barber-latitude">Latitude <span>*</span></label><input id="barber-latitude" v-model.number="form.latitude" type="number" inputmode="decimal" min="-90" max="90" step="0.000001" required placeholder="41.311081" :disabled="saving"></div><div class="form-group"><label for="barber-longitude">Longitude <span>*</span></label><input id="barber-longitude" v-model.number="form.longitude" type="number" inputmode="decimal" min="-180" max="180" step="0.000001" required placeholder="69.240562" :disabled="saving"></div></div>
+              <div v-if="!linked" class="field-grid compact-grid"><div class="form-group"><label for="barber-latitude">Latitude <span>*</span></label><input id="barber-latitude" v-model.number="form.latitude" type="number" inputmode="decimal" min="-90" max="90" step="0.000001" required placeholder="41.311081" :disabled="saving"></div><div class="form-group"><label for="barber-longitude">Longitude <span>*</span></label><input id="barber-longitude" v-model.number="form.longitude" type="number" inputmode="decimal" min="-180" max="180" step="0.000001" required placeholder="69.240562" :disabled="saving"></div></div>
               <div class="field-grid compact-grid schedule-row"><div class="form-group"><label for="barber-work-start">Ish boshlanishi <span>*</span></label><input id="barber-work-start" v-model="form.work_start_time" type="time" required :disabled="saving"></div><div class="form-group"><label for="barber-work-end">Ish tugashi <span>*</span></label><input id="barber-work-end" v-model="form.work_end_time" type="time" required :disabled="saving"></div></div>
             </template>
           </div>
