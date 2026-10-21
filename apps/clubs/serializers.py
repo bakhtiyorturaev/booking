@@ -16,6 +16,8 @@ from apps.clubs.models import (
     ResourceBlock,
     SpecialSchedule,
     Zone,
+    IMAGE_VALIDATORS,
+    validate_image_size,
 )
 from apps.core.models import City, District, ServiceType
 from apps.clubs.permissions import is_platform_admin
@@ -199,7 +201,7 @@ class BranchSummarySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Branch
-        fields = ("id","name","address","full_address","city","district","latitude","longitude","is_24_hours","service_types",
+        fields = ("id","name","address","full_address","city","district","latitude","longitude","is_24_hours","logo","service_types",
                   "min_price_tiyin","cover_image","distance_km",)
         read_only_fields = fields
 
@@ -308,7 +310,7 @@ class PublicBranchDetailSerializer(serializers.ModelSerializer):
         fields = ("id","club","name","description","address","full_address","city","district","landmark","latitude","longitude",
                   "phone","timezone","slot_interval_minutes","minimum_booking_minutes","maximum_booking_minutes",
                   "booking_hold_minutes","advance_booking_days","free_cancellation_minutes","no_show_grace_minutes",
-                  "auto_confirm_booking","is_24_hours","min_price_tiyin","distance_km","images",
+                  "auto_confirm_booking","is_24_hours","logo","min_price_tiyin","distance_km","images",
                   "operating_hours","special_schedules","zones",)
         read_only_fields = fields
 
@@ -320,7 +322,7 @@ class PublicBranchDetailSerializer(serializers.ModelSerializer):
             "category": obj.club.category,
             "category_display": obj.club.get_category_display(),
             "slug": obj.club.slug,
-            "logo": image_url(obj.club.logo, self.context.get("request")),
+            "logo": image_url(obj.logo or obj.club.logo, self.context.get("request")),
             "rating": obj.club.rating,
             "review_count": obj.club.review_count,
         }
@@ -354,6 +356,10 @@ class ClubManagementSerializer(CleanModelSerializer):
             root = root_service(service)
             attrs["category"] = root.code if root.code in Club.Category.values else Club.Category.OTHER
             attrs["service_name"] = service.name
+            selected = list(attrs.get("available_services", self.instance.available_services.all() if self.instance else []))
+            if service.is_active and all(item.pk != service.pk for item in selected):
+                selected.append(service)
+            attrs["available_services"] = selected
         city = attrs.get("billing_city", self.instance.billing_city if self.instance else None)
         district = attrs.get("billing_district", self.instance.billing_district if self.instance else None)
         if district and district.city_id != (city.pk if city else None):
@@ -471,13 +477,27 @@ class ClubManagementSerializer(CleanModelSerializer):
 
 
 class BranchManagementSerializer(CleanModelSerializer):
+    images = BranchImageSerializer(many=True, read_only=True)
+    photos = serializers.ListField(
+        child=serializers.ImageField(validators=[*IMAGE_VALIDATORS, validate_image_size]),
+        required=False, write_only=True, max_length=10,
+    )
+
     def validate(self, attrs):
         club = attrs.get("club", self.instance.club if self.instance else None)
         services = attrs.get("enabled_services")
         if services is None and self.instance:
             services = list(self.instance.enabled_services.all())
-        if services is not None:
-            allowed = descendant_service_ids(club.available_services.values_list("pk", flat=True)) if club else set()
+        services = list(services or [])
+        primary = club.service_type if club else None
+        if primary and primary.is_active and all(service.pk != primary.pk for service in services):
+            services.append(primary)
+        if services or "enabled_services" in attrs or self.instance is None:
+            attrs["enabled_services"] = services
+            roots = set(club.available_services.values_list("pk", flat=True)) if club else set()
+            if primary:
+                roots.add(primary.pk)
+            allowed = descendant_service_ids(roots)
             if any(service.pk not in allowed or not service.is_active for service in services):
                 raise serializers.ValidationError({"enabled_services": "Faqat ushbu klubga tegishli faol xizmatlarni tanlang."})
             if self.instance:
@@ -486,10 +506,33 @@ class BranchManagementSerializer(CleanModelSerializer):
                     raise serializers.ValidationError({"enabled_services": "Avval ushbu xizmatning zonalarini o‘zgartiring yoki olib tashlang."})
         return super().validate(attrs)
 
+    def _save_photos(self, instance, photos):
+        has_cover = instance.images.filter(is_cover=True).exists()
+        start = instance.images.count()
+        for index, photo in enumerate(photos):
+            BranchImage.objects.create(
+                branch=instance, image=photo, sort_order=start + index,
+                is_cover=not has_cover and index == 0,
+            )
+
+    @transaction.atomic
+    def create(self, validated_data):
+        photos = validated_data.pop("photos", [])
+        instance = super().create(validated_data)
+        self._save_photos(instance, photos)
+        return instance
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        photos = validated_data.pop("photos", [])
+        instance = super().update(instance, validated_data)
+        self._save_photos(instance, photos)
+        return instance
+
     class Meta:
         model = Branch
         fields = ("id","is_free","club","enabled_services","name","description","address","city","district","landmark","latitude","longitude",
-                  "phone","timezone","status","slot_interval_minutes","minimum_booking_minutes",
+                  "logo","images","photos","phone","timezone","status","slot_interval_minutes","minimum_booking_minutes",
                   "maximum_booking_minutes","booking_hold_minutes","advance_booking_days","free_cancellation_minutes",
                   "no_show_grace_minutes","auto_confirm_booking","is_24_hours",)
         read_only_fields = ("id", "is_free")

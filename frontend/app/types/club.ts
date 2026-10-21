@@ -5,6 +5,7 @@ export interface LocationOption {
 }
 
 export interface BranchSummary {
+  logo?: string | null
   id: string
   name: string
   address: string

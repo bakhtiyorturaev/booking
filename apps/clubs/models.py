@@ -43,6 +43,10 @@ def club_cover_upload_to(instance, filename):
     return _image_upload_path("cover", instance.id, filename)
 
 
+def branch_logo_upload_to(instance, filename):
+    return _image_upload_path("branch-logo", instance.id, filename)
+
+
 def branch_image_upload_to(instance, filename):
     return _image_upload_path("branches", instance.branch_id, filename)
 
@@ -217,6 +221,12 @@ class Branch(TimeStampedModel):
         decimal_places=6,
         validators=[MinValueValidator(-180), MaxValueValidator(180)],
         help_text="Xarita uzunligi.",
+    )
+    logo = models.ImageField(
+        upload_to=branch_logo_upload_to,
+        blank=True,
+        validators=(*IMAGE_VALIDATORS, validate_image_size),
+        help_text="Filial logotipi.",
     )
     phone = models.CharField(max_length=20, blank=True, help_text="Filial telefoni.")
     timezone = models.CharField(

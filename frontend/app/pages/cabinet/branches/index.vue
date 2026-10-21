@@ -46,17 +46,49 @@ const branchForm = ref({
   district: "",
   address: "",
   phone: "",
-  latitude: 41.2995,
-  longitude: 69.2401,
+  latitude: null as number | null,
+  longitude: null as number | null,
   status: "ACTIVE",
   is_24_hours: true,
 })
 
+const branchClub = computed(() => clubs.value.find(item => item.id === branchForm.value.club))
+const primaryService = computed(() => services.value.find(service => service.id === branchClub.value?.service_type))
 const branchServiceChoices = computed(() => {
-  const club = clubs.value.find(item => item.id === branchForm.value.club)
-  const allowed = descendantServiceIds(services.value, club?.available_services || [])
-  return services.value.filter(service => service.is_active && allowed.has(service.id))
+  const roots = [...(branchClub.value?.available_services || []), ...(primaryService.value ? [primaryService.value.id] : [])]
+  const allowed = descendantServiceIds(services.value, roots)
+  return services.value.filter(service => service.is_active && allowed.has(service.id) && service.id !== primaryService.value?.id)
 })
+const branchLogo = ref<File | null>(null)
+const branchPhotos = ref<File[]>([])
+const photoPreviews = ref<string[]>([])
+const logoPreview = ref("")
+const clearUploads = () => {
+  photoPreviews.value.forEach(url => URL.revokeObjectURL(url))
+  if (logoPreview.value.startsWith("blob:")) URL.revokeObjectURL(logoPreview.value)
+  photoPreviews.value = []; logoPreview.value = ""
+  branchLogo.value = null; branchPhotos.value = []
+}
+onBeforeUnmount(clearUploads)
+const pickBranchImages = (event: Event, kind: "logo" | "photos") => {
+  const input = event.target as HTMLInputElement
+  const files = [...(input.files || [])]
+  if (!files.length) return
+  if (files.length > 10 || files.some(file => !["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 5 * 1024 * 1024)) {
+    branchModalError.value = "JPG, PNG yoki WEBP rasmlar tanlang: har biri 5 MB gacha, ko‘pi bilan 10 ta."
+    input.value = ""; return
+  }
+  branchModalError.value = ""
+  if (kind === "logo") {
+    if (logoPreview.value.startsWith("blob:")) URL.revokeObjectURL(logoPreview.value)
+    branchLogo.value = files[0] || null
+    logoPreview.value = branchLogo.value ? URL.createObjectURL(branchLogo.value) : ""
+  } else {
+    photoPreviews.value.forEach(url => URL.revokeObjectURL(url))
+    branchPhotos.value = files
+    photoPreviews.value = files.map(file => URL.createObjectURL(file))
+  }
+}
 const zoneServiceChoices = computed(() => {
   const allowed = descendantServiceIds(services.value, selectedBranch.value?.enabled_services || [])
   return serviceTreeOptions(services.value.filter(service => service.is_active && allowed.has(service.id)))
@@ -64,7 +96,8 @@ const zoneServiceChoices = computed(() => {
 watch(() => branchForm.value.club, () => {
   const allowed = new Set(branchServiceChoices.value.map(service => service.id))
   branchForm.value.enabled_services = branchForm.value.enabled_services.filter(id => allowed.has(id))
-})
+  if (primaryService.value?.is_active) branchForm.value.enabled_services.push(primaryService.value.id)
+}, { flush: "sync" })
 
 const { districts, isDistrictLoading, districtError } = useCityDistricts(() => branchForm.value.city)
 
@@ -160,17 +193,18 @@ const selectBranch = async (branch: any) => {
 }
 
 const openCreateBranchModal = () => {
+  clearUploads()
   editingBranch.value = null
   branchForm.value = {
     club: selectedClubId.value || (clubs.value[0]?.id || ""),
     enabled_services: [...(clubs.value.find(club => club.id === (selectedClubId.value || clubs.value[0]?.id))?.available_services || [])],
     name: "",
-    city: cities.value[0]?.id || "",
+    city: "",
     district: "",
     address: "",
     phone: "",
-    latitude: 41.2995,
-    longitude: 69.2401,
+    latitude: null as number | null,
+    longitude: null as number | null,
     status: "ACTIVE",
     is_24_hours: true,
   }
@@ -179,6 +213,8 @@ const openCreateBranchModal = () => {
 }
 
 const openEditBranchModal = (b: any) => {
+  clearUploads()
+  logoPreview.value = b.logo || ""
   editingBranch.value = b
   branchForm.value = {
     club: b.club?.id || b.club || "",
@@ -188,8 +224,8 @@ const openEditBranchModal = (b: any) => {
     district: b.district?.id || b.district || "",
     address: b.address,
     phone: b.phone || "",
-    latitude: b.latitude || 41.2995,
-    longitude: b.longitude || 69.2401,
+    latitude: b.latitude != null ? Number(b.latitude) : null,
+    longitude: b.longitude != null ? Number(b.longitude) : null,
     status: b.status || "ACTIVE",
     is_24_hours: b.is_24_hours ?? true,
   }
@@ -202,15 +238,31 @@ const saveBranch = async () => {
     branchModalError.value = "Filial nomi va manzilini kiriting"
     return
   }
+  const latitude = branchForm.value.latitude
+  const longitude = branchForm.value.longitude
+  if (latitude == null || longitude == null || String(latitude) === "" || String(longitude) === "" || !Number.isFinite(Number(latitude)) || !Number.isFinite(Number(longitude)) || Math.abs(Number(latitude)) > 90 || Math.abs(Number(longitude)) > 180) {
+    branchModalError.value = "Latitude (−90…90) va longitude (−180…180) qiymatlarini kiriting."
+    return
+  }
   isSavingBranch.value = true
   branchModalError.value = ""
   try {
+    const payload = new FormData()
+    const enabled = new Set(branchForm.value.enabled_services)
+    if (primaryService.value?.is_active) enabled.add(primaryService.value.id)
+    Object.entries(branchForm.value).forEach(([key, value]) => {
+      if (key !== "enabled_services" && value != null) payload.append(key, String(value))
+    })
+    enabled.forEach(id => payload.append("enabled_services", id))
+    if (branchLogo.value) payload.append("logo", branchLogo.value)
+    branchPhotos.value.forEach(file => payload.append("photos", file))
     if (editingBranch.value) {
-      await adminApi.updateBranch(editingBranch.value.id, branchForm.value)
+      await adminApi.updateBranch(editingBranch.value.id, payload)
     } else {
-      await adminApi.createBranch(branchForm.value)
+      await adminApi.createBranch(payload)
     }
     showBranchModal.value = false
+    clearUploads()
     selectedBranch.value = null
     await fetchBranches()
   } catch (err: any) {
@@ -424,7 +476,7 @@ useDialogFocus(showZoneModal, "#cabinet-branches-showZoneModal", () => { showZon
             <p v-if="branchModalError" class="form-error">{{ branchModalError }}</p>
 
             <div class="form-group">
-              <label>Klub *</label>
+              <label>Muassasa *</label>
               <select v-model="branchForm.club" required aria-label="Tanlash">
                 <option v-for="c in clubs" :key="c.id" :value="c.id">{{ c.name }}</option>
               </select>
@@ -435,12 +487,13 @@ useDialogFocus(showZoneModal, "#cabinet-branches-showZoneModal", () => { showZon
               <input v-model="branchForm.name" type="text" placeholder="Masalan: Chilonzor filiali" required aria-label="Masalan: Chilonzor filiali">
             </div>
 
-            <fieldset class="service-picker"><legend>Filial xizmatlari</legend><ServiceChecklist v-model="branchForm.enabled_services" :services="branchServiceChoices" /><p v-if="!branchServiceChoices.length">Avval klubga xizmatlarni biriktiring.</p></fieldset>
+            <div v-if="primaryService" class="primary-service-label">{{ primaryService.name }}</div>
+            <fieldset v-if="branchServiceChoices.length" class="service-picker"><legend>Qo‘shimcha xizmatlar</legend><ServiceChecklist v-model="branchForm.enabled_services" :services="branchServiceChoices" /></fieldset>
             <div class="form-row">
               <div class="form-group">
                 <label>Shahar *</label>
-                <select v-model="branchForm.city" @change="branchForm.district = ''" aria-label="Tanlash">
-                  <option v-for="city in cities" :key="city.id" :value="city.id">{{ city.name }}</option>
+                <select v-model="branchForm.city" required @change="branchForm.district = ''" aria-label="Tanlash">
+                  <option value="" disabled>Shaharni tanlang</option><option v-for="city in cities" :key="city.id" :value="city.id">{{ city.name }}</option>
                 </select>
               </div>
               <div class="form-group">
@@ -461,7 +514,7 @@ useDialogFocus(showZoneModal, "#cabinet-branches-showZoneModal", () => { showZon
 
             <div class="form-row">
               <div class="form-group">
-                <label>Telefon</label>
+                <label>Filial telefoni</label>
                 <input v-model="branchForm.phone" type="tel" placeholder="+998 90 123 45 67">
               </div>
               <div class="form-group">
@@ -471,6 +524,15 @@ useDialogFocus(showZoneModal, "#cabinet-branches-showZoneModal", () => { showZon
                   <option value="INACTIVE">Nofaol</option>
                 </select>
               </div>
+            </div>
+
+            <div class="form-row branch-coordinates">
+              <div class="form-group"><label for="branch-latitude">Latitude *</label><input id="branch-latitude" v-model.number="branchForm.latitude" type="number" required min="-90" max="90" step="0.000001" inputmode="decimal" placeholder="41.311081"></div>
+              <div class="form-group"><label for="branch-longitude">Longitude *</label><input id="branch-longitude" v-model.number="branchForm.longitude" type="number" required min="-180" max="180" step="0.000001" inputmode="decimal" placeholder="69.240562"></div>
+            </div>
+            <div class="branch-media-fields">
+              <div class="form-group"><label for="branch-logo">Filial logotipi</label><img v-if="logoPreview" :src="logoPreview" class="branch-logo-preview" alt="Filial logotipi"><input id="branch-logo" type="file" accept="image/jpeg,image/png,image/webp" @change="pickBranchImages($event, 'logo')"></div>
+              <div class="form-group"><label for="branch-photos">Filial rasmlari</label><div v-if="editingBranch?.images?.length || photoPreviews.length" class="branch-photo-previews"><img v-for="image in editingBranch?.images || []" :key="image.id" :src="image.image" alt="Filial rasmi"><img v-for="url in photoPreviews" :key="url" :src="url" alt="Yangi rasm"></div><input id="branch-photos" type="file" multiple accept="image/jpeg,image/png,image/webp" @change="pickBranchImages($event, 'photos')"><small>JPG, PNG, WEBP · Har biri 5 MB gacha</small></div>
             </div>
 
             <div class="form-checkbox">
@@ -561,6 +623,16 @@ useDialogFocus(showZoneModal, "#cabinet-branches-showZoneModal", () => { showZon
 </template>
 
 <style scoped>
+.cabinet-modal .form-row.branch-coordinates { flex-direction: row; }
+.branch-coordinates input { width: 100%; min-width: 0; }
+.primary-service-label { width: fit-content; padding: 7px 12px; border-radius: 8px; color: var(--accent); background: var(--control); font-size: 13px; font-weight: 600; }
+.branch-media-fields { display: grid; gap: 18px; padding-top: 16px; border-top: 1px solid var(--border); }
+.branch-logo-preview { width: 64px; height: 64px; object-fit: cover; border: 1px solid var(--border); border-radius: 12px; }
+.branch-photo-previews { display: flex; flex-wrap: wrap; gap: 8px; }
+.branch-photo-previews img { width: 80px; height: 64px; object-fit: cover; border-radius: 8px; }
+.branch-media-fields input[type="file"] { max-width: 100%; font-size: 12px; padding: 10px; }
+.branch-media-fields small { color: var(--muted); font-size: 11px; }
+
 .admin-page {
   display: flex;
   flex-direction: column;
@@ -827,6 +899,8 @@ useDialogFocus(showZoneModal, "#cabinet-branches-showZoneModal", () => { showZon
 }
 
 .modal-card {
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
   width: min(100%, 520px);
   padding: 24px;
   background: var(--surface);
@@ -867,6 +941,7 @@ useDialogFocus(showZoneModal, "#cabinet-branches-showZoneModal", () => { showZon
   flex-direction: column;
   gap: 6px;
   flex: 1;
+  min-width: 0;
 }
 
 .form-group label {
@@ -888,6 +963,8 @@ useDialogFocus(showZoneModal, "#cabinet-branches-showZoneModal", () => { showZon
   display: flex;
   gap: 12px;
 }
+
+.form-checkbox input[type="checkbox"] { width: 18px; height: 18px; min-height: 18px; flex: 0 0 18px; margin: 0; padding: 0; accent-color: var(--accent); }
 
 .form-checkbox label {
   display: flex;

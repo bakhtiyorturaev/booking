@@ -99,6 +99,7 @@ const ratingScore = computed(() => {
       <div class="bronla-card-body">
         <!-- Branch Title & Rating Badge -->
         <div class="bronla-header-line">
+          <img v-if="branch.logo" :src="branch.logo" alt="" class="branch-logo" loading="lazy">
           <h3 class="bronla-club-title" :title="branch.name">
             {{ branch.name }}
           </h3>
@@ -135,6 +136,7 @@ const ratingScore = computed(() => {
 </template>
 
 <style scoped>
+.branch-logo { width: 32px; height: 32px; border-radius: 8px; object-fit: cover; flex-shrink: 0; }
 .bronla-card {
   background: var(--surface);
   border: 1px solid var(--border);

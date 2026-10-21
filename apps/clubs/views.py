@@ -858,7 +858,8 @@ class CabinetBranchViewSet(CabinetAccessMixin, viewsets.ModelViewSet):
     def get_queryset(self):
         qs = (
             Branch.objects.filter(manageable_club_filter(self.request.user, "club__"))
-            .select_related("club", "city", "district")
+            .select_related("club", "club__service_type", "city", "district")
+            .prefetch_related("images", "enabled_services")
             .distinct()
         )
         club_id = self.request.query_params.get("club_id")
