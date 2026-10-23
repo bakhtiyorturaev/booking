@@ -1,4 +1,5 @@
 import type { BarberItem } from "~~/app/types/barber"
+import type { PaginatedResponse } from "~~/app/types/club"
 import { djangoRequest, proxyDjangoError, requestLanguage } from "~~/server/utils/django"
 
 const ALLOWED_QUERY_PARAMS = [
@@ -11,6 +12,8 @@ const ALLOWED_QUERY_PARAMS = [
   "ordering",
   "latitude",
   "longitude",
+  "page",
+  "page_size",
 ]
 
 export default defineEventHandler(async (event) => {
@@ -21,7 +24,7 @@ export default defineEventHandler(async (event) => {
       .map(key => [key, String(input[key])]),
   )
   try {
-    return await djangoRequest<BarberItem[]>(
+    return await djangoRequest<PaginatedResponse<BarberItem>>(
       event,
       "/barbers/",
       {

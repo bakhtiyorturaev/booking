@@ -20,6 +20,12 @@ export const useVenueBillingStatus = (billing: () => VenueBillingStatus) => {
     if (days.value !== null) return `${days.value} kun qoldi`
     return billing().billing_status === "UNCONFIGURED" ? "Tarif belgilanmagan" : "Muddat belgilanmagan"
   })
-  const expires = computed(() => billing().billing_status !== "FREE" && billing().paid_until ? new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(billing().paid_until!)) : "")
+  // `timeZone` aniq ko'rsatilmasa, `Intl.DateTimeFormat` ishga tushirilgan
+  // muhitning tizim vaqt zonasidan foydalanadi — SSR (server, odatda UTC)
+  // va brauzer (foydalanuvchining mahalliy zonasi) buni har xil hisoblab,
+  // hydration mismatch (server va klient render matni mos kelmasligi)
+  // keltirib chiqaradi. Toshkent zonasini aniq belgilab, ikkisida ham bir
+  // xil natija chiqishini ta'minlaymiz.
+  const expires = computed(() => billing().billing_status !== "FREE" && billing().paid_until ? new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Tashkent" }).format(new Date(billing().paid_until!)) : "")
   return { level, days, label, expires }
 }

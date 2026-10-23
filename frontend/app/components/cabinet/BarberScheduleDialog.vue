@@ -10,11 +10,22 @@ const saving = ref(false)
 const error = ref("")
 const form = ref({ full_name: "", phone: "", status: "AVAILABLE", work_start_time: "09:00", work_end_time: "20:00", working_days: [] as number[] })
 const dialogId = `barber-schedule-${props.barber.id}`
+const photoFile = ref<File | null>(null)
+const photoPreview = ref("")
+const pickPhoto = (event: Event) => {
+  const file = (event.target as HTMLInputElement).files?.[0] || null
+  if (photoPreview.value) URL.revokeObjectURL(photoPreview.value)
+  photoFile.value = file
+  photoPreview.value = file ? URL.createObjectURL(file) : ""
+}
 const close = () => { if (!saving.value) open.value = false }
 useDialogFocus(open, `#${dialogId}`, close)
 const begin = () => {
   const barber = props.barber
   form.value = { full_name: barber.full_name, phone: barber.phone, status: barber.status, work_start_time: barber.work_start_time.slice(0, 5), work_end_time: barber.work_end_time.slice(0, 5), working_days: [...barber.working_days] }
+  if (photoPreview.value) URL.revokeObjectURL(photoPreview.value)
+  photoFile.value = null
+  photoPreview.value = ""
   error.value = ""
   open.value = true
 }
@@ -24,6 +35,10 @@ const save = async () => {
   error.value = ""
   try {
     await api.updateBarber(props.barber.id, { ...form.value, working_days: [...form.value.working_days].sort((a, b) => a - b) })
+    if (photoFile.value) {
+      try { await api.uploadBarberPhoto(props.barber.id, photoFile.value) }
+      catch { useToast().warning("Ma’lumotlar saqlandi, lekin rasmni yuklab bo‘lmadi.") }
+    }
     open.value = false
     emit("saved")
     useToast().success("Saqlandi.")
@@ -42,6 +57,7 @@ const weekdays = ["Dushanba", "Seshanba", "Chorshanba", "Payshanba", "Juma", "Sh
         <form class="modal-form" @submit.prevent="save">
           <p v-if="error" class="form-error" role="alert">{{ error }}</p>
           <fieldset class="schedule-fields" :disabled="saving">
+            <div class="form-group"><label :for="`${dialogId}-photo`">Fotosurat</label><img v-if="photoPreview || barber.photo" :src="photoPreview || barber.photo || ''" class="barber-photo-preview" alt="Sartarosh rasmi"><input :id="`${dialogId}-photo`" type="file" accept="image/jpeg,image/png,image/webp" @change="pickPhoto"><small class="hint">JPG, PNG, WEBP · 5 MB gacha</small></div>
             <div class="form-group"><label :for="`${dialogId}-name`">Ism</label><input :id="`${dialogId}-name`" v-model="form.full_name" maxlength="150" required></div>
             <div class="form-group"><label :for="`${dialogId}-phone`">Telefon</label><input :id="`${dialogId}-phone`" v-model="form.phone" type="tel" maxlength="30"></div>
             <div class="form-row"><div class="form-group"><label :for="`${dialogId}-start`">Ish boshlanishi</label><input :id="`${dialogId}-start`" v-model="form.work_start_time" type="time" required></div><div class="form-group"><label :for="`${dialogId}-end`">Ish tugashi</label><input :id="`${dialogId}-end`" v-model="form.work_end_time" type="time" required></div></div>
@@ -57,6 +73,8 @@ const weekdays = ["Dushanba", "Seshanba", "Chorshanba", "Payshanba", "Juma", "Sh
 
 <style scoped>
 .schedule-fields { display: grid; gap: 16px; padding: 0; margin: 0; border: 0; min-width: 0; }
+.schedule-fields small.hint { color: var(--muted); font-size: 11px; }
+.barber-photo-preview { width: 64px; height: 64px; object-fit: cover; border-radius: 12px; border: 1px solid var(--border); }
 .schedule-days { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; border: 1px solid var(--panel-border); border-radius: 8px; }
 .schedule-days legend { font-size: 13px; padding: 0 4px; }
 .schedule-days label { display: flex; align-items: center; gap: 8px; font-size: 12px; }

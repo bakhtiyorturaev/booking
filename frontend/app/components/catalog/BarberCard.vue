@@ -21,7 +21,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  (e: "book", barber: BarberItem): void
+  (e: "book" | "info", barber: BarberItem): void
 }>()
 
 const favoriteTarget = computed(() => favorites.isFavorite(props.barber.id)
@@ -96,7 +96,7 @@ const displayLocation = computed(() => {
 </script>
 
 <template>
-  <article class="bronla-card barber-card">
+  <article class="bronla-card barber-card" role="button" tabindex="0" @click="emit('info', barber)" @keydown.enter="emit('info', barber)">
     <!-- Media / Avatar Header -->
     <div class="bronla-media-wrapper barber-media">
       <img
@@ -175,7 +175,7 @@ const displayLocation = computed(() => {
         class="bronla-book-button barber-action-btn"
         :class="{ 'is-disabled': barber.status === 'DAY_OFF' }"
         :disabled="barber.status === 'DAY_OFF'"
-        @click="emit('book', barber)"
+        @click.stop="emit('book', barber)"
       >
         {{ barber.status === 'DAY_OFF' ? t('barbers.day_off_today') : t('bookings.book_now') }}
       </button>
@@ -193,6 +193,7 @@ const displayLocation = computed(() => {
   flex-direction: column;
   transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
   position: relative;
+  cursor: pointer;
 }
 
 .bronla-card:hover {

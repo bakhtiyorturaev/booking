@@ -69,6 +69,10 @@ export interface Booking {
   unit_price_tiyin: number
   total_price_tiyin: number
   status: string
+  confirmed_at: string | null
+  checked_in_at: string | null
+  completed_at: string | null
+  no_show_at: string | null
   cancellation_reason: string
   created_at: string
 }

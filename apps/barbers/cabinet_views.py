@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.serializers import UUIDField
 
-from apps.clubs.permissions import IsStaffOrReadOnly
+from apps.clubs.permissions import IsClubBarberManagerOrReadOnly
 from apps.barbers.models import Barber
 from apps.barbers.serializers import CabinetBarberSerializer
 from apps.clubs.permissions import is_platform_admin
@@ -26,7 +26,7 @@ class CabinetBarberViewSet(viewsets.ModelViewSet):
     """
     Xodimlar admin paneli uchun sartaroshlarni boshqarish va arizalarni tasdiqlash.
     """
-    permission_classes = [permissions.IsAuthenticated, IsStaffOrReadOnly]
+    permission_classes = [permissions.IsAuthenticated, IsClubBarberManagerOrReadOnly]
     serializer_class = CabinetBarberSerializer
     pagination_class = CabinetBarberPagination
     queryset = Barber.objects.all().select_related("user", "club", "branch").order_by("-created_at")

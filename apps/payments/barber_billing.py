@@ -1,29 +1,38 @@
 from datetime import timedelta
 from math import ceil
 
+from django.core.cache import cache
 from django.db import transaction
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
 from apps.barbers.models import Barber
 from apps.core.models import ServiceType
-from apps.payments.models import BarberBilling, ManualVenuePayment, VenueTariffRule
-from apps.payments.venue_billing import PaymentConflict
+from apps.payments.models import BarberBilling, ManualVenuePayment
+from apps.payments.venue_billing import PaymentConflict, _resolve_tariff_price
+
+_BARBER_SERVICE_TYPE_CACHE_KEY = "service_type_id:BARBER"
+_BARBER_SERVICE_TYPE_CACHE_TTL = 30
+
+
+def _barber_service_type_id():
+    # Kabinet ro'yxatida har bir sartarosh uchun alohida `ServiceType`
+    # so'rovi yubormaslik uchun — bu qiymat deyarli hech qachon o'zgarmaydi.
+    service_id = cache.get(_BARBER_SERVICE_TYPE_CACHE_KEY)
+    if service_id is None:
+        service = ServiceType.objects.filter(code="BARBER").first()
+        service_id = service.pk if service else ""
+        cache.set(_BARBER_SERVICE_TYPE_CACHE_KEY, service_id, timeout=_BARBER_SERVICE_TYPE_CACHE_TTL)
+    return service_id or None
 
 
 def effective_barber_price(barber):
-    service = ServiceType.objects.filter(code="BARBER").first()
-    if service is None:
+    service_id = _barber_service_type_id()
+    if service_id is None:
         return None
     city_id = barber.billing_city_id or (barber.branch.city_id if barber.branch_id else None)
     district_id = barber.billing_district_id or (barber.branch.district_id if barber.branch_id else None)
-    rules = VenueTariffRule.objects.filter(service_type=service)
-    rule = rules.filter(district_id=district_id).first() if district_id else None
-    if rule is None and city_id:
-        rule = rules.filter(city_id=city_id, district__isnull=True).first()
-    if rule is None:
-        rule = rules.filter(city__isnull=True, district__isnull=True).first()
-    return rule.monthly_price_tiyin if rule else None
+    return _resolve_tariff_price(service_id, city_id, district_id)
 
 
 def barber_billing_status(barber):
@@ -32,7 +41,7 @@ def barber_billing_status(barber):
     price = effective_barber_price(barber)
     if barber.is_free:
         status = "FREE"
-    elif price is None:
+    elif not price:
         status = "UNCONFIGURED"
     elif remaining is None:
         status = "UNPAID"
@@ -59,7 +68,9 @@ def barber_billing_status(barber):
 
 
 def barber_accepts_bookings(barber):
-    if barber.is_free:
+    from apps.payments.venue_billing import platform_paid_mode_active
+
+    if barber.is_free and not platform_paid_mode_active():
         return True
     billing = getattr(barber, "billing", None)
     return bool(billing and billing.paid_until and billing.paid_until > timezone.now())
@@ -72,7 +83,11 @@ def require_barber_access(barber):
 
 @transaction.atomic
 def record_barber_payment(*, barber, actor, amount_tiyin, method, idempotency_key, note=""):
-    barber = Barber.objects.select_for_update().select_related("branch").get(pk=barber.pk)
+    barber = (
+        Barber.objects.select_for_update(of=("self",))
+        .select_related("branch")
+        .get(pk=barber.pk)
+    )
     existing = ManualVenuePayment.objects.filter(idempotency_key=idempotency_key).first()
     if existing:
         if existing.barber_billing_id is None or existing.barber_billing.barber_id != barber.pk or existing.received_by_id != actor.pk or existing.amount_tiyin != amount_tiyin or existing.method != method or existing.note != note:
@@ -81,7 +96,9 @@ def record_barber_payment(*, barber, actor, amount_tiyin, method, idempotency_ke
     if barber.is_free:
         raise ValidationError("Bepul rejimda to‘lov kiritilmaydi.")
     price = effective_barber_price(barber)
-    if price is None:
+    if not price:
+        # `price == 0` xuddi `None` kabi "tarif yo'q" deb hisoblanadi — aks
+        # holda pastdagi bo'linish `ZeroDivisionError` (500) berardi.
         raise ValidationError({"barber": "payments.tariff_required"})
     billing, _ = BarberBilling.objects.select_for_update().get_or_create(barber=barber, defaults={"monthly_price_tiyin": price, "created_by": actor})
     starts_at = max(timezone.now(), billing.paid_until) if billing.paid_until else timezone.now()

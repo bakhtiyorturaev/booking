@@ -63,6 +63,14 @@ export interface OperatingHour {
   is_closed: boolean
 }
 
+export interface SpecialSchedule {
+  date: string
+  opens_at: string | null
+  closes_at: string | null
+  is_closed: boolean
+  note: string
+}
+
 export interface BranchDetail extends BranchSummary {
   club: ClubBrief
   description: string
@@ -79,6 +87,7 @@ export interface BranchDetail extends BranchSummary {
   auto_confirm_booking: boolean
   images: { image: string, is_cover: boolean }[]
   operating_hours: OperatingHour[]
+  special_schedules: SpecialSchedule[]
   zones: BranchZone[]
 }
 

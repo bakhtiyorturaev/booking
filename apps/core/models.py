@@ -77,10 +77,20 @@ class ServiceType(TimeStampedModel):
                     raise ValidationError({"parent": "Avval bu xizmatni tegishli klub va filiallarga alohida biriktiring."})
 
     def save(self, *args, **kwargs):
-        with transaction.atomic():
-            list(ServiceType.objects.select_for_update().values_list("pk", flat=True))
+        previous_parent_id = (
+            ServiceType.objects.filter(pk=self.pk).values_list("parent_id", flat=True).first()
+            if self.pk else None
+        )
+        # Daraxt tuzilishi (parent) o'zgarmasa, boshqa sartaroshxona/klublarning
+        # xizmat yozuvlari bilan hech qanday poyga (race) yuzaga kelmaydi — shu
+        # sababli butun jadvalni qulflash faqat `parent` haqiqatan o'zgarganda
+        # kerak. Aks holda har bir nom/tartib o'zgarishi ham barcha xizmat
+        # turlarini qulflab, bir-birini kutib turishga majburlardi.
+        parent_changing = previous_parent_id != self.parent_id
+
+        def _do_save():
             self.clean()
-            result = super().save(*args, **kwargs)
+            result = super(ServiceType, self).save(*args, **kwargs)
             from apps.clubs.models import Club
             from apps.core.services.service_types import descendant_service_ids, root_service
             root = root_service(self)
@@ -88,6 +98,11 @@ class ServiceType(TimeStampedModel):
             Club.objects.filter(service_type_id__in=descendant_service_ids([self.pk])).update(category=category)
             Club.objects.filter(service_type_id=self.pk).update(service_name=self.name)
             return result
+
+        with transaction.atomic():
+            if parent_changing:
+                list(ServiceType.objects.select_for_update().values_list("pk", flat=True))
+            return _do_save()
 
 
 def normalize_language(language):

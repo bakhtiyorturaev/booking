@@ -4,7 +4,7 @@ from datetime import timedelta
 from zoneinfo import ZoneInfo
 
 from django.core.exceptions import ValidationError
-from django.db import transaction
+from django.db import models, transaction
 from django.utils import timezone
 
 from apps.bookings.models import Booking, Cancellation
@@ -469,20 +469,31 @@ def send_customer_booking_notification(booking, event_type, client=None):
         logger.warning("send_customer_booking_notification failed for booking #%s: %s", getattr(booking, "id", "-"), err)
 
 
+def _notify_booking_change(booking, event_status):
+    """Guruh va mijoz bildirishnomalari — faqat COMMIT dan keyin chaqirilsin."""
+    try:
+        queue_booking_message(booking)
+    except Exception:
+        logger.warning(
+            "Telegram guruh xabari navbatga qo'yilmadi: booking=%s", booking.pk
+        )
+    send_customer_booking_notification(booking, event_status)
+
+
 @transaction.atomic
 def confirm_booking(booking_id, actor_id, actor_name=""):
     booking = (
-        Booking.objects.select_for_update()
+        Booking.objects.select_for_update(of=("self",))
         .select_related("user__profile", "zone__branch__club", "barber__club", "barber__branch")
         .get(pk=booking_id)
     )
     booking.transition_to(Booking.Status.CONFIRMED)
     _record_action(booking, actor_id, actor_name)
-    try:
-        queue_booking_message(booking)
-    except Exception:
-        pass
-    send_customer_booking_notification(booking, Booking.Status.CONFIRMED)
+    # Telegram HTTP so'rovlari COMMIT dan keyin: aks holda bron qatori
+    # tashqi API javobini kutib bloklangan qoladi.
+    transaction.on_commit(
+        lambda: _notify_booking_change(booking, Booking.Status.CONFIRMED)
+    )
     return booking
 
 
@@ -495,7 +506,7 @@ def cancel_booking_from_telegram(
     language="uz",
 ):
     booking = (
-        Booking.objects.select_for_update()
+        Booking.objects.select_for_update(of=("self",))
         .select_related("user__profile", "zone__branch__club", "barber__club", "barber__branch")
         .get(pk=booking_id)
     )
@@ -518,14 +529,12 @@ def cancel_booking_from_telegram(
         reason=reason.get_reason(language),
     )
     _record_action(booking, actor_id, actor_name)
-    try:
-        queue_booking_message(booking)
-    except Exception:
-        pass
-    send_customer_booking_notification(booking, Booking.Status.CANCELLED)
     if booking.zone:
         from apps.bookings.services import invalidate_branch_availability
         invalidate_branch_availability(booking.zone.branch_id)
+    transaction.on_commit(
+        lambda: _notify_booking_change(booking, Booking.Status.CANCELLED)
+    )
     return booking
 
 
@@ -537,10 +546,13 @@ def process_confirmation_timeouts(now=None):
     threshold = now - timedelta(
         minutes=settings.confirmation_timeout_minutes
     )
+    # Sartarosh bronlari ham avtomatik tasdiqlanadi: ilgari faqat
+    # `zone__branch__...` tekshirilgani uchun ular PENDING holatida qolib ketardi.
     booking_ids = Booking.objects.filter(
+        models.Q(zone__branch__auto_confirm_booking=True)
+        | models.Q(barber__branch__auto_confirm_booking=True),
         status=Booking.Status.PENDING_CONFIRMATION,
         created_at__lte=threshold,
-        zone__branch__auto_confirm_booking=True,
     ).values_list("id", flat=True)
     confirmed = 0
     for booking_id in booking_ids:

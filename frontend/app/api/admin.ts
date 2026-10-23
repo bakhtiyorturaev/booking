@@ -108,6 +108,12 @@ export const useAdminApi = () => {
 
     createBarber: (body: Record<string, unknown>) => client.post<any>("/api/cabinet/barbers/", { local: true, body }),
 
+    uploadBarberPhoto: (id: string, photo: File) => {
+      const data = new FormData()
+      data.append("photo", photo)
+      return client.patch<any>(`/api/cabinet/barbers/${encodeURIComponent(id)}/`, { local: true, body: data })
+    },
+
     getBookings: (params?: Record<string, any>, language = "uz") =>
       client.get<any>("/api/cabinet/bookings/", {
         params,

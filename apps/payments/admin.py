@@ -2,7 +2,7 @@ from decimal import Decimal
 from django import forms
 from django.contrib import admin
 
-from apps.payments.models import ManualVenuePayment, Payment, SubscriptionPlan, UserSubscription, VenueBilling, VenueTariffRule, BarberBilling
+from apps.payments.models import ManualSubscriptionPayment, ManualVenuePayment, Payment, SubscriptionPlan, UserSubscription, VenueBilling, VenueTariffRule, BarberBilling
 
 
 @admin.register(SubscriptionPlan)
@@ -64,6 +64,14 @@ class ManualVenuePaymentAdmin(PaymentAdmin):
     readonly_fields = tuple(field.name for field in ManualVenuePayment._meta.fields)
 
 
+@admin.register(ManualSubscriptionPayment)
+class ManualSubscriptionPaymentAdmin(PaymentAdmin):
+    list_display = ("id", "user", "plan", "received_by", "amount_tiyin", "method", "created_at")
+    list_filter = ("method", "created_at")
+    search_fields = ("user__username", "user__phone", "received_by__username")
+    readonly_fields = tuple(field.name for field in ManualSubscriptionPayment._meta.fields)
+
+
 @admin.register(VenueBilling)
 class VenueBillingAdmin(PaymentAdmin):
     list_display = ("club", "monthly_price_tiyin", "paid_until", "updated_at")
@@ -103,6 +111,21 @@ class VenueTariffRuleAdmin(admin.ModelAdmin):
     @admin.display(description="30 kunlik narx, so‘m")
     def monthly_price_som(self, obj):
         return f"{Decimal(obj.monthly_price_tiyin) / 100:,.2f}".replace(",", " ")
+
+    def save_model(self, request, obj, form, change):
+        from apps.payments.venue_billing import clear_tariff_rules_cache
+        super().save_model(request, obj, form, change)
+        clear_tariff_rules_cache()
+
+    def delete_model(self, request, obj):
+        from apps.payments.venue_billing import clear_tariff_rules_cache
+        super().delete_model(request, obj)
+        clear_tariff_rules_cache()
+
+    def delete_queryset(self, request, queryset):
+        from apps.payments.venue_billing import clear_tariff_rules_cache
+        super().delete_queryset(request, queryset)
+        clear_tariff_rules_cache()
 
     def has_module_permission(self, request):
         return request.user.is_superuser

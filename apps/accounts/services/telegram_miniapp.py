@@ -5,7 +5,8 @@ import secrets
 import time
 import urllib.parse
 from django.conf import settings
-from django.db import transaction
+from django.core.cache import cache
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from apps.accounts.models import User, UserProfile
@@ -31,7 +32,7 @@ def get_bot_token():
     return token
 
 
-def verify_telegram_webapp_init_data(init_data_str, bot_token=None, max_age_seconds=86400):
+def verify_telegram_webapp_init_data(init_data_str, bot_token=None, max_age_seconds=300):
     """
     Telegram WebApp initData ni rasmiy Telegram xavfsizlik standarti (HMAC-SHA256)
     bo'yicha tekshiradi.
@@ -77,6 +78,14 @@ def verify_telegram_webapp_init_data(init_data_str, bot_token=None, max_age_seco
     if not secrets.compare_digest(computed_hash, received_hash):
         raise TelegramMiniAppError("auth.telegram_data_invalid", "Imzo mos kelmadi.")
 
+    # Nonce: imzo haqiqiy bo'lsa ham, bitta `hash` faqat bir marta ishlatilishi
+    # mumkin — aks holda o'g'irlangan initData amal qilish muddati ichida
+    # cheksiz marta qayta ishlatilishi mumkin edi (replay attack).
+    replay_guard_key = f"telegram_miniapp_used_hash:{received_hash}"
+    replay_ttl = max(int(max_age_seconds or 0), 1) + 300
+    if not cache.add(replay_guard_key, True, timeout=replay_ttl):
+        raise TelegramMiniAppError("auth.telegram_data_invalid", "initData allaqachon ishlatilgan.")
+
     user_raw = parsed_data.get("user")
     user_data = {}
     if user_raw:
@@ -114,13 +123,26 @@ def login_with_telegram_miniapp(init_data_str, device_name="", ip_address=None, 
 
     if user is None:
         preferred_username = tg_username or f"tg_{telegram_user_id}"
-        user = User.objects.create_user(
-            username=generate_unique_username(preferred_username),
-            telegram_user_id=telegram_user_id,
-            telegram_verified_at=timezone.now(),
-        )
-        is_new_user = True
-    else:
+        try:
+            # `select_for_update()` yuqorida mavjud qatorni qulflaydi, lekin
+            # qator HALI MAVJUD BO'LMAGANDA hech narsani qulflay olmaydi —
+            # shu bo'shliqdan foydalanib, bir xil Telegram foydalanuvchisi
+            # (masalan, ikki marta tez ketma-ket bosilgan tugma) bilan ikki
+            # parallel so'rov bir vaqtda shu yerga kirib qolishi mumkin.
+            # Ikkinchisi `telegram_user_id` unique cheklovida IntegrityError
+            # (500) beradi — shuning uchun savepoint ichida ushlab, g'olib
+            # yaratgan foydalanuvchini qayta o'qiymiz.
+            with transaction.atomic():
+                user = User.objects.create_user(
+                    username=generate_unique_username(preferred_username),
+                    telegram_user_id=telegram_user_id,
+                    telegram_verified_at=timezone.now(),
+                )
+            is_new_user = True
+        except IntegrityError:
+            user = User.objects.select_for_update().get(telegram_user_id=telegram_user_id)
+
+    if not is_new_user:
         if user.status == User.Status.BLOCKED:
             raise TelegramMiniAppError("auth.user_blocked")
         if user.status == User.Status.DELETED:
@@ -184,9 +206,14 @@ def save_telegram_contact(user, phone_number):
     if existing:
         raise TelegramMiniAppError("auth.phone_already_registered", "Bu telefon raqam boshqa foydalanuvchiga biriktirilgan.")
 
+    now = timezone.now()
     user.phone = cleaned_phone
+    # Raqam Telegram tomonidan tasdiqlangan (contact.user_id tekshirilgan).
+    user.phone_verified_at = now
     if not user.telegram_verified_at:
-        user.telegram_verified_at = timezone.now()
-    user.save(update_fields=["phone", "telegram_verified_at", "updated_at"])
+        user.telegram_verified_at = now
+    user.save(
+        update_fields=["phone", "phone_verified_at", "telegram_verified_at", "updated_at"]
+    )
     return user
 

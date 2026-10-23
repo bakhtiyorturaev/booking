@@ -82,7 +82,12 @@ class UserProfileUpdateSerializer(serializers.Serializer):
             user = self.context["request"].user
             if user.phone != phone:
                 user.phone = phone
-                user.save(update_fields=["phone"])
+                # Foydalanuvchi o'zi kiritgan raqam TASDIQLANMAGAN hisoblanadi —
+                # Telegram "Raqamni yuborish" tugmasi orqali qayta tasdiqlanishi
+                # kerak. Aks holda eski `telegram_verified_at` saqlanib qolib,
+                # `is_phone_verified` har qanday raqam uchun True bo'lib qolardi.
+                user.phone_verified_at = None
+                user.save(update_fields=["phone", "phone_verified_at", "updated_at"])
         for field, value in validated_data.items():
             setattr(instance, field, value)
         instance.save()

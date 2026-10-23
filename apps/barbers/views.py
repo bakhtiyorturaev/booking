@@ -6,12 +6,14 @@ from rest_framework import permissions, status, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.clubs.permissions import IsStaffOrReadOnly
+from apps.clubs.permissions import IsBarberSelfOrPlatformAdmin
+from apps.clubs.views import StandardPagination
 from apps.barbers.models import Barber
 from apps.barbers.serializers import (
     BarberAffiliateSerializer,
     BarberProfileSerializer,
     BarberStatusSerializer,
+    PublicBarberListSerializer,
     PublicBarberSerializer,
 )
 from apps.barbers.services import get_barber_available_slots
@@ -24,6 +26,12 @@ class PublicBarberViewSet(viewsets.ReadOnlyModelViewSet):
     """
     permission_classes = [permissions.AllowAny]
     serializer_class = PublicBarberSerializer
+    pagination_class = StandardPagination
+
+    def get_serializer_class(self):
+        if self.action == "list":
+            return PublicBarberListSerializer
+        return super().get_serializer_class()
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -89,12 +97,18 @@ class PublicBarberViewSet(viewsets.ReadOnlyModelViewSet):
                     return float("inf")
 
                 items.sort(key=get_dist)
-                serializer = self.get_serializer(items, many=True)
+                page = self.paginate_queryset(items)
+                serializer = self.get_serializer(page if page is not None else items, many=True)
+                if page is not None:
+                    return self.get_paginated_response(serializer.data)
                 return Response(serializer.data)
             except (ValueError, TypeError):
                 pass
 
-        serializer = self.get_serializer(queryset, many=True)
+        page = self.paginate_queryset(queryset)
+        serializer = self.get_serializer(page if page is not None else queryset, many=True)
+        if page is not None:
+            return self.get_paginated_response(serializer.data)
         return Response(serializer.data)
 
 
@@ -127,17 +141,7 @@ class BarberProfileAPIView(APIView):
     """
     Sartaroshning o'z shaxsiy profilini olish va tahrirlash.
     """
-    permission_classes = [permissions.IsAuthenticated, IsStaffOrReadOnly]
-
-    def get_or_create_barber(self, user):
-        barber, created = Barber.objects.get_or_create(
-            user=user,
-            defaults={
-                "full_name": user.profile.full_name if hasattr(user, "profile") and user.profile.full_name else user.username,
-                "phone": user.phone or "",
-            },
-        )
-        return barber
+    permission_classes = [permissions.IsAuthenticated, IsBarberSelfOrPlatformAdmin]
 
     def get(self, request):
         barber = get_object_or_404(Barber, user=request.user)
@@ -145,7 +149,10 @@ class BarberProfileAPIView(APIView):
         return Response(serializer.data)
 
     def patch(self, request):
-        barber = self.get_or_create_barber(request.user)
+        # Sartarosh yozuvini faqat platforma admini yaratadi
+        # (`CabinetBarberViewSet.perform_create`); foydalanuvchi o'zini
+        # sartarosh deb e'lon qila olmasligi kerak.
+        barber = get_object_or_404(Barber, user=request.user)
         serializer = BarberProfileSerializer(barber, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -156,7 +163,7 @@ class BarberStatusAPIView(APIView):
     """
     Sartarosh o'zining real vaqt holatini (Ishda, Tanaffusda, Ishga chiqmagan, Dam olish kuni) tezkor o'zgartirishi.
     """
-    permission_classes = [permissions.IsAuthenticated, IsStaffOrReadOnly]
+    permission_classes = [permissions.IsAuthenticated, IsBarberSelfOrPlatformAdmin]
 
     def post(self, request):
         return self._update_status(request)
@@ -165,13 +172,7 @@ class BarberStatusAPIView(APIView):
         return self._update_status(request)
 
     def _update_status(self, request):
-        barber, _ = Barber.objects.get_or_create(
-            user=request.user,
-            defaults={
-                "full_name": request.user.username,
-                "phone": request.user.phone or "",
-            },
-        )
+        barber = get_object_or_404(Barber, user=request.user)
         serializer = BarberStatusSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         barber.status = serializer.validated_data["status"]
@@ -187,16 +188,10 @@ class BarberAffiliateAPIView(APIView):
     """
     Sartaroshning sartaroshxonaga birikish so'rovi yuborishi.
     """
-    permission_classes = [permissions.IsAuthenticated, IsStaffOrReadOnly]
+    permission_classes = [permissions.IsAuthenticated, IsBarberSelfOrPlatformAdmin]
 
     def post(self, request):
-        barber, _ = Barber.objects.get_or_create(
-            user=request.user,
-            defaults={
-                "full_name": request.user.username,
-                "phone": request.user.phone or "",
-            },
-        )
+        barber = get_object_or_404(Barber, user=request.user)
         serializer = BarberAffiliateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 

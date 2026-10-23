@@ -81,7 +81,6 @@ def create_auth_tokens(
     }
 
 
-@transaction.atomic
 def refresh_auth_tokens(raw_refresh_token):
     if not raw_refresh_token:
         raise AuthTokenError("auth.refresh_token_missing")
@@ -96,49 +95,93 @@ def refresh_auth_tokens(raw_refresh_token):
     if not session_id:
         raise AuthTokenError("auth.session_id_missing")
 
-    try:
-        session = (
-            UserSession.objects
-            .select_for_update()
-            .select_related("user")
-            .get(id=session_id)
-        )
-    except UserSession.DoesNotExist as error:
-        raise AuthTokenError("auth.session_expired") from error
+    # `error_to_raise` ga yig'ilgan xatolar `with` blokidan TASHQARIDA
+    # ko'tariladi: aks holda `@transaction.atomic` xato ko'tarilgan zahoti
+    # shu blok ichida qilingan `session.save()` (masalan, bekor qilish)ni
+    # ham rollback qilib yuborardi.
+    error_to_raise = None
+    result = None
 
-    if (
-        session.revoked_at is not None
-        or timezone.now() >= session.expires_at
-    ):
-        raise AuthTokenError("auth.session_expired")
+    with transaction.atomic():
+        try:
+            session = (
+                UserSession.objects
+                .select_for_update(of=("self",))
+                .select_related("user")
+                .get(id=session_id)
+            )
+        except UserSession.DoesNotExist as error:
+            raise AuthTokenError("auth.session_expired") from error
 
-    provided_hash = hash_refresh_token(
-        raw_refresh_token
+        if (
+            session.revoked_at is not None
+            or timezone.now() >= session.expires_at
+        ):
+            raise AuthTokenError("auth.session_expired")
+
+        provided_hash = hash_refresh_token(raw_refresh_token)
+
+        if not hmac.compare_digest(provided_hash, session.refresh_token_hash):
+            # Saqlangan hash bilan mos kelmasa — bu token allaqachon
+            # rotatsiya qilib bo'lingan (eski, bir martalik ishlatilgan
+            # nusxa). Qonuniy mijoz doim eng so'nggi rotatsiyalangan
+            # tokenni saqlaydi, shuning uchun bu holat token
+            # o'g'irlanganidan dalolat beradi — sessiya butunlay bekor
+            # qilinadi.
+            session.revoked_at = timezone.now()
+            session.save(update_fields=["revoked_at"])
+            error_to_raise = AuthTokenError("auth.session_revoked_token_reused")
+        else:
+            user = session.user
+
+            if not user.is_active:
+                session.revoked_at = timezone.now()
+                session.save(update_fields=["revoked_at"])
+                error_to_raise = AuthTokenError("auth.user_inactive")
+            else:
+                # Refresh tokenni rotatsiya qilish: har safar yangi
+                # `refresh` qaytariladi va eski nusxaning hash'i endi
+                # ishlamaydi — o'g'irlangan (lekin hali ishlatilmagan) eski
+                # token keyingi urinishda yuqoridagi filialga tushib, butun
+                # sessiyani avtomatik bekor qiladi.
+                new_refresh = RefreshToken.for_user(user)
+                new_refresh["session_id"] = str(session.id)
+                new_refresh["role"] = user.role
+                raw_new_refresh = str(new_refresh)
+
+                session.refresh_token_hash = hash_refresh_token(raw_new_refresh)
+                session.save(update_fields=["refresh_token_hash"])
+
+                result = {
+                    "access": str(old_refresh.access_token),
+                    "refresh": raw_new_refresh,
+                    "session_id": str(session.id),
+                }
+
+    if error_to_raise is not None:
+        invalidate_session_cache(session_id, session.user_id)
+        raise error_to_raise
+
+    return result
+
+
+@transaction.atomic
+def revoke_other_sessions(user, keep_session_id=None):
+    """Foydalanuvchining `keep_session_id`dan boshqa barcha faol
+    sessiyalarini bekor qiladi (masalan, parol o'zgartirilganda — o'g'irlangan
+    refresh token bo'lsa, u darhol ishdan chiqadi)."""
+    sessions = list(
+        UserSession.objects.select_for_update(of=("self",)).filter(
+            user=user, revoked_at__isnull=True,
+        ).exclude(id=keep_session_id)
     )
-
-    if not hmac.compare_digest(
-        provided_hash,
-        session.refresh_token_hash,
-    ):
-        raise AuthTokenError("auth.session_revoked_token_reused")
-
-    user = session.user
-
-    if not user.is_active:
-        session.revoked_at = timezone.now()
-
-        session.save(
-            update_fields=["revoked_at"]
-        )
-        invalidate_session_cache(session_id, user.pk)
-
-        raise AuthTokenError("auth.user_inactive")
-
-    return {
-        "access": str(old_refresh.access_token),
-        "refresh": raw_refresh_token,
-        "session_id": str(session.id),
-    }
+    now = timezone.now()
+    for session in sessions:
+        session.revoked_at = now
+    UserSession.objects.bulk_update(sessions, ["revoked_at"])
+    for session in sessions:
+        invalidate_session_cache(session.id, user.pk)
+    return len(sessions)
 
 
 @transaction.atomic

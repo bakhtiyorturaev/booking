@@ -70,6 +70,10 @@ const openBarberModal = (barber: BarberItem) => {
   showBarberModal.value = true
 }
 
+const openBarberInfo = (barber: BarberItem) => {
+  navigateTo(`/barbers/${barber.id}`)
+}
+
 const id = computed(() => String(route.params.id || ""))
 const { data, error, status } = await useAsyncData(
   () => `branch-${id.value}`,
@@ -492,6 +496,7 @@ const submitBooking = async () => {
                 :key="b.id"
                 :barber="b"
                 @book="openBarberModal"
+                @info="openBarberInfo"
               />
             </div>
           </section>

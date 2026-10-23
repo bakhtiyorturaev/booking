@@ -1,8 +1,8 @@
-from django.db import models
+from django.db import models, transaction
 from django.utils import timezone
 from apps.accounts.managers import normalize_phone
 from apps.accounts.models import User
-from apps.accounts.services.auth_tokens import create_auth_tokens
+from apps.accounts.services.auth_tokens import create_auth_tokens, revoke_other_sessions
 
 
 class PasswordAuthError(Exception):
@@ -52,6 +52,7 @@ def login_with_password(login, password, device_name="", ip_address=None, login_
     }
 
 
+@transaction.atomic
 def change_user_password(user, old_password, new_password, device_name="", ip_address=None):
     if not user or not user.is_authenticated:
         raise PasswordAuthError("auth.unauthorized")
@@ -63,6 +64,10 @@ def change_user_password(user, old_password, new_password, device_name="", ip_ad
     user.save(update_fields=["password", "password_changed_at", "updated_at"])
 
     tokens = create_auth_tokens(user, device_name=device_name, ip_address=ip_address)
+    # Parol o'zgartirilgandan keyin boshqa barcha sessiyalar (masalan,
+    # o'g'irlangan refresh tokenga tegishli bo'lgani) bekor qilinadi — faqat
+    # shu amal natijasida ochilgan yangi sessiya qoladi.
+    revoke_other_sessions(user, keep_session_id=tokens["session_id"])
 
     return {
         "user": user,

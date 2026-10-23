@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
@@ -20,11 +21,18 @@ from apps.clubs.models import (
 from apps.payments.venue_billing import require_branch_access, branch_accepts_bookings
 
 
+logger = logging.getLogger(__name__)
+
 BLOCKING_BOOKING_STATUSES = (
     Booking.Status.PENDING_CONFIRMATION,
     Booking.Status.CONFIRMED,
     Booking.Status.CHECKED_IN,
 )
+
+# Filialga biriktirilmagan (mustaqil) sartarosh bronlari uchun zaxira qoidalar.
+STANDALONE_FREE_CANCELLATION_MINUTES = 60
+STANDALONE_NO_SHOW_GRACE_MINUTES = 20
+STANDALONE_ADVANCE_BOOKING_DAYS = 30
 
 
 def invalidate_branch_availability(branch_id):
@@ -67,6 +75,63 @@ def _schedule_window(branch, target_date):
 
 def _overlaps(item, starts_at, ends_at):
     return item.starts_at < ends_at and item.ends_at > starts_at
+
+
+def _booking_branch(booking):
+    """Bron qoidalari olinadigan filial — zona yoki sartarosh orqali."""
+    if booking.zone_id and booking.zone.branch_id:
+        return booking.zone.branch
+    if booking.barber_id and booking.barber.branch_id:
+        return booking.barber.branch
+    return None
+
+
+def cancellation_deadline(booking):
+    """Mijoz bepul bekor qila oladigan oxirgi vaqt.
+
+    Sartarosh bronida `zone` bo'lmaydi; ilgari shu sababli oyna umuman
+    qo'llanmagan va mijoz bron boshlanishiga 1 daqiqa qolganda ham bekor
+    qilib ketar edi.
+    """
+    branch = _booking_branch(booking)
+    minutes = (
+        branch.free_cancellation_minutes
+        if branch is not None
+        else STANDALONE_FREE_CANCELLATION_MINUTES
+    )
+    return booking.starts_at - timedelta(minutes=minutes)
+
+
+def no_show_deadline(booking):
+    """No-show belgilash mumkin bo'ladigan vaqt."""
+    branch = _booking_branch(booking)
+    grace = (
+        branch.no_show_grace_minutes
+        if branch is not None
+        else STANDALONE_NO_SHOW_GRACE_MINUTES
+    )
+    return booking.starts_at + timedelta(minutes=grace)
+
+
+def notify_booking(booking, event_status):
+    """Telegram bildirishnomalarini yuboradi — faqat COMMIT dan keyin chaqirilsin.
+
+    Tranzaksiya ichida chaqirilsa, tashqi HTTP so'rovi davomida
+    `select_for_update()` qulflari ushlab turiladi va bron o'tkazuvchanligi
+    keskin tushadi.
+    """
+    from telegram_bot.services import (
+        queue_booking_message,
+        send_customer_booking_notification,
+    )
+
+    try:
+        queue_booking_message(booking)
+    except Exception:
+        logger.warning(
+            "Telegram guruh xabari navbatga qo'yilmadi: booking=%s", booking.pk
+        )
+    send_customer_booking_notification(booking, event_status)
 
 
 def get_branch_availability(branch, target_date, duration_minutes=None):
@@ -151,7 +216,21 @@ def get_branch_availability(branch, target_date, duration_minutes=None):
             )
             starts_at += step
 
-        result.append({"zone": zone, "slots": slots})
+        # Keshga model instansiyasini emas, oddiy dict saqlaymiz — aks
+        # holda pickle qilingan `Zone` keshda 30 soniya "muzlab qolardi"
+        # (narx/nom o'zgarsa ham eski qiymat qaytardi) va deploy orasida
+        # model sxemasi o'zgarganda unpickle xatosiga olib kelishi mumkin.
+        result.append({
+            "zone": {
+                "id": zone.id,
+                "name": zone.name,
+                "booking_capacity": zone.booking_capacity,
+                "booking_type": zone.booking_type,
+                "unit_count": zone.unit_count,
+                "price_per_hour_tiyin": zone.price_per_hour_tiyin,
+            },
+            "slots": slots,
+        })
 
     cache.set(cache_key, result, timeout=30)
     return result
@@ -184,8 +263,10 @@ def _validate_window(zone, starts_at, ends_at, quantity):
 @transaction.atomic
 def create_hold(user, zone_id, starts_at, ends_at, quantity=1):
     get_user_model().objects.select_for_update().get(pk=user.pk)
-    zone = Zone.objects.select_for_update().select_related("branch", "branch__club").get(
-        pk=zone_id
+    zone = (
+        Zone.objects.select_for_update(of=("self",))
+        .select_related("branch", "branch__club")
+        .get(pk=zone_id)
     )
     if (
         zone.status != Zone.Status.ACTIVE
@@ -257,9 +338,10 @@ def create_booking(user, hold_id):
     expired = False
     with transaction.atomic():
         get_user_model().objects.select_for_update().get(pk=user.pk)
-        hold = BookingHold.objects.select_for_update().select_related("zone__branch__club").get(
-            pk=hold_id,
-            user=user,
+        hold = (
+            BookingHold.objects.select_for_update(of=("self",))
+            .select_related("zone__branch__club")
+            .get(pk=hold_id, user=user)
         )
         if hold.status == BookingHold.Status.HELD and hold.expires_at <= timezone.now():
             hold.status = BookingHold.Status.EXPIRED
@@ -289,13 +371,9 @@ def create_booking(user, hold_id):
             hold.status = BookingHold.Status.CONVERTED
             hold.save(update_fields=("status", "updated_at"))
             invalidate_branch_availability(hold.zone.branch_id)
-            from telegram_bot.services import queue_booking_message, send_customer_booking_notification
-
-            try:
-                queue_booking_message(booking)
-            except Exception:
-                pass
-            send_customer_booking_notification(booking, booking.status)
+            # Telegram HTTP so'rovlari COMMIT dan keyin: aks holda user/hold/zone
+            # qatorlari tashqi API javobini kutib (20 s gacha) bloklangan qoladi.
+            transaction.on_commit(lambda: notify_booking(booking, booking.status))
 
     if expired:
         raise ValidationError("bookings.hold_expired_or_used", code="bookings.hold_expired_or_used")
@@ -317,11 +395,9 @@ def cancel_booking(user, booking_id, reason="", *, operator=False):
     ):
         raise ValidationError("bookings.only_confirmed_can_cancel", code="bookings.only_confirmed_can_cancel")
 
-    if not operator and booking.status == Booking.Status.CONFIRMED and booking.zone and booking.zone.branch:
-        cancel_until = booking.starts_at - timedelta(
-            minutes=booking.zone.branch.free_cancellation_minutes
-        )
-        if timezone.now() > cancel_until:
+    # Bekor qilish oynasi zona va sartarosh bronlarida bir xil amal qiladi.
+    if not operator and booking.status == Booking.Status.CONFIRMED:
+        if timezone.now() > cancellation_deadline(booking):
             raise ValidationError("bookings.cancel_too_late", code="bookings.cancel_too_late")
     booking.transition_to(Booking.Status.CANCELLED)
     Cancellation.objects.create(
@@ -331,13 +407,7 @@ def cancel_booking(user, booking_id, reason="", *, operator=False):
     )
     if booking.zone:
         invalidate_branch_availability(booking.zone.branch_id)
-    from telegram_bot.services import queue_booking_message, send_customer_booking_notification
-
-    try:
-        queue_booking_message(booking)
-    except Exception:
-        pass
-    send_customer_booking_notification(booking, Booking.Status.CANCELLED)
+    transaction.on_commit(lambda: notify_booking(booking, Booking.Status.CANCELLED))
     return booking
 
 
@@ -362,15 +432,8 @@ def transition_booking_for_operator(user, booking_id, target_status):
     now = timezone.now()
     if target_status == Booking.Status.CHECKED_IN and now < booking.starts_at:
         raise ValidationError("bookings.checkin_before_start_time", code="bookings.checkin_before_start_time")
-    if target_status == Booking.Status.NO_SHOW:
-        grace_minutes = (
-            booking.zone.branch.no_show_grace_minutes
-            if (booking.zone and booking.zone.branch)
-            else 15
-        )
-        no_show_after = booking.starts_at + timedelta(minutes=grace_minutes)
-        if now < no_show_after:
-            raise ValidationError("bookings.noshow_grace_period_not_passed", code="bookings.noshow_grace_period_not_passed")
+    if target_status == Booking.Status.NO_SHOW and now < no_show_deadline(booking):
+        raise ValidationError("bookings.noshow_grace_period_not_passed", code="bookings.noshow_grace_period_not_passed")
 
     booking.transition_to(target_status)
     if booking.zone:
@@ -378,7 +441,9 @@ def transition_booking_for_operator(user, booking_id, target_status):
     if target_status in (Booking.Status.CONFIRMED, Booking.Status.CANCELLED):
         from telegram_bot.services import send_customer_booking_notification
 
-        send_customer_booking_notification(booking, target_status)
+        transaction.on_commit(
+            lambda: send_customer_booking_notification(booking, target_status)
+        )
     return booking
 
 
@@ -388,30 +453,30 @@ def process_booking_lifecycle(now=None):
     from telegram_bot.services import process_confirmation_timeouts
 
     confirmed = process_confirmation_timeouts(now=now)
+    # `zone__isnull=False` filtri olib tashlandi: sartarosh bronlari ham
+    # no-show qilinishi kerak, aks holda ular abadiy CONFIRMED qolib,
+    # mijozning "bitta faol bron" cheklovini bloklab turadi.
     no_show_ids = Booking.objects.filter(
         status=Booking.Status.CONFIRMED,
         starts_at__lte=now,
-        zone__isnull=False,
     ).values_list("id", flat=True)
     no_shows = 0
     for booking_id in no_show_ids.iterator():
         try:
-            booking = Booking.objects.select_related("zone__branch").get(pk=booking_id)
-            if not booking.zone or not booking.zone.branch:
-                continue
-            grace_deadline = booking.starts_at + timedelta(
-                minutes=booking.zone.branch.no_show_grace_minutes
-            )
-            if now >= grace_deadline:
-                with transaction.atomic():
-                    locked = Booking.objects.select_for_update().get(pk=booking_id)
-                    if locked.status == Booking.Status.CONFIRMED:
-                        locked.transition_to(Booking.Status.NO_SHOW)
-                        if locked.zone:
-                            invalidate_branch_availability(locked.zone.branch_id)
-                        no_shows += 1
+            booking = Booking.objects.select_related(
+                "zone__branch", "barber__branch"
+            ).get(pk=booking_id)
         except Booking.DoesNotExist:
             continue
+        if now < no_show_deadline(booking):
+            continue
+        with transaction.atomic():
+            locked = Booking.objects.select_for_update(of=("self",)).get(pk=booking_id)
+            if locked.status == Booking.Status.CONFIRMED:
+                locked.transition_to(Booking.Status.NO_SHOW)
+                if locked.zone_id:
+                    invalidate_branch_availability(locked.zone.branch_id)
+                no_shows += 1
     return {"confirmed": confirmed, "no_shows": no_shows}
 
 

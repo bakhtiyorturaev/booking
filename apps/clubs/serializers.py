@@ -21,6 +21,7 @@ from apps.clubs.models import (
 )
 from apps.core.models import City, District, ServiceType
 from apps.clubs.permissions import is_platform_admin
+from apps.clubs.services.geo import haversine_km
 from apps.core.services.service_types import descendant_service_ids, root_service
 
 
@@ -333,8 +334,11 @@ class PublicBranchDetailSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(OpenApiTypes.FLOAT)
     def get_distance_km(self, obj):
-        distance = self.context.get("distance_km")
-        return round(distance, 2) if distance is not None else None
+        location = self.context.get("location")
+        if location is None or obj.latitude is None or obj.longitude is None:
+            return None
+        latitude, longitude = location
+        return round(haversine_km(latitude, longitude, obj.latitude, obj.longitude), 2)
 
 
 class ClubManagementSerializer(CleanModelSerializer):
@@ -536,6 +540,17 @@ class BranchManagementSerializer(CleanModelSerializer):
                   "maximum_booking_minutes","booking_hold_minutes","advance_booking_days","free_cancellation_minutes",
                   "no_show_grace_minutes","auto_confirm_booking","is_24_hours",)
         read_only_fields = ("id", "is_free")
+
+    def validate_timezone(self, value):
+        from zoneinfo import ZoneInfoNotFoundError, ZoneInfo
+        try:
+            ZoneInfo(value)
+        except (ZoneInfoNotFoundError, ValueError):
+            # Noto'g'ri qiymat shu yerda rad etilmasa, u keyinroq HAR BIR
+            # bron/bo'sh vaqt so'rovida `ZoneInfo(branch.timezone)` chaqirilgan
+            # joyda ushlanmagan xatolik (500) sifatida chiqadi.
+            raise serializers.ValidationError("clubs.invalid_timezone", code="clubs.invalid_timezone")
+        return value
 
     def validate_city(self, value):
         if not value.is_active:

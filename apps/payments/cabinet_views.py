@@ -1,4 +1,7 @@
+from django.contrib.auth import get_user_model
+from django.db import IntegrityError
 from django.db.models import Q, Sum
+from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
@@ -7,8 +10,15 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.clubs.permissions import is_platform_admin
-from apps.payments.models import Payment, SubscriptionPlan, UserSubscription
-from apps.payments.serializers import PaymentSerializer, SubscriptionPlanSerializer
+from apps.payments.models import ManualSubscriptionPayment, Payment, SubscriptionPlan, UserSubscription
+from apps.payments.serializers import (
+    ManualSubscriptionPaymentInputSerializer,
+    ManualSubscriptionPaymentSerializer,
+    PaymentSerializer,
+    SubscriptionPlanSerializer,
+)
+from apps.payments.subscription_billing import record_subscription_payment
+from apps.payments.venue_billing import PaymentConflict
 
 
 class CabinetPaymentPagination(PageNumberPagination):
@@ -54,6 +64,42 @@ class CabinetPaymentViewSet(
             )
 
         return qs
+
+    @extend_schema(
+        tags=["Admin Cabinet"],
+        summary="Mijoz obunasini qo'lda faollashtirish (naqd/karta to'lovi)",
+        request=ManualSubscriptionPaymentInputSerializer,
+        responses={201: ManualSubscriptionPaymentSerializer, 200: ManualSubscriptionPaymentSerializer},
+    )
+    @action(detail=False, methods=["post"], url_path="activate-subscription")
+    def activate_subscription(self, request):
+        # Haqiqiy onlayn to'lov provayderi (PAYMENT_PROVIDER=http) hali
+        # ulanmagan bo'lsa, mijoz o'z-o'zicha obuna sotib ololmaydi
+        # (`create_checkout` doim `provider_not_configured` qaytaradi).
+        # Shu yerda xodim naqd/karta to'lovini qayd etib, obunani qo'lda
+        # faollashtiradi (H-10).
+        serializer = ManualSubscriptionPaymentInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        target_user = get_object_or_404(get_user_model(), pk=data["user"])
+        try:
+            payment, created = record_subscription_payment(
+                user=target_user,
+                actor=request.user,
+                plan_code=data["plan"],
+                method=data["method"],
+                idempotency_key=data["idempotency_key"],
+                amount_tiyin=int(data["amount"] * 100) if data.get("amount") is not None else None,
+                note=data["note"],
+            )
+        except IntegrityError:
+            if ManualSubscriptionPayment.objects.filter(idempotency_key=data["idempotency_key"]).exists():
+                raise PaymentConflict()
+            raise
+        return Response(
+            ManualSubscriptionPaymentSerializer(payment).data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
 
     @extend_schema(
         tags=["Admin Cabinet"],

@@ -72,8 +72,10 @@ def activate_subscription_for_payment(payment):
 
 @transaction.atomic
 def mark_payment_paid(payment_id, external_id=""):
-    payment = Payment.objects.select_for_update().select_related("user", "plan").get(
-        pk=payment_id
+    payment = (
+        Payment.objects.select_for_update(of=("self",))
+        .select_related("user", "plan")
+        .get(pk=payment_id)
     )
     if payment.status == Payment.Status.PAID:
         return payment
@@ -168,7 +170,11 @@ def apply_payment_webhook(payment_id, status, external_id=""):
         return mark_payment_paid(payment_id, external_id=external_id)
 
     try:
-        payment = Payment.objects.select_for_update().select_related("user").get(pk=payment_id)
+        payment = (
+            Payment.objects.select_for_update(of=("self",))
+            .select_related("user")
+            .get(pk=payment_id)
+        )
     except Payment.DoesNotExist as error:
         raise ValidationError("payments.transaction_not_found", code="payments.transaction_not_found") from error
 

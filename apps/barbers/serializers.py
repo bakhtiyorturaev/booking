@@ -78,7 +78,45 @@ class PublicBarberSerializer(serializers.ModelSerializer):
         )
 
 
+class PublicBarberListSerializer(PublicBarberSerializer):
+    """Ommaviy katalog ro'yxati (`GET /barbers/`) uchun — `phone` chiqarilmaydi,
+    aks holda bir necha sahifalashtirilgan so'rov bilan barcha sartaroshlarning
+    shaxsiy raqamlarini ommaviy yig'ib olish (scraping) mumkin bo'lardi. Bitta
+    sartarosh profilini ochib ko'rish (`retrieve`) hamon raqamni ko'rsatadi —
+    bu "sartarosh bilan bog'lanish" funksiyasi uchun qasddan qilingan."""
+
+    class Meta(PublicBarberSerializer.Meta):
+        fields = tuple(
+            field for field in PublicBarberSerializer.Meta.fields if field != "phone"
+        )
+
+
 class BarberProfileSerializer(serializers.ModelSerializer):
+    club_id = serializers.UUIDField(source="club.id", read_only=True, allow_null=True)
+    club_name = serializers.CharField(source="club.name", read_only=True, default="")
+    branch_id = serializers.UUIDField(source="branch.id", read_only=True, allow_null=True)
+    branch_name = serializers.CharField(source="branch.name", read_only=True, default="")
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
+    affiliation_status_display = serializers.CharField(
+        source="get_affiliation_status_display", read_only=True
+    )
+
+    def validate(self, attrs):
+        start = attrs.get("work_start_time", self.instance.work_start_time if self.instance else None)
+        end = attrs.get("work_end_time", self.instance.work_end_time if self.instance else None)
+        if start and end and start == end:
+            raise serializers.ValidationError(
+                {"work_end_time": "Ish boshlanishi va tugashi bir xil bo‘lmasligi kerak."}
+            )
+        days = attrs.get("working_days", self.instance.working_days if self.instance else [])
+        if not isinstance(days, list) or any(
+            type(day) is not int or day < 1 or day > 7 for day in days
+        ):
+            raise serializers.ValidationError(
+                {"working_days": "Hafta kunlari 1 dan 7 gacha bo‘lishi kerak."}
+            )
+        return attrs
+
     class Meta:
         model = Barber
         fields = (
@@ -87,16 +125,41 @@ class BarberProfileSerializer(serializers.ModelSerializer):
             "phone",
             "photo",
             "status",
+            "status_display",
             "work_start_time",
             "work_end_time",
             "working_days",
             "club",
+            "club_id",
+            "club_name",
             "branch",
+            "branch_id",
+            "branch_name",
             "affiliation_status",
+            "affiliation_status_display",
             "rating",
             "review_count",
+            "is_active",
         )
-        read_only_fields = ("id", "rating", "review_count", "affiliation_status")
+        # `club`/`branch` faqat `/barbers/me/affiliate/` orqali o'zgaradi va
+        # klub egasi tasdiqlashini talab qiladi. Ularni yozishga ruxsat berilsa,
+        # sartarosh APPROVED statusini saqlab turib boshqa sartaroshxonaga
+        # "ko'chib" o'tib, o'zini uning tasdiqlangan ustasi qilib ko'rsatardi.
+        read_only_fields = (
+            "id",
+            "rating",
+            "review_count",
+            "affiliation_status",
+            "affiliation_status_display",
+            "status_display",
+            "club",
+            "club_id",
+            "club_name",
+            "branch",
+            "branch_id",
+            "branch_name",
+            "is_active",
+        )
 
 
 class BarberStatusSerializer(serializers.Serializer):
@@ -115,6 +178,11 @@ class BarberAffiliateSerializer(serializers.Serializer):
         except Club.DoesNotExist:
             raise serializers.ValidationError({"club_id": "Sartaroshxona topilmadi."})
 
+        if club.category != Club.Category.BARBERSHOP:
+            raise serializers.ValidationError({"club_id": "Sartaroshxona tanlang."})
+        if club.status != Club.Status.ACTIVE:
+            raise serializers.ValidationError({"club_id": "Sartaroshxona faol emas."})
+
         branch = None
         if branch_id:
             try:
@@ -132,10 +200,19 @@ class CabinetBarberSerializer(serializers.ModelSerializer):
 
     def get_can_manage_affiliation(self, obj):
         from apps.clubs.permissions import is_platform_admin
-        user = self.context["request"].user
-        return is_platform_admin(user)
 
+        user = self.context["request"].user
+        # Klub egasi ham o'z sartaroshxonasiga kelgan arizani boshqaradi
+        # (`CabinetBarberViewSet.require_affiliation_manager` bilan bir xil shart).
+        return is_platform_admin(user) or (
+            obj.club_id is not None and obj.club.owner_id == user.pk
+        )
+
+    user_id = serializers.UUIDField(source="user.id", read_only=True)
     user_username = serializers.CharField(source="user.username", read_only=True)
+    user_phone = serializers.CharField(source="user.phone", read_only=True, default="")
+    club_id = serializers.UUIDField(source="club.id", read_only=True, allow_null=True)
+    branch_id = serializers.UUIDField(source="branch.id", read_only=True, allow_null=True)
     club_name = serializers.CharField(source="club.name", read_only=True, default="")
     branch_name = serializers.CharField(source="branch.name", read_only=True, default="")
     status_display = serializers.CharField(source="get_status_display", read_only=True)
@@ -188,15 +265,19 @@ class CabinetBarberSerializer(serializers.ModelSerializer):
             "billing_district",
             "billing",
             "user",
+            "user_id",
             "user_username",
+            "user_phone",
             "latitude",
             "longitude",
             "full_name",
             "phone",
             "photo",
             "club",
+            "club_id",
             "club_name",
             "branch",
+            "branch_id",
             "branch_name",
             "status",
             "status_display",

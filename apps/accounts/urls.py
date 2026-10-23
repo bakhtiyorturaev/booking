@@ -14,8 +14,6 @@ from apps.accounts.views import (
     TelegramContactAPIView,
     TelegramLoginAPIView,
     TelegramMiniAppLoginAPIView,
-    TelegramWebLoginCheckAPIView,
-    TelegramWebLoginInitAPIView,
     TokenRefreshAPIView,
 )
 
@@ -34,8 +32,6 @@ urlpatterns = [
     path("auth/password/change/", ChangePasswordAPIView.as_view(), name="change-password"),
     path("auth/telegram-miniapp/", TelegramMiniAppLoginAPIView.as_view(), name="telegram-miniapp-login"),
     path("auth/telegram-miniapp/contact/", TelegramContactAPIView.as_view(), name="telegram-contact"),
-    path("auth/telegram-web/init/", TelegramWebLoginInitAPIView.as_view(), name="telegram-web-init"),
-    path("auth/telegram-web/check/<str:token>/", TelegramWebLoginCheckAPIView.as_view(), name="telegram-web-check"),
     path("auth/me/", CurrentUserAPIView.as_view(), name="current-user"),
     path("auth/token/refresh/", TokenRefreshAPIView.as_view(), name="token-refresh"),
     path("auth/logout/", LogoutAPIView.as_view(), name="logout"),

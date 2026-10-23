@@ -1,5 +1,6 @@
 import concurrent.futures
 import logging
+import threading
 
 from django.conf import settings
 from django.db import connection
@@ -13,6 +14,13 @@ _audit_executor = concurrent.futures.ThreadPoolExecutor(
     max_workers=2,
     thread_name_prefix="audit_logger",
 )
+# `ThreadPoolExecutor`ning ichki navbati standart holatda cheksiz —
+# DB sekinlashganda yoki trafik keskin oshganda `.submit()` xotirada
+# cheksiz to'planib ketishi mumkin. Shu sababli bir vaqtning o'zida
+# ko'pi bilan shuncha vazifa navbatda/bajarilishda turishiga ruxsat
+# beramiz; undan oshsa — sinxron yozishga tushamiz (ma'lumot yo'qolmaydi,
+# faqat shu so'rov biroz kutadi).
+_audit_queue_capacity = threading.BoundedSemaphore(200)
 
 
 def _should_use_async():
@@ -24,11 +32,8 @@ def _should_use_async():
 
 
 def _client_ip(request):
-    remote_address = request.META.get("REMOTE_ADDR") or None
-    if remote_address not in settings.TRUSTED_PROXY_IPS:
-        return remote_address
-    forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR", "")
-    return forwarded_for.split(",", 1)[0].strip() or remote_address
+    from apps.accounts.utils import get_client_ip
+    return get_client_ip(request)
 
 
 def _save_audit_log(
@@ -70,6 +75,20 @@ def _save_audit_log_async(**kwargs):
         connection.close()
 
 
+def _submit_audit_log(**kwargs):
+    if not _audit_queue_capacity.acquire(blocking=False):
+        _save_audit_log(**kwargs)
+        return
+
+    def _run():
+        try:
+            _save_audit_log_async(**kwargs)
+        finally:
+            _audit_queue_capacity.release()
+
+    _audit_executor.submit(_run)
+
+
 class AuditMiddleware:
     def __init__(self, get_response):
         self.get_response = get_response
@@ -91,8 +110,7 @@ class AuditMiddleware:
         request_id = request.headers.get("X-Request-ID", "")[:100]
 
         if _should_use_async():
-            _audit_executor.submit(
-                _save_audit_log_async,
+            _submit_audit_log(
                 actor_id=actor_id,
                 method=request.method,
                 path=request.path[:500],

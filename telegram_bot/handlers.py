@@ -5,7 +5,6 @@ from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from requests.exceptions import ConnectionError as TelegramConnectionError, Timeout as TelegramTimeout
 
 from apps.accounts.models import User
-from apps.accounts.services.telegram_web_login import confirm_web_login_from_bot
 from apps.accounts.services.telegram_miniapp import save_telegram_contact
 from telegram_bot.barber_actions import handle_barber_callback, handle_barber_reason
 from telegram_bot.models import TelegramBookingMessage, TelegramGroup
@@ -161,7 +160,7 @@ def handle_message(client, message):
     if contact:
         phone_number = contact.get("phone_number", "")
         contact_user_id = contact.get("user_id")
-        if phone_number and (contact_user_id == user.get("id") or not contact_user_id):
+        if phone_number and contact_user_id == user.get("id"):
             tg_user = User.objects.filter(telegram_user_id=user.get("id")).first()
             if tg_user:
                 try:
@@ -182,6 +181,22 @@ def handle_message(client, message):
             )
             safe_send_message(client, chat_id, success_text, default_keyboard)
             return
+        elif phone_number:
+            warning_text = (
+                "⚠️ Iltimos, <b>“Raqamni yuborish”</b> tugmasi orqali "
+                "o‘zingizning raqamingizni yuboring."
+                if language == "uz"
+                else (
+                    "⚠️ Пожалуйста, отправьте свой "
+                    "номер через кнопку "
+                    "«Отправить номер»."
+                    if language == "ru"
+                    else "⚠️ Please send your own phone number using the "
+                    "“Share phone number” button."
+                )
+            )
+            safe_send_message(client, chat_id, warning_text, default_keyboard)
+            return
 
     if text.split()[0:1] == ["/start"] and len(text.split()) == 2 and text.split()[1].startswith("auth_"):
         from apps.accounts.services.telegram_code_auth import generate_telegram_code_for_user, TelegramCodeAuthError
@@ -198,53 +213,28 @@ def handle_message(client, message):
             safe_send_message(client, chat_id, "Kirish havolasi eskirgan. Saytdan yangi kod so‘rang.", default_keyboard)
         return
 
-    # 2. Agar web login deep-link bo'lsa: /start login_<token>
+    # 2. Eskirgan `/start login_<token>` deep-link oqimi OLIB TASHLANDI.
+    #    U brauzer sessiyasini Telegram foydalanuvchisiga bog'lamagani uchun
+    #    session fixation (bir klik bilan akkaunt egallash) zaifligini
+    #    ochib turgan. O'rniga yuqoridagi `/start auth_<session_id>` + kod
+    #    oqimi ishlatiladi. Eski havolalar uchun ko'rsatma beramiz.
     if text.startswith("/start") and "login_" in text:
-        parts = text.split()
-        token = ""
-        for p in parts:
-            if "login_" in p:
-                token = p.split("login_", 1)[1].strip()
-                break
-
-        confirmed = False
-        if token:
-            confirmed = confirm_web_login_from_bot(token, user)
-
-        raw_user_name = user.get("first_name", "").strip() or "Foydalanuvchi"
-        safe_user_name = html.escape(raw_user_name)
-
-        if confirmed:
-            frontend_url = get_safe_frontend_url()
-            site_return_url = f"{frontend_url}?tg_login={token}" if token else frontend_url
-
-            login_success_text = (
-                f"✅ <b>Assalomu alaykum, {safe_user_name}!</b>\n\n"
-                f"RezervUZ tizimiga muvaffaqiyatli kirdingiz.\n"
-                f"Brauzeringizdagi sahifaga qayting yoki quyidagi tugma orqali to‘g‘ridan-to‘g‘ri saytga o‘ting 👇"
-                if language == "uz"
-                else (
-                    f"✅ <b>Здравствуйте, {safe_user_name}!</b>\n\n"
-                    f"Вы успешно вошли в систему RezervUZ.\n"
-                    f"Вернитесь на страницу в браузере или перейдите по кнопке ниже 👇"
-                    if language == "ru"
-                    else (
-                        f"✅ <b>Welcome, {safe_user_name}!</b>\n\n"
-                        f"Successfully logged into RezervUZ.\n"
-                        f"Return to your browser or click below to open the website 👇"
-                    )
-                )
+        if message.get("chat", {}).get("type") != "private":
+            return
+        outdated_text = (
+            "⚠️ <b>Bu kirish havolasi eskirgan.</b>\n\n"
+            "Saytdagi <b>“Telegram orqali kirish”</b> tugmasini qaytadan bosing — "
+            "biz sizga 5 xonali kod yuboramiz."
+            if language == "uz"
+            else (
+                "⚠️ <b>Эта ссылка для входа устарела.</b>\n\n"
+                "Нажмите «Войти через Telegram» на сайте — мы отправим 5-значный код."
+                if language == "ru"
+                else "⚠️ <b>This login link is outdated.</b>\n\n"
+                "Tap “Log in with Telegram” on the website — we will send you a 5-digit code."
             )
-            login_keyboard = build_user_keyboard(language, site_url=site_return_url)
-        else:
-            login_success_text = (
-                "⚠️ Kirish havolasi eskirgan yoki noto‘g‘ri. Iltimos, saytdan qayta urinib ko‘ring."
-                if language == "uz"
-                else "⚠️ Ссылка для входа устарела. Попробуйте снова на сайте."
-            )
-            login_keyboard = default_keyboard
-
-        safe_send_message(client, chat_id, login_success_text, login_keyboard)
+        )
+        safe_send_message(client, chat_id, outdated_text, default_keyboard)
         return
 
     # 3. /start yoki har qanday xabar uchun doimiy javob

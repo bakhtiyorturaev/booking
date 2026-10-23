@@ -24,7 +24,7 @@ def env_list(name, default=""):
     ]
 
 
-DEBUG = env_bool("DJANGO_DEBUG", True)
+DEBUG = env_bool("DJANGO_DEBUG", False)
 
 SECRET_KEY = os.getenv(
     "DJANGO_SECRET_KEY",

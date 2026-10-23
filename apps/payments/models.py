@@ -251,6 +251,38 @@ class ManualVenuePayment(models.Model):
         ]
 
 
+class ManualSubscriptionPayment(models.Model):
+    """Xodim tomonidan qo'lda qayd etilgan mijoz obunasi to'lovi — haqiqiy
+    onlayn to'lov provayderi (PAYMENT_PROVIDER=http) ulanmaguncha, mijozlar
+    pullik obunani (demak, sharh qoldirish huquqini) shu yo'l bilan oladi."""
+
+    class Method(models.TextChoices):
+        CASH = "CASH", "Naqd"
+        CARD = "CARD", "Karta"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="manual_subscription_payments")
+    plan = models.ForeignKey(SubscriptionPlan, on_delete=models.PROTECT, related_name="manual_payments")
+    received_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="collected_subscription_payments")
+    amount_tiyin = models.PositiveBigIntegerField()
+    method = models.CharField(max_length=4, choices=Method.choices)
+    idempotency_key = models.UUIDField(unique=True)
+    note = models.CharField(max_length=500, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Qo‘lda kiritilgan obuna to‘lovi"
+        verbose_name_plural = "Qo‘lda kiritilgan obuna to‘lovlari"
+        ordering = ("-created_at", "-id")
+        constraints = [
+            models.CheckConstraint(condition=Q(amount_tiyin__gt=0), name="manual_subscription_payment_positive_amount"),
+            models.CheckConstraint(condition=Q(method__in=("CASH", "CARD")), name="manual_subscription_payment_valid_method"),
+        ]
+
+    def __str__(self):
+        return f"{self.user} — {self.plan} ({self.method})"
+
+
 class VenueTariffRule(models.Model):
     service_type = models.ForeignKey("core.ServiceType", on_delete=models.PROTECT)
     city = models.ForeignKey("core.City", on_delete=models.PROTECT, null=True, blank=True)
@@ -264,6 +296,7 @@ class VenueTariffRule(models.Model):
             models.UniqueConstraint(fields=("service_type", "district"), condition=models.Q(district__isnull=False), name="venue_tariff_district_unique"),
             models.UniqueConstraint(fields=("service_type", "city"), condition=models.Q(district__isnull=True, city__isnull=False), name="venue_tariff_city_unique"),
             models.UniqueConstraint(fields=("service_type",), condition=models.Q(district__isnull=True, city__isnull=True), name="venue_tariff_default_unique"),
+            models.CheckConstraint(condition=Q(monthly_price_tiyin__gt=0), name="venue_tariff_positive_price"),
         ]
 
     def clean(self):

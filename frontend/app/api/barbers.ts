@@ -6,6 +6,7 @@ import type {
   BarberStatus,
 } from "~/types/barber"
 import type { Booking } from "~/types/booking"
+import type { PaginatedResponse } from "~/types/club"
 
 export const useBarbersApi = () => {
   const api = useApiClient()
@@ -22,7 +23,13 @@ export const useBarbersApi = () => {
       latitude?: number
       longitude?: number
     }) =>
-      api.get<BarberItem[]>("/api/barbers", {
+      api.get<PaginatedResponse<BarberItem>>("/api/barbers", {
+        local: true,
+        query: params,
+      }),
+
+    getBarber: (barberId: string, params?: { latitude?: number; longitude?: number }) =>
+      api.get<BarberItem>(`/api/barbers/${encodeURIComponent(barberId)}`, {
         local: true,
         query: params,
       }),
@@ -43,21 +50,26 @@ export const useBarbersApi = () => {
         },
       }),
 
+    // Quyidagilar Nuxt BFF orqali ketadi (`local: true`): JWT httpOnly cookie'da
+    // turgani uchun brauzerdan to'g'ridan Django'ga yuborilsa 401 keladi.
     getMyProfile: () =>
-      api.get<BarberProfile>("/barbers/me/"),
+      api.get<BarberProfile>("/api/barber-profile", { local: true }),
 
     updateMyProfile: (payload: Partial<BarberProfile>) =>
-      api.patch<BarberProfile>("/barbers/me/", {
+      api.patch<BarberProfile>("/api/barber-profile", {
+        local: true,
         body: payload,
       }),
 
     updateMyStatus: (status: BarberStatus) =>
-      api.post<{ status: BarberStatus; status_display: string; message: string }>("/barbers/me/status/", {
+      api.post<{ status: BarberStatus; status_display: string; message: string }>("/api/barber-profile/status", {
+        local: true,
         body: { status },
       }),
 
     requestAffiliation: (clubId: string, branchId?: string) =>
-      api.post<{ message: string; affiliation_status: string }>("/barbers/me/affiliate/", {
+      api.post<{ message: string; affiliation_status: string }>("/api/barber-profile/affiliate", {
+        local: true,
         body: {
           club_id: clubId,
           branch_id: branchId,

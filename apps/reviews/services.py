@@ -47,9 +47,11 @@ def refresh_barber_rating(barber_id):
 @transaction.atomic
 def create_review(user, booking_id, rating, comment="", barber_rating=None):
     require_paid_access(user)
-    booking = Booking.objects.select_for_update().select_related(
-        "zone__branch__club", "barber__club"
-    ).get(pk=booking_id)
+    booking = (
+        Booking.objects.select_for_update(of=("self",))
+        .select_related("zone__branch__club", "barber__club")
+        .get(pk=booking_id)
+    )
     if booking.user_id != user.id:
         raise ValidationError("reviews.permission_denied", code="reviews.permission_denied")
     if booking.status != Booking.Status.COMPLETED:

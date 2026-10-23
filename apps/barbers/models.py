@@ -1,4 +1,5 @@
 import uuid
+from datetime import time
 from decimal import Decimal
 from pathlib import Path
 
@@ -93,8 +94,8 @@ class Barber(models.Model):
         default=Status.AVAILABLE,
         help_text="Real vaqt holati (Ishda, Tanaffusda, Ishga chiqmagan, Dam olish kuni).",
     )
-    work_start_time = models.TimeField(default="09:00", help_text="Ish boshlanish vaqti.")
-    work_end_time = models.TimeField(default="20:00", help_text="Ish tugash vaqti.")
+    work_start_time = models.TimeField(default=time(9, 0), help_text="Ish boshlanish vaqti.")
+    work_end_time = models.TimeField(default=time(20, 0), help_text="Ish tugash vaqti.")
     working_days = models.JSONField(
         default=list,
         blank=True,

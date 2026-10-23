@@ -30,6 +30,9 @@ class User(AbstractBaseUser, PermissionsMixin):
     phone = models.CharField(max_length=20, unique=True, null=True, blank=True, validators=[phone_validator])
     telegram_user_id = models.BigIntegerField(unique=True, null=True, blank=True)
     telegram_verified_at = models.DateTimeField(null=True, blank=True)
+    # Telegram "Raqamni yuborish" tugmasi orqali tasdiqlangan vaqt. Foydalanuvchi
+    # profilda raqamni o'zi o'zgartirsa bu qiymat tozalanadi (tasdiqlanmagan holat).
+    phone_verified_at = models.DateTimeField(null=True, blank=True)
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.CUSTOMER)
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.ACTIVE)
     last_login = models.DateTimeField(null=True, blank=True, db_column="last_login_at")
@@ -58,7 +61,9 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     @property
     def is_phone_verified(self):
-        return bool(self.phone and self.telegram_verified_at)
+        # Telegram akkaunti bog'langani raqam tasdiqlanganini bildirmaydi —
+        # aynan raqamning o'zi tasdiqlangan bo'lishi shart.
+        return bool(self.phone and self.phone_verified_at)
 
     @property
     def is_password_expired(self):
@@ -118,7 +123,13 @@ class UserProfile(models.Model):
 
     def mark_as_completed(self):
         if self.profile_completed_at is None:
-            self.profile_completed_at = models.functions.Now()
+            from django.utils import timezone
+
+            # `models.functions.Now()` (DB-side ifoda) emas, aynan
+            # `timezone.now()` ishlatiladi — aks holda instansda
+            # `profile_completed_at` saqlangandan keyin ham hali DB
+            # ifodasi (`Func` obyekti) bo'lib qolardi, haqiqiy vaqt emas.
+            self.profile_completed_at = timezone.now()
             self.save(update_fields=["profile_completed_at", "updated_at"])
 
 

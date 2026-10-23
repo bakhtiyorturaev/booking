@@ -332,6 +332,10 @@ const openBarberBooking = (barber: BarberItem) => {
   selectedBarberForBooking.value = barber
   showBookingModal.value = true
 }
+
+const openBarberInfo = (barber: BarberItem) => {
+  navigateTo(`/barbers/${barber.id}`)
+}
 </script>
 
 <template>
@@ -439,6 +443,7 @@ const openBarberBooking = (barber: BarberItem) => {
                 :key="barber.id"
                 :barber="barber"
                 @book="openBarberBooking"
+                @info="openBarberInfo"
               />
             </div>
           </template>

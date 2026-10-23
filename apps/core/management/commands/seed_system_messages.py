@@ -664,6 +664,12 @@ SYSTEM_MESSAGES = [
         "text_en": 'The service type must be COMPUTER or PLAYSTATION.',
     },
     {
+        "code": 'clubs.invalid_timezone',
+        "text_uz": 'Vaqt mintaqasi noto‘g‘ri. Masalan: Asia/Tashkent.',
+        "text_ru": 'Указан неверный часовой пояс. Например: Asia/Tashkent.',
+        "text_en": 'Invalid timezone. Example: Asia/Tashkent.',
+    },
+    {
         "code": 'clubs.invalid_weekdays',
         "text_uz": 'Hafta kunlari 0 dan 6 gacha bo‘lgan sonlar bilan berilishi kerak.',
         "text_ru": 'Дни недели должны быть числами от 0 до 6.',

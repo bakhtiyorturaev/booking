@@ -66,12 +66,12 @@ class BranchAvailabilityAPIView(APIView):
                 "date": target_date,
                 "zones": [
                     {
-                        "id": item["zone"].id,
-                        "name": item["zone"].name,
-                        "capacity": item["zone"].booking_capacity,
-                        "booking_type": item["zone"].booking_type,
-                        "unit_count": item["zone"].unit_count,
-                        "price_per_hour_tiyin": item["zone"].price_per_hour_tiyin,
+                        "id": item["zone"]["id"],
+                        "name": item["zone"]["name"],
+                        "capacity": item["zone"]["booking_capacity"],
+                        "booking_type": item["zone"]["booking_type"],
+                        "unit_count": item["zone"]["unit_count"],
+                        "price_per_hour_tiyin": item["zone"]["price_per_hour_tiyin"],
                         "slots": item["slots"],
                     }
                     for item in availability
@@ -190,10 +190,6 @@ class CabinetBookingViewSet(
                 | Q(barber__club__owner=self.request.user)
                 | Q(barber__user=self.request.user)
             )
-        barber_id = self.request.query_params.get("barber_id")
-        if barber_id:
-            from rest_framework.serializers import UUIDField
-            queryset = queryset.filter(barber_id=UUIDField().run_validation(barber_id))
         booking_status = self.request.query_params.get("status")
         if booking_status in Booking.Status.values:
             queryset = queryset.filter(status=booking_status)
