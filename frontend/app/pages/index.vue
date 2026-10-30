@@ -47,7 +47,10 @@ onMounted(locate)
       </div>
       <div class="ad-art" aria-hidden="true">
         <div class="ad-orbit orbit-one" /><div class="ad-orbit orbit-two" />
-        <div class="ad-pin">R<span>REZERVUZ</span></div>
+        <div class="ad-pin">
+          <img src="/logo-mark.png" alt="" width="84" height="84">
+          <span class="brand-wordmark">Rezerv<span class="brand-wordmark-accent">uz.uz</span></span>
+        </div>
         <span class="ad-tag tag-one">O‘ynang</span><span class="ad-tag tag-two">Dam oling</span><span class="ad-tag tag-three">Vaqtingizni bron qiling</span>
       </div>
       <span class="ad-label">Reklama</span>
@@ -77,10 +80,13 @@ h1 span { color: #bdb5ff; }
 .ad-benefits { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 .ad-benefits span { padding: 9px 12px; border: 1px solid #ffffff30; border-radius: 999px; background: #ffffff0d; color: #eeeaff; font-size: 12px; font-weight: 650; }
 .ad-art { position: relative; min-height: 160px; display: grid; place-items: center; }
-.ad-orbit { position: absolute; width: 190px; height: 190px; border: 1px solid #ffffff25; border-radius: 50%; transform: rotate(-25deg) scaleX(1.25); }
-.orbit-two { width: 140px; height: 140px; transform: rotate(30deg) scaleX(1.3); }
-.ad-pin { display: grid; place-content: center; gap: 3px; width: 106px; height: 120px; border: 1px solid #ffffff60; border-radius: 32px 32px 55px 55px; background: linear-gradient(135deg, #a89afa, #5044a6); box-shadow: 0 24px 80px #0005; font-size: 56px; font-weight: 900; text-align: center; transform: rotate(-8deg); }
-.ad-pin span { font-size: 9px; letter-spacing: .12em; }
+.ad-orbit { position: absolute; width: 230px; height: 230px; border: 1px solid #ffffff25; border-radius: 50%; transform: rotate(-25deg) scaleX(1.25); }
+.orbit-two { width: 185px; height: 185px; transform: rotate(30deg) scaleX(1.3); }
+.ad-pin { position: relative; display: grid; justify-items: center; gap: 8px; padding: 16px 18px 14px; border: 1px solid #6d6cff80; border-radius: 26px; background: #00071f; box-shadow: 0 0 28px #6366f166, 0 22px 40px #0007; transform: rotate(-6deg); animation: ad-pin-float 6s ease-in-out infinite; }
+.ad-pin img { display: block; width: 84px; height: 84px; }
+.ad-pin .brand-wordmark { color: #fff; font-size: 13px; line-height: 1; }
+@keyframes ad-pin-float { 0%, 100% { transform: rotate(-6deg) translateY(0); } 50% { transform: rotate(-4deg) translateY(-6px); } }
+@media (prefers-reduced-motion: reduce) { .ad-pin { animation: none; } }
 .ad-tag { position: absolute; padding: 8px 12px; border: 1px solid #ffffff30; border-radius: 12px; background: #ffffff15; backdrop-filter: blur(8px); font-size: 11px; }
 .tag-one { top: 12px; left: 2%; transform: rotate(-10deg); }.tag-two { right: 0; top: 46px; transform: rotate(10deg); }.tag-three { bottom: 0; left: 12%; }
 .ad-label { position: absolute; bottom: 14px; right: 18px; color: #ffffff80; font-size: 10px; }

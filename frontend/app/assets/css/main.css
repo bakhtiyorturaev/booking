@@ -53,6 +53,29 @@ body,
   margin: 0;
 }
 
+@font-face {
+  font-family: "Montserrat";
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url("/fonts/montserrat-800.woff2") format("woff2");
+}
+
+.brand-wordmark {
+  font-family: "Montserrat", Inter, "Segoe UI", Arial, sans-serif;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--text);
+}
+
+.brand-wordmark-accent {
+  background: linear-gradient(90deg, #4f5bff 0%, #8b5cf6 55%, #c056f5 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
 body {
   background: var(--page);
   color: var(--text);
