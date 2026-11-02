@@ -45,7 +45,8 @@ export const djangoRequest = <T>(
   const headers = new Headers(options.headers)
   if (trustProxy) {
     // Django must build public URLs with the site's host, not the Docker service name.
-    headers.set("Host", getRequestHost(event, { xForwardedHost: false }))
+    // fetch() silently drops a custom Host header, so the host goes via X-Forwarded-Host.
+    headers.set("X-Forwarded-Host", getRequestHost(event, { xForwardedHost: false }))
   }
   headers.set("X-Forwarded-For", getRequestIP(event, { xForwardedFor: trustProxy }) || "127.0.0.1")
   headers.set("X-Forwarded-Proto", getRequestProtocol(event, { xForwardedProto: trustProxy }))

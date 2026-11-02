@@ -64,6 +64,8 @@ CSRF_COOKIE_HTTPONLY = True
 CSRF_COOKIE_SAMESITE = "Lax"
 # Production traffic arrives through Nginx, which overwrites this header.
 SECURE_PROXY_SSL_HEADER = None if DEBUG else ("HTTP_X_FORWARDED_PROTO", "https")
+# Nuxt server forwards the public site host here; still validated against ALLOWED_HOSTS.
+USE_X_FORWARDED_HOST = not DEBUG
 AUDIT_ASYNC = env_bool("DJANGO_AUDIT_ASYNC", True)
 
 INSTALLED_APPS = [
