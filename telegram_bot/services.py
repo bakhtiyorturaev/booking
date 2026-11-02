@@ -465,8 +465,52 @@ def send_customer_booking_notification(booking, event_type, client=None):
         from telegram_bot.handlers import safe_send_message
         if safe_send_message(client, chat_id, text, reply_markup=reply_markup):
             logger.info("Successfully sent customer booking notification (%s) to chat_id %s", event_type, chat_id)
+            # Lokatsiya faqat tasdiqlangan bronga: kutilayotgan bron rad etilishi mumkin.
+            if event_type == Booking.Status.CONFIRMED:
+                _send_booking_location(client, chat_id, booking, language)
     except Exception as err:
         logger.warning("send_customer_booking_notification failed for booking #%s: %s", getattr(booking, "id", "-"), err)
+
+
+MAP_BUTTON_LABELS = {
+    "uz": ("🗺 Google Maps", "🧭 Yandex Navigator"),
+    "ru": ("🗺 Google Карты", "🧭 Яндекс Навигатор"),
+    "en": ("🗺 Google Maps", "🧭 Yandex Navigator"),
+}
+
+
+def _booking_location(booking):
+    """Saytdagi xaritada ko'rinadigan nuqta: zona broni — filial, sartarosh — uning joylashuvi."""
+    if booking.barber_id:
+        barber = booking.barber
+        point = barber.map_coordinates
+        place = barber.branch or barber.club
+        title = " — ".join(filter(None, [barber.club.name if barber.club_id else "", barber.full_name]))
+    else:
+        place = booking.zone.branch if booking.zone_id else None
+        point = (place.latitude, place.longitude) if place and place.latitude is not None and place.longitude is not None else None
+        title = place.name if place else ""
+    if not point:
+        return None
+    address = (getattr(place, "full_address", "") or getattr(place, "address", "") or title) if place else title
+    return float(point[0]), float(point[1]), title or address, address or title
+
+
+def _send_booking_location(client, chat_id, booking, language):
+    """Bron joyini Telegram lokatsiyasi va xarita tugmalari bilan yuboradi; xato bron xabariga ta'sir qilmaydi."""
+    try:
+        location = _booking_location(booking)
+        if not location:
+            return
+        latitude, longitude, title, address = location
+        google_label, yandex_label = MAP_BUTTON_LABELS.get(language, MAP_BUTTON_LABELS["uz"])
+        keyboard = {"inline_keyboard": [[
+            {"text": google_label, "url": f"https://www.google.com/maps/dir/?api=1&destination={latitude},{longitude}"},
+            {"text": yandex_label, "url": f"https://yandex.uz/maps/?rtext=~{latitude},{longitude}&rtt=auto"},
+        ]]}
+        client.send_venue(chat_id, latitude, longitude, title[:256], address[:256], reply_markup=keyboard)
+    except Exception as err:
+        logger.warning("Booking location was not sent for booking #%s: %s", getattr(booking, "id", "-"), err)
 
 
 def _notify_booking_change(booking, event_status):
