@@ -89,6 +89,26 @@ const pickBranchImages = (event: Event, kind: "logo" | "photos") => {
     photoPreviews.value = files.map(file => URL.createObjectURL(file))
   }
 }
+const removeNewPhoto = (index: number) => {
+  URL.revokeObjectURL(photoPreviews.value[index] || "")
+  photoPreviews.value = photoPreviews.value.filter((_, i) => i !== index)
+  branchPhotos.value = branchPhotos.value.filter((_, i) => i !== index)
+}
+const deletingImageId = ref("")
+const deleteBranchImage = async (image: { id: string }) => {
+  if (!confirm("Bu rasmni o‘chirmoqchimisiz? Uni qaytarib bo‘lmaydi.")) return
+  deletingImageId.value = image.id
+  try {
+    await adminApi.deleteBranchImage(image.id)
+    editingBranch.value.images = editingBranch.value.images.filter((item: { id: string }) => item.id !== image.id)
+    useToast().success("Rasm o‘chirildi.")
+    void fetchBranches()
+  } catch (cause) {
+    branchModalError.value = cabinetErrorMessage(cause)
+  } finally {
+    deletingImageId.value = ""
+  }
+}
 const zoneServiceChoices = computed(() => {
   const allowed = descendantServiceIds(services.value, selectedBranch.value?.enabled_services || [])
   return serviceTreeOptions(services.value.filter(service => service.is_active && allowed.has(service.id)))
@@ -534,7 +554,7 @@ useDialogFocus(showZoneModal, "#cabinet-branches-showZoneModal", () => { showZon
             </div>
             <div class="branch-media-fields">
               <div class="form-group"><label for="branch-logo">Filial logotipi</label><img v-if="logoPreview" :src="logoPreview" class="branch-logo-preview" alt="Filial logotipi"><input id="branch-logo" type="file" accept="image/jpeg,image/png,image/webp" @change="pickBranchImages($event, 'logo')"></div>
-              <div class="form-group"><label for="branch-photos">Filial rasmlari</label><div v-if="editingBranch?.images?.length || photoPreviews.length" class="branch-photo-previews"><img v-for="image in editingBranch?.images || []" :key="image.id" :src="image.image" alt="Filial rasmi"><img v-for="url in photoPreviews" :key="url" :src="url" alt="Yangi rasm"></div><input id="branch-photos" type="file" multiple accept="image/jpeg,image/png,image/webp" @change="pickBranchImages($event, 'photos')"><small>JPG, PNG, WEBP · Har biri 5 MB gacha</small></div>
+              <div class="form-group"><label for="branch-photos">Filial rasmlari</label><div v-if="editingBranch?.images?.length || photoPreviews.length" class="branch-photo-previews"><div v-for="image in editingBranch?.images || []" :key="image.id" class="branch-photo-item"><img :src="image.image" alt="Filial rasmi"><button type="button" class="branch-photo-remove" aria-label="Rasmni o‘chirish" title="O‘chirish" :disabled="deletingImageId === image.id" @click="deleteBranchImage(image)">×</button></div><div v-for="(url, index) in photoPreviews" :key="url" class="branch-photo-item"><img :src="url" alt="Yangi rasm"><button type="button" class="branch-photo-remove" aria-label="Tanlangan rasmni olib tashlash" title="Olib tashlash" @click="removeNewPhoto(index)">×</button></div></div><input id="branch-photos" type="file" multiple accept="image/jpeg,image/png,image/webp" @change="pickBranchImages($event, 'photos')"><small>JPG, PNG, WEBP · Har biri 5 MB gacha</small></div>
             </div>
 
             <div class="form-checkbox">
@@ -632,6 +652,9 @@ useDialogFocus(showZoneModal, "#cabinet-branches-showZoneModal", () => { showZon
 .branch-logo-preview { width: 64px; height: 64px; object-fit: cover; border: 1px solid var(--border); border-radius: 12px; }
 .branch-photo-previews { display: flex; flex-wrap: wrap; gap: 8px; }
 .branch-photo-previews img { width: 80px; height: 64px; object-fit: cover; border-radius: 8px; }
+.branch-photo-item { position: relative; }
+.branch-photo-remove { position: absolute; top: -6px; right: -6px; width: 22px; height: 22px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: #ef4444; color: #fff; font-size: 15px; line-height: 1; cursor: pointer; box-shadow: 0 1px 4px rgb(0 0 0 / 30%); }
+.branch-photo-remove:disabled { opacity: .5; cursor: wait; }
 .branch-media-fields input[type="file"] { max-width: 100%; font-size: 12px; padding: 10px; }
 .branch-media-fields small { color: var(--muted); font-size: 11px; }
 

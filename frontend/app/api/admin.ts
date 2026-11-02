@@ -79,6 +79,9 @@ export const useAdminApi = () => {
         headers: { "Accept-Language": language },
       }),
 
+    deleteBranchImage: (id: string) =>
+      client.delete(`/api/cabinet/branch-images/${encodeURIComponent(id)}/`, { local: true }),
+
     getZones: (params?: Record<string, any>, language = "uz") =>
       client.get<any>("/api/cabinet/zones/", {
         params,

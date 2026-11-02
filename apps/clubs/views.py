@@ -1,6 +1,7 @@
 import uuid
 from datetime import timedelta
 
+from django.db import transaction
 from django.db.models import Count, F, Min, Prefetch, Q
 from django.db.models.deletion import ProtectedError
 from django.shortcuts import get_object_or_404
@@ -982,6 +983,19 @@ class CabinetBranchImageViewSet(CabinetAccessMixin, viewsets.ModelViewSet):
             .select_related("branch__club")
             .distinct()
         )
+
+    @transaction.atomic
+    def perform_destroy(self, instance):
+        branch, was_cover, image = instance.branch, instance.is_cover, instance.image
+        instance.delete()
+        # Muqova o'chirilsa, katalog kartasi bo'sh qolmasin — keyingi rasm muqova bo'ladi.
+        if was_cover:
+            next_image = branch.images.order_by("sort_order", "created_at").first()
+            if next_image:
+                next_image.is_cover = True
+                next_image.save(update_fields=["is_cover", "updated_at"])
+        # Django faylni diskdan o'zi o'chirmaydi; bazaga yozilgandan keyingina o'chiramiz.
+        transaction.on_commit(lambda: image.delete(save=False))
 
 
 @extend_schema_view(
