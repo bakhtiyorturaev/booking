@@ -251,7 +251,9 @@ const saveBranch = async () => {
     const enabled = new Set(branchForm.value.enabled_services)
     if (primaryService.value?.is_active) enabled.add(primaryService.value.id)
     Object.entries(branchForm.value).forEach(([key, value]) => {
-      if (key !== "enabled_services" && value != null) payload.append(key, String(value))
+      if (key === "enabled_services" || value == null) return
+      // Backend stores 6 decimal places; map-copied coordinates often have more.
+      payload.append(key, key === "latitude" || key === "longitude" ? Number(value).toFixed(6) : String(value))
     })
     enabled.forEach(id => payload.append("enabled_services", id))
     if (branchLogo.value) payload.append("logo", branchLogo.value)
@@ -527,8 +529,8 @@ useDialogFocus(showZoneModal, "#cabinet-branches-showZoneModal", () => { showZon
             </div>
 
             <div class="form-row branch-coordinates">
-              <div class="form-group"><label for="branch-latitude">Latitude *</label><input id="branch-latitude" v-model.number="branchForm.latitude" type="number" required min="-90" max="90" step="0.000001" inputmode="decimal" placeholder="41.311081"></div>
-              <div class="form-group"><label for="branch-longitude">Longitude *</label><input id="branch-longitude" v-model.number="branchForm.longitude" type="number" required min="-180" max="180" step="0.000001" inputmode="decimal" placeholder="69.240562"></div>
+              <div class="form-group"><label for="branch-latitude">Latitude *</label><input id="branch-latitude" v-model.number="branchForm.latitude" type="number" required min="-90" max="90" step="any" inputmode="decimal" placeholder="41.311081"></div>
+              <div class="form-group"><label for="branch-longitude">Longitude *</label><input id="branch-longitude" v-model.number="branchForm.longitude" type="number" required min="-180" max="180" step="any" inputmode="decimal" placeholder="69.240562"></div>
             </div>
             <div class="branch-media-fields">
               <div class="form-group"><label for="branch-logo">Filial logotipi</label><img v-if="logoPreview" :src="logoPreview" class="branch-logo-preview" alt="Filial logotipi"><input id="branch-logo" type="file" accept="image/jpeg,image/png,image/webp" @change="pickBranchImages($event, 'logo')"></div>
