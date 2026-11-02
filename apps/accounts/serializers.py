@@ -103,7 +103,7 @@ def cabinet_sections(user):
     if user.owned_clubs.exists():
         sections.extend(["clubs", "branches"])
     if hasattr(user, "barber_profile") or user.owned_clubs.filter(
-        Q(category="BARBERSHOP") | Q(service_type__code="BARBER") | Q(available_services__code__in=["BARBERSHOP", "BARBER"])
+        Q(category="BARBERSHOP") | Q(service_type__code__in=["BARBER", "WOMEN_BARBER"]) | Q(available_services__code__in=["BARBERSHOP", "BARBER", "WOMEN_BARBER"])
     ).exists():
         sections.append("barbers")
     return sections

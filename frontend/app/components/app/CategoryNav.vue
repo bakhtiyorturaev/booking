@@ -2,6 +2,7 @@
 import { useServiceTypesApi, type ServiceTypeOption } from "~/api/serviceTypes"
 import { useAdminApi } from "~/api/admin"
 import { serviceTreeOptions } from "~/utils/serviceTree"
+import { BARBER_SERVICE_GENDERS } from "~/types/barber"
 
 const props = defineProps<{ cabinet?: boolean }>()
 const cabinetPath = useCabinetPath()
@@ -47,9 +48,13 @@ const serviceRows = computed(() => serviceTreeOptions(services.value).filter(ser
   }
   return true
 }))
-const serviceTarget = (service: ServiceTypeOption) => props.cabinet
-  ? { path: cabinetPath(service.code.toUpperCase() === "BARBER" ? "/barbers" : "/clubs"), query: { service_type: service.id, status: "ACTIVE" } }
-  : { path: "/catalog", query: { service: service.code } }
+const serviceTarget = (service: ServiceTypeOption) => {
+  if (!props.cabinet) return { path: "/catalog", query: { service: service.code } }
+  const gender = BARBER_SERVICE_GENDERS[service.code.toUpperCase()]
+  return gender
+    ? { path: cabinetPath("/barbers"), query: { service_type: service.id, gender } }
+    : { path: cabinetPath("/clubs"), query: { service_type: service.id, status: "ACTIVE" } }
+}
 const activeCode = computed(() => {
   if (props.cabinet) return [cabinetPath("/clubs"), cabinetPath("/barbers")].includes(route.path)
     ? services.value.find(service => service.id === route.query.service_type)?.code ?? null : null

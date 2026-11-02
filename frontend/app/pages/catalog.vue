@@ -14,7 +14,7 @@ import BarberCard from "~/components/catalog/BarberCard.vue"
 import BarberBookingModal from "~/components/catalog/BarberBookingModal.vue"
 import CatalogSidebarFilter, { type FilterState } from "~/components/catalog/CatalogSidebarFilter.vue"
 import CatalogBottomSheet from "~/components/catalog/CatalogBottomSheet.vue"
-import type { BarberItem } from "~/types/barber"
+import { BARBER_SERVICE_GENDERS, type BarberItem } from "~/types/barber"
 import { descendantServiceIds, serviceTreeOptions } from "~/utils/serviceTree"
 
 definePageMeta({ layout: "customer" })
@@ -64,8 +64,9 @@ const filterState = ref<FilterState>({
 })
 const draftFilterState = ref<FilterState>({ ...filterState.value })
 const effectiveService = computed(() => serviceTypes.value.find(service => service.code === (filterState.value.service_type || selectedServiceCode.value)) || null)
-const isBarbershop = computed(() => ["BARBERSHOP", "BARBER"].includes(effectiveService.value?.code.toUpperCase() || ""))
-const isBarberOnly = computed(() => effectiveService.value?.code.toUpperCase() === "BARBER")
+const barberGender = computed(() => BARBER_SERVICE_GENDERS[effectiveService.value?.code.toUpperCase() || ""])
+const isBarbershop = computed(() => effectiveService.value?.code.toUpperCase() === "BARBERSHOP" || Boolean(barberGender.value))
+const isBarberOnly = computed(() => Boolean(barberGender.value))
 const serviceFilterOptions = computed(() => {
   const ids = descendantServiceIds(serviceTypes.value, activeService.value ? [activeService.value.id] : [])
   return serviceTypes.value.filter(service => ids.has(service.id) && service.id !== activeService.value?.id)
@@ -118,6 +119,7 @@ const fetchBranches = async () => {
         search: filterState.value.search || undefined,
         city: filterState.value.city || undefined,
         status: filterState.value.status || undefined,
+        gender: barberGender.value,
         ordering: filterState.value.ordering || undefined,
       }
       if (filterState.value.ordering === "distance" && userCoords.value) {
@@ -143,7 +145,7 @@ const { data } = await useAsyncData("branch-catalog", () => {
 })
 
 const { data: initialBarbers } = await useAsyncData("barbers-catalog", () => {
-  return barbersApi.getBarbers({ ordering: "-rating" })
+  return barbersApi.getBarbers({ ordering: "-rating", gender: barberGender.value })
 })
 
 if (initialBarbers.value) {
@@ -171,7 +173,7 @@ const setService = (code: string) => {
     ...filterState.value,
     service_type: "",
     status: "",
-    ordering: ["BARBERSHOP", "BARBER"].includes(code.toUpperCase().replaceAll("-", "_")) && ["price", "-price"].includes(filterState.value.ordering)
+    ordering: ["BARBERSHOP", ...Object.keys(BARBER_SERVICE_GENDERS)].includes(code.toUpperCase().replaceAll("-", "_")) && ["price", "-price"].includes(filterState.value.ordering)
       ? "-rating"
       : filterState.value.ordering,
   }

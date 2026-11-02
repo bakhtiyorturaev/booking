@@ -39,6 +39,13 @@ class Barber(models.Model):
         APPROVED = "APPROVED", "Tasdiqlangan"
         REJECTED = "REJECTED", "Rad etilgan"
 
+    class Gender(models.TextChoices):
+        MALE = "MALE", "Erkak sartarosh"
+        FEMALE = "FEMALE", "Ayol sartarosh"
+
+    # Katalogdagi xizmat turi kodi -> shu bo'limda ko'rinadigan sartaroshlar turi.
+    SERVICE_CODE_GENDERS = {"BARBER": Gender.MALE, "WOMEN_BARBER": Gender.FEMALE}
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
@@ -79,6 +86,13 @@ class Barber(models.Model):
         choices=AffiliationStatus.choices,
         default=AffiliationStatus.NONE,
         help_text="Sartaroshxonaga birikish holati.",
+    )
+    gender = models.CharField(
+        max_length=6,
+        choices=Gender.choices,
+        default=Gender.MALE,
+        db_index=True,
+        help_text="Erkak yoki ayol sartarosh — katalogda alohida bo'limlarda ko'rinadi.",
     )
     full_name = models.CharField(max_length=180, help_text="Sartaroshning to'liq ismi.")
     phone = models.CharField(max_length=20, blank=True, help_text="Aloqa telefoni.")

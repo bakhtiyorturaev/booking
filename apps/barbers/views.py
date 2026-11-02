@@ -56,6 +56,9 @@ class PublicBarberViewSet(viewsets.ReadOnlyModelViewSet):
             queryset = queryset.filter(branch_id=branch_id)
         if status_val:
             queryset = queryset.filter(status=status_val)
+        gender = self.request.query_params.get("gender")
+        if gender in Barber.Gender.values:
+            queryset = queryset.filter(gender=gender)
         if query:
             queryset = queryset.filter(
                 Q(full_name__icontains=query) |

@@ -9,6 +9,7 @@ const ALLOWED_QUERY_PARAMS = [
   "query",
   "city",
   "status",
+  "gender",
   "ordering",
   "latitude",
   "longitude",

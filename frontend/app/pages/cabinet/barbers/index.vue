@@ -4,7 +4,7 @@ import VenueBillingBadge from "~/components/cabinet/VenueBillingBadge.vue"
 import OperatorCreateDialog from "~/components/cabinet/OperatorCreateDialog.vue"
 import BarberScheduleDialog from "~/components/cabinet/BarberScheduleDialog.vue"
 import { useAdminApi } from "~/api/admin"
-import type { CabinetBarberItem } from "~/types/barber"
+import { BARBER_GENDER_LABELS, type CabinetBarberItem } from "~/types/barber"
 
 definePageMeta({
   alias: ["/site/staff/panel/barbers", "/site/client/panel/barbers"],
@@ -27,6 +27,8 @@ const searchQuery = ref("")
 const selectedAffiliation = ref("")
 const selectedRealtimeStatus = ref("")
 const selectedActive = ref(route.query.status === "ACTIVE" ? "true" : "")
+const queryGender = () => typeof route.query.gender === "string" && route.query.gender in BARBER_GENDER_LABELS ? route.query.gender : ""
+const selectedGender = ref(queryGender())
 const errorMessage = ref("")
 const page = ref(1)
 const pageSize = 20
@@ -48,6 +50,7 @@ const fetchBarbers = async (resetPage = true) => {
     if (selectedAffiliation.value) params.affiliation_status = selectedAffiliation.value
     if (selectedActive.value) params.active = selectedActive.value
     if (selectedRealtimeStatus.value) params.status = selectedRealtimeStatus.value
+    if (selectedGender.value) params.gender = selectedGender.value
 
     const res = await adminApi.getBarbers(params)
     if (version !== loadVersion) return
@@ -124,8 +127,9 @@ const getAffiliationBadgeClass = (status: string) => {
   }
 }
 
-watch(() => [route.query.club_id, route.query.branch_id, route.query.status], () => {
+watch(() => [route.query.club_id, route.query.branch_id, route.query.status, route.query.gender], () => {
   selectedActive.value = route.query.status === "ACTIVE" ? "true" : ""
+  selectedGender.value = queryGender()
   void fetchBarbers()
 })
 
@@ -159,6 +163,7 @@ onMounted(() => {
 
       <div class="filter-selects">
         <select v-model="selectedActive" class="filter-select" aria-label="Holat" @change="fetchBarbers()"><option value="">Barchasi</option><option value="true">Faol</option><option value="false">Muzlatilgan</option></select>
+        <select v-model="selectedGender" class="filter-select" aria-label="Sartarosh turi" @change="fetchBarbers()"><option value="">Erkak va ayol sartaroshlar</option><option v-for="(label, value) in BARBER_GENDER_LABELS" :key="value" :value="value">{{ label }}</option></select>
         <select v-if="isStaff" v-model="selectedAffiliation" class="filter-select" @change="fetchBarbers()" aria-label="Birikish holati">
           <option value="">Barcha birikish holatlari</option>
           <option value="PENDING">Kutilmoqda</option>
@@ -221,6 +226,7 @@ onMounted(() => {
                 <div>
                   <div class="barber-name">{{ barber.full_name }}</div>
                   <div class="barber-phone">{{ barber.phone || barber.user_phone }}</div>
+                  <div class="barber-phone">{{ BARBER_GENDER_LABELS[barber.gender] }}</div>
                 </div>
               </div>
             </td>

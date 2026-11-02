@@ -56,6 +56,10 @@ class CabinetBarberViewSet(viewsets.ModelViewSet):
         realtime_status = self.request.query_params.get("status")
         if realtime_status in Barber.Status.values:
             qs = qs.filter(status=realtime_status)
+
+        gender = self.request.query_params.get("gender")
+        if gender in Barber.Gender.values:
+            qs = qs.filter(gender=gender)
         return qs
 
     def perform_create(self, serializer):

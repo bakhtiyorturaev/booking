@@ -20,6 +20,7 @@ export const useBarbersApi = () => {
       city?: string
       ordering?: string
       status?: string
+      gender?: string
       latitude?: number
       longitude?: number
     }) =>

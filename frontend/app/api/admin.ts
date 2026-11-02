@@ -227,7 +227,7 @@ export const useAdminApi = () => {
         headers: { "Accept-Language": language },
       }),
 
-    updateBarber: (id: string, body: { full_name: string; phone: string; status: string; work_start_time: string; work_end_time: string; working_days: number[] }) =>
+    updateBarber: (id: string, body: { full_name: string; phone: string; gender: string; status: string; work_start_time: string; work_end_time: string; working_days: number[] }) =>
       client.patch(`/api/cabinet/barbers/${encodeURIComponent(id)}/`, { local: true, body }),
 
     approveBarberAffiliation: (id: string, language = "uz") =>

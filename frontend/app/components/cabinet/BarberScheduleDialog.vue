@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useAdminApi } from "~/api/admin"
-import type { CabinetBarberItem } from "~/types/barber"
+import { BARBER_GENDER_LABELS, type BarberGender, type CabinetBarberItem } from "~/types/barber"
 
 const props = defineProps<{ barber: CabinetBarberItem }>()
 const emit = defineEmits<{ saved: [] }>()
@@ -8,7 +8,7 @@ const api = useAdminApi()
 const open = ref(false)
 const saving = ref(false)
 const error = ref("")
-const form = ref({ full_name: "", phone: "", status: "AVAILABLE", work_start_time: "09:00", work_end_time: "20:00", working_days: [] as number[] })
+const form = ref({ full_name: "", phone: "", gender: "MALE" as BarberGender, status: "AVAILABLE", work_start_time: "09:00", work_end_time: "20:00", working_days: [] as number[] })
 const dialogId = `barber-schedule-${props.barber.id}`
 const photoFile = ref<File | null>(null)
 const photoPreview = ref("")
@@ -22,7 +22,7 @@ const close = () => { if (!saving.value) open.value = false }
 useDialogFocus(open, `#${dialogId}`, close)
 const begin = () => {
   const barber = props.barber
-  form.value = { full_name: barber.full_name, phone: barber.phone, status: barber.status, work_start_time: barber.work_start_time.slice(0, 5), work_end_time: barber.work_end_time.slice(0, 5), working_days: [...barber.working_days] }
+  form.value = { full_name: barber.full_name, phone: barber.phone, gender: barber.gender, status: barber.status, work_start_time: barber.work_start_time.slice(0, 5), work_end_time: barber.work_end_time.slice(0, 5), working_days: [...barber.working_days] }
   if (photoPreview.value) URL.revokeObjectURL(photoPreview.value)
   photoFile.value = null
   photoPreview.value = ""
@@ -60,6 +60,7 @@ const weekdays = ["Dushanba", "Seshanba", "Chorshanba", "Payshanba", "Juma", "Sh
             <div class="form-group"><label :for="`${dialogId}-photo`">Fotosurat</label><img v-if="photoPreview || barber.photo" :src="photoPreview || barber.photo || ''" class="barber-photo-preview" alt="Sartarosh rasmi"><input :id="`${dialogId}-photo`" type="file" accept="image/jpeg,image/png,image/webp" @change="pickPhoto"><small class="hint">JPG, PNG, WEBP · 5 MB gacha</small></div>
             <div class="form-group"><label :for="`${dialogId}-name`">Ism</label><input :id="`${dialogId}-name`" v-model="form.full_name" maxlength="150" required></div>
             <div class="form-group"><label :for="`${dialogId}-phone`">Telefon</label><input :id="`${dialogId}-phone`" v-model="form.phone" type="tel" maxlength="30"></div>
+            <div class="form-group"><label :for="`${dialogId}-gender`">Sartarosh turi</label><select :id="`${dialogId}-gender`" v-model="form.gender"><option v-for="(label, value) in BARBER_GENDER_LABELS" :key="value" :value="value">{{ label }}</option></select></div>
             <div class="form-row"><div class="form-group"><label :for="`${dialogId}-start`">Ish boshlanishi</label><input :id="`${dialogId}-start`" v-model="form.work_start_time" type="time" required></div><div class="form-group"><label :for="`${dialogId}-end`">Ish tugashi</label><input :id="`${dialogId}-end`" v-model="form.work_end_time" type="time" required></div></div>
             <fieldset class="schedule-days"><legend>Ish kunlari</legend><label v-for="(day, index) in weekdays" :key="day"><input v-model="form.working_days" type="checkbox" :value="index + 1">{{ day }}</label></fieldset>
             <div class="form-group"><label :for="`${dialogId}-status`">Ish holati</label><select :id="`${dialogId}-status`" v-model="form.status"><option value="AVAILABLE">Ishlayapti</option><option value="BREAK">Tanaffus</option><option value="NOT_AT_WORK">Ishda emas</option><option value="DAY_OFF">Dam olish kuni</option></select></div>

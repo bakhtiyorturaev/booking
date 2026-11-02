@@ -4,6 +4,7 @@ import { faPlus, faXmark } from "@fortawesome/free-solid-svg-icons"
 import { useAdminApi } from "~/api/admin"
 import RemoteSelect from "~/components/ui/RemoteSelect.vue"
 import type { SearchSelectOption, SearchSelectPage } from "~/types/searchSelect"
+import { BARBER_GENDER_LABELS, type BarberGender } from "~/types/barber"
 
 interface Account { id: string; username: string; phone?: string; profile?: { full_name?: string } }
 interface Salon { id: string; name: string; address?: string }
@@ -24,7 +25,7 @@ const selectedBranch = ref<SearchSelectOption | null>(null)
 const accounts = new Map<string, Account>()
 const branches = new Map<string, Branch>()
 const cities = ref<{ id: string; name: string }[]>([])
-const emptyForm = () => ({ user: "", resource: "", full_name: "", phone: "", billing_city: "", billing_district: "", latitude: null as number | null, longitude: null as number | null, work_start_time: "09:00", work_end_time: "20:00" })
+const emptyForm = () => ({ user: "", resource: "", full_name: "", phone: "", gender: "MALE" as BarberGender, billing_city: "", billing_district: "", latitude: null as number | null, longitude: null as number | null, work_start_time: "09:00", work_end_time: "20:00" })
 const form = ref(emptyForm())
 const photoFile = ref<File | null>(null)
 const photoPreview = ref("")
@@ -142,7 +143,7 @@ const save = async () => {
       billing_city: linked.value ? null : form.value.billing_city || null,
       billing_district: linked.value ? null : form.value.billing_district || null,
       latitude: linked.value ? null : latitude?.toFixed(6), longitude: linked.value ? null : longitude?.toFixed(6),
-      full_name: form.value.full_name.trim(), phone: form.value.phone,
+      full_name: form.value.full_name.trim(), phone: form.value.phone, gender: form.value.gender,
       affiliation_status: linked.value ? "APPROVED" : "NONE", status: "AVAILABLE",
       work_start_time: form.value.work_start_time, work_end_time: form.value.work_end_time,
       working_days: [1, 2, 3, 4, 5, 6, 7],
@@ -171,6 +172,7 @@ const save = async () => {
               <div class="form-group"><label>Akkaunt <span>*</span></label><RemoteSelect :key="`user-${session}`" :model-value="selectedUser" :fetch-options="searchUsers" label="Akkaunt" placeholder="Ism, telefon yoki login bo‘yicha…" :disabled="saving" @update:model-value="chooseUser" /></div>
               <div class="form-group"><label for="barber-photo">Fotosurat</label><img v-if="photoPreview" :src="photoPreview" class="barber-photo-preview" alt="Tanlangan rasm"><input id="barber-photo" type="file" accept="image/jpeg,image/png,image/webp" :disabled="saving" @change="pickPhoto"><small class="hint">JPG, PNG, WEBP · 5 MB gacha</small></div>
               <div class="field-grid"><div class="form-group"><label for="barber-full-name">Ism-familiya <span>*</span></label><input id="barber-full-name" v-model="form.full_name" required maxlength="180" :disabled="saving" autocomplete="name"></div><div class="form-group"><label for="barber-phone">Telefon</label><input id="barber-phone" v-model="form.phone" type="tel" maxlength="20" :disabled="saving" autocomplete="tel" placeholder="+998 90 123 45 67"></div></div>
+              <div class="form-group"><label for="barber-gender">Sartarosh turi <span>*</span></label><select id="barber-gender" v-model="form.gender" required :disabled="saving"><option v-for="(label, value) in BARBER_GENDER_LABELS" :key="value" :value="value">{{ label }}</option></select></div>
               <div v-if="!clubId && !branchId" class="attachment-toggle" role="group" aria-label="Sartarosh faoliyati"><button type="button" :aria-pressed="!linked" :disabled="saving" @click="setLinked(false)">Mustaqil</button><button type="button" :aria-pressed="linked" :disabled="saving" @click="setLinked(true)">Sartaroshxonada</button></div>
               <template v-if="linked">
                 <div class="form-group"><label>Sartaroshxona <span>*</span></label><RemoteSelect :key="`salon-${session}`" :model-value="selectedSalon" :fetch-options="searchSalons" label="Sartaroshxona" placeholder="Sartaroshxonani qidirish…" :disabled="saving || Boolean(clubId || branchId)" @update:model-value="chooseSalon" /></div>
