@@ -50,7 +50,7 @@ onMounted(locate)
       <div class="ad-art" aria-hidden="true">
         <div class="ad-orbit orbit-one" /><div class="ad-orbit orbit-two" />
         <div class="ad-pin">
-          <img src="/logo-mark.png" alt="" width="52" height="84">
+          <img src="/logo-mark.png?v=tg1" alt="" width="52" height="84">
           <span class="brand-wordmark"><span class="brand-wordmark-title">Uzbekistan</span><span class="brand-wordmark-sub">Tour guide</span></span>
         </div>
         <span class="ad-tag tag-one">O‘ynang</span><span class="ad-tag tag-two">Dam oling</span><span class="ad-tag tag-three">Vaqtingizni bron qiling</span>

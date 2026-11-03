@@ -140,7 +140,7 @@ const handleLogout = async () => {
     <aside id="cabinet-navigation" ref="sidebar" class="cabinet-sidebar" :class="{ 'is-open': isSidebarOpen }" :role="isSidebarOpen ? 'dialog' : undefined" :aria-modal="isSidebarOpen ? true : undefined" aria-label="Kabinet menyusi" @keydown="onSidebarKeydown">
       <div class="cabinet-brand-row">
         <NuxtLink :to="cabinetPath('')" class="cabinet-brand" aria-label="Uzbekistan Tour Guide boshqaruv paneli">
-          <span class="cabinet-logo"><img src="/logo-mark.png" alt="" width="27" height="44"></span>
+          <span class="cabinet-logo"><img src="/logo-mark.png?v=tg1" alt="" width="27" height="44"></span>
           <span><span class="brand-wordmark"><span class="brand-wordmark-title">Uzbekistan</span><span class="brand-wordmark-sub">Tour guide</span></span><small>Boshqaruv</small></span>
         </NuxtLink>
         <button type="button" class="cabinet-icon-button sidebar-close" aria-label="Menyuni yopish" @click="closeSidebar"><FontAwesomeIcon :icon="faXmark" /></button>

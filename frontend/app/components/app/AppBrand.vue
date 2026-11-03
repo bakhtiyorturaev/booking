@@ -1,7 +1,7 @@
 <template>
   <NuxtLink class="brand" to="/">
     <span class="brand-mark" aria-hidden="true">
-      <img src="/logo-mark.png" alt="" width="25" height="40">
+      <img src="/logo-mark.png?v=tg1" alt="" width="25" height="40">
     </span>
     <span class="brand-wordmark"><span class="brand-wordmark-title">Uzbekistan</span><span class="brand-wordmark-sub">Tour guide</span></span>
   </NuxtLink>
