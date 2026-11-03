@@ -11,6 +11,8 @@ import {
   faGamepad,
   faImages,
   faLocationDot,
+  faMapLocationDot,
+  faPhone,
   faStar,
   faStore,
   faUsers,
@@ -103,6 +105,17 @@ const { data, error, status } = await useAsyncData(
 )
 
 const branch = computed(() => data.value?.branch)
+// Places without bookable zones (landmarks, venues not yet on the platform) are shown as info-only.
+const isInfoOnly = computed(() => Boolean(branch.value && !branch.value.zones.length && (branch.value.club.category !== "BARBERSHOP" || !barbers.value.length)))
+const mapLinks = computed(() => {
+  const lat = Number(branch.value?.latitude)
+  const lng = Number(branch.value?.longitude)
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
+  return {
+    google: `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`,
+    yandex: `https://yandex.com/maps/?pt=${lng},${lat}&z=17&l=map`,
+  }
+})
 const barbers = computed(() => data.value?.barbers ?? [])
 const nearbyBranches = computed(() => data.value?.related ?? [])
 
@@ -481,8 +494,13 @@ const submitBooking = async () => {
       <div class="branch-main-grid">
         <!-- Left Column -->
         <main class="branch-left-content">
+          <section v-if="branch.description" class="detail-card-block">
+            <div class="detail-block-header"><h2>{{ t("clubs.about") }}</h2></div>
+            <p class="branch-description">{{ branch.description }}</p>
+          </section>
+
           <!-- Sartaroshlar (Sartaroshxonalar uchun) -->
-          <section v-if="branch.club.category === 'BARBERSHOP' || barbers.length" class="detail-card-block">
+          <section v-if="(branch.club.category === 'BARBERSHOP' && !isInfoOnly) || barbers.length" class="detail-card-block">
             <div class="detail-block-header">
               <h2>{{ t("barbers.our_barbers") }}</h2>
               <span class="count-pill">{{ barbers.length }}</span>
@@ -688,7 +706,17 @@ const submitBooking = async () => {
         <!-- Right Column (Sticky Booking Checkout, Payment & Rules Cards) -->
         <aside class="branch-right-sidebar">
           <!-- 1A. Gaming Club: Checkout Card -->
-          <div v-if="branch.club.category !== 'BARBERSHOP'" class="checkout-sticky-card">
+          <div v-if="isInfoOnly" class="checkout-sticky-card">
+            <h3 class="checkout-card-title">{{ t("clubs.info_only") }}</h3>
+            <p class="info-only-note">{{ t("clubs.info_only_note") }}</p>
+            <p class="info-only-row"><FontAwesomeIcon :icon="faLocationDot" /> <span>{{ branch.full_address || branch.address }}</span></p>
+            <p v-if="branch.phone" class="info-only-row"><FontAwesomeIcon :icon="faPhone" /> <a :href="`tel:${branch.phone}`">{{ branch.phone }}</a></p>
+            <div v-if="mapLinks" class="info-only-actions">
+              <a class="info-map-button" :href="mapLinks.google" target="_blank" rel="noopener noreferrer"><FontAwesomeIcon :icon="faMapLocationDot" /> {{ t("clubs.open_google_maps") }}</a>
+              <a class="info-map-button secondary" :href="mapLinks.yandex" target="_blank" rel="noopener noreferrer"><FontAwesomeIcon :icon="faMapLocationDot" /> {{ t("clubs.open_yandex_maps") }}</a>
+            </div>
+          </div>
+          <div v-else-if="branch.club.category !== 'BARBERSHOP'" class="checkout-sticky-card">
             <h3 class="checkout-card-title">{{ t("bookings.booking_summary") }}</h3>
 
             <div v-if="selectedZone && selectedStartSlot" class="checkout-summary-body">
@@ -776,7 +804,7 @@ const submitBooking = async () => {
           </div>
 
           <!-- 2. Booking Rules (Bronlash qoidalari - Compact card directly under checkout) -->
-          <div class="rules-compact-card">
+          <div v-if="!isInfoOnly" class="rules-compact-card">
             <h4 class="rules-compact-title">
               <FontAwesomeIcon :icon="faCalendarDays" />
               <span>{{ t("clubs.booking_rules") }}</span>
@@ -1361,6 +1389,13 @@ const submitBooking = async () => {
   gap: 18px;
 }
 
+.branch-description { margin: 0; white-space: pre-line; line-height: 1.6; color: var(--muted); overflow-wrap: anywhere; }
+.info-only-note { margin: 0 0 14px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.info-only-row { display: flex; gap: 8px; align-items: baseline; margin: 0 0 10px; font-size: 14px; }
+.info-only-row a { color: var(--accent); }
+.info-only-actions { display: grid; gap: 8px; margin-top: 16px; }
+.info-map-button { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; border-radius: 12px; background: #10b981; color: #fff; font-weight: 700; text-decoration: none; }
+.info-map-button.secondary { background: transparent; border: 1px solid var(--border); color: var(--text); }
 .checkout-sticky-card {
   background: var(--surface);
   border: 1px solid var(--border);

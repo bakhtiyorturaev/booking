@@ -10,7 +10,7 @@ const route = useRoute()
 const { t } = useTranslations()
 const { loginWithPassword } = useAuth("staff")
 
-useHead({ title: "Xodimlar portali — RezervUZ" })
+useHead({ title: "Xodimlar portali — Uzbekistan Tour Guide" })
 
 const loginInput = ref("")
 const passwordInput = ref("")

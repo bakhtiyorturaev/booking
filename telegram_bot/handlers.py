@@ -45,7 +45,7 @@ def build_user_keyboard(language="uz", site_url=None):
         site_text = "🌐 Saytga o‘tish" if language == "uz" else ("🌐 Перейти на сайт" if language == "ru" else "🌐 Open Website")
         buttons.append([{"text": site_text, "url": site_url}])
 
-    miniapp_text = "🎮 RezervUZ ilovasini ochish" if language == "uz" else ("🎮 Открыть приложение" if language == "ru" else "🎮 Open Mini App")
+    miniapp_text = "🎮 Uzbekistan Tour Guide ilovasini ochish" if language == "uz" else ("🎮 Открыть приложение" if language == "ru" else "🎮 Open Mini App")
     if miniapp_url.startswith("https://"):
         buttons.append([{"text": miniapp_text, "web_app": {"url": miniapp_url}}])
     else:
@@ -243,19 +243,19 @@ def handle_message(client, message):
     if language == "ru":
         greeting = (
             f"👋 <b>Здравствуйте, {safe_user_name}!</b>\n\n"
-            f"<b>RezervUZ</b> — платформа онлайн-бронирования игровых клубов (PlayStation, PC) и барбершопов.\n\n"
+            f"<b>Uzbekistan Tour Guide</b> — платформа онлайн-бронирования игровых клубов (PlayStation, PC) и барбершопов.\n\n"
             f"Нажмите кнопку ниже, чтобы открыть приложение и забронировать удобное время! 👇"
         )
     elif language == "en":
         greeting = (
             f"👋 <b>Hello, {safe_user_name}!</b>\n\n"
-            f"Welcome to <b>RezervUZ</b> — online booking platform for gaming clubs (PlayStation, PC) and barbershops.\n\n"
+            f"Welcome to <b>Uzbekistan Tour Guide</b> — online booking platform for gaming clubs (PlayStation, PC) and barbershops.\n\n"
             f"Tap the button below to open the app and reserve your spot! 👇"
         )
     else:
         greeting = (
             f"👋 <b>Assalomu alaykum, {safe_user_name}!</b>\n\n"
-            f"<b>RezervUZ</b> — o‘yin klublari (PlayStation, PC) hamda sartaroshxonalarni onlayn bron qilish platformasiga xush kelibsiz.\n\n"
+            f"<b>Uzbekistan Tour Guide</b> — o‘yin klublari (PlayStation, PC) hamda sartaroshxonalarni onlayn bron qilish platformasiga xush kelibsiz.\n\n"
             f"Quyidagi tugma orqali platformani ochib, filiallarni ko‘rishingiz va o‘zingizga qulay vaqtni band qilishingiz mumkin! 👇"
         )
 

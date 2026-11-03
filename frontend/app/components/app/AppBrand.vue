@@ -1,9 +1,9 @@
 <template>
   <NuxtLink class="brand" to="/">
     <span class="brand-mark" aria-hidden="true">
-      <img src="/logo-mark.png" alt="" width="36" height="36">
+      <img src="/logo-mark.png" alt="" width="25" height="40">
     </span>
-    <span class="brand-wordmark">Rezerv<span class="brand-wordmark-accent">uz.uz</span></span>
+    <span class="brand-wordmark"><span class="brand-wordmark-title">Uzbekistan</span><span class="brand-wordmark-sub">Tour guide</span></span>
   </NuxtLink>
 </template>
 
@@ -24,19 +24,16 @@
 }
 
 .brand-mark {
-  width: 2rem;
-  height: 2rem;
-  border: 0;
-  border-radius: 0.5rem;
-  background: #00071f;
   display: inline-flex;
-  overflow: hidden;
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
+  width: auto;
+  height: 2.5rem;
+  border: 0;
+  border-radius: 0;
+  background: none;
 }
 
 .brand-mark img {
-  width: 100%;
+  width: auto;
   height: 100%;
-  object-fit: cover;
 }
 </style>

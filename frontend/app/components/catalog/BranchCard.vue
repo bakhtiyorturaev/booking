@@ -22,6 +22,8 @@ const isFavorite = computed(() => {
   return Boolean(clubId && favorites.isFavorite(clubId))
 })
 
+// No bookable zones (landmarks, places not yet connected to the platform): show as info-only.
+const isInfoOnly = computed(() => props.branch?.min_price_tiyin == null)
 const formatPrice = (value: number | null) => {
   if (props.branch?.club?.category === "BARBERSHOP") return "Kelishiladi"
   if (value === null || value === 0) return t("common.free")
@@ -120,6 +122,9 @@ const ratingScore = computed(() => {
           <div v-if="branch.club?.category === 'BARBERSHOP'" class="bronla-price-value">
             <strong>{{ t("barbers.barbershop") }}</strong>
           </div>
+          <div v-else-if="isInfoOnly" class="bronla-price-value">
+            <strong>{{ t("clubs.info_only") }}</strong>
+          </div>
           <div v-else class="bronla-price-value">
             <strong>{{ formatPrice(branch.min_price_tiyin) }}</strong>
             <span class="bronla-price-unit">{{ t("clubs.per_hour_suffix") }}</span>
@@ -128,7 +133,7 @@ const ratingScore = computed(() => {
 
         <!-- Action Button -->
         <button type="button" class="bronla-book-button">
-          {{ branch.club?.category === 'BARBERSHOP' ? t("barbers.view_barbers") : t("bookings.book_now") }}
+          {{ branch.club?.category === 'BARBERSHOP' ? t("barbers.view_barbers") : isInfoOnly ? t("clubs.view_details") : t("bookings.book_now") }}
         </button>
       </div>
     </NuxtLink>

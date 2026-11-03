@@ -3,8 +3,8 @@ export default defineNuxtConfig({
   compatibilityDate: "2026-08-01",
   app: {
     head: {
-      title: "RezervUZ — Onlayn bron qilish platformasi",
-      titleTemplate: "%s — RezervUZ",
+      title: "Uzbekistan Tour Guide — Onlayn bron qilish platformasi",
+      titleTemplate: "%s — Uzbekistan Tour Guide",
       meta: [
         { charset: "utf-8" },
         { name: "viewport", content: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" },
@@ -41,6 +41,8 @@ export default defineNuxtConfig({
     djangoApiBaseUrl: process.env.NUXT_DJANGO_API_BASE_URL || "http://127.0.0.1:8000/api/v1",
     public: {
       apiBaseUrl: process.env.NUXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000/api/v1",
+      googleMapsKey: process.env.NUXT_PUBLIC_GOOGLE_MAPS_KEY || "",
+      googleMapsMapId: process.env.NUXT_PUBLIC_GOOGLE_MAPS_MAP_ID || "",
     },
   },
   typescript: {
