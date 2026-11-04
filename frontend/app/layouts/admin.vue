@@ -139,9 +139,9 @@ const handleLogout = async () => {
     <div v-if="isSidebarOpen" class="cabinet-overlay" aria-hidden="true" @click="closeSidebar" />
     <aside id="cabinet-navigation" ref="sidebar" class="cabinet-sidebar" :class="{ 'is-open': isSidebarOpen }" :role="isSidebarOpen ? 'dialog' : undefined" :aria-modal="isSidebarOpen ? true : undefined" aria-label="Kabinet menyusi" @keydown="onSidebarKeydown">
       <div class="cabinet-brand-row">
-        <NuxtLink :to="cabinetPath('')" class="cabinet-brand" aria-label="Uzbekistan Tour Guide boshqaruv paneli">
-          <span class="cabinet-logo"><img src="/logo-mark.png?v=tg1" alt="" width="27" height="44"></span>
-          <span><span class="brand-wordmark"><span class="brand-wordmark-title">Uzbekistan</span><span class="brand-wordmark-sub">Tour guide</span></span><small>Boshqaruv</small></span>
+        <NuxtLink :to="cabinetPath('')" class="cabinet-brand" aria-label="RezervUZ boshqaruv paneli">
+          <span class="cabinet-logo"><img src="/logo-mark.png" alt="" width="40" height="40"></span>
+          <span><span class="brand-wordmark">Rezerv<span class="brand-wordmark-accent">uz.uz</span></span><small>Boshqaruv</small></span>
         </NuxtLink>
         <button type="button" class="cabinet-icon-button sidebar-close" aria-label="Menyuni yopish" @click="closeSidebar"><FontAwesomeIcon :icon="faXmark" /></button>
       </div>
@@ -193,7 +193,7 @@ const handleLogout = async () => {
         <NuxtLink v-for="venue in billingNotices" :key="venue.id" :to="cabinetPath(venue.destination)" class="billing-notice" :class="billingAlertLevel(venue, billingClock).toLowerCase()"><span><strong>{{ venue.name }}</strong><small>To‘lov muddati</small></span><VenueBillingBadge :billing="venue" /></NuxtLink>
       </div>
       <main id="cabinet-content" class="cabinet-main" tabindex="-1"><slot /></main>
-      <footer class="cabinet-footer"><span>Uzbekistan Tour Guide</span><span>{{ roleLabel }}</span></footer>
+      <footer class="cabinet-footer"><span>RezervUZ</span><span>{{ roleLabel }}</span></footer>
     </div>
     <ChangePasswordModal v-model="showChangePasswordModal" :force="Boolean(user?.password_expired)" title="Parolni yangilash" @success="showChangePasswordModal = false" />
   </div>
@@ -225,8 +225,8 @@ const handleLogout = async () => {
 .cabinet-sidebar { position: fixed; inset: 0 auto 0 0; width: 248px; display: flex; flex-direction: column; background: var(--surface); border-right: 1px solid var(--panel-border); z-index: 70; }
 .cabinet-brand-row { display: flex; align-items: center; justify-content: space-between; height: 88px; padding: 20px 24px; }
 .cabinet-brand { display: flex; align-items: center; gap: 11px; font-size: 22px; font-weight: 750; letter-spacing: -.7px; color: var(--text); text-decoration: none; }
-.cabinet-logo { display: grid; place-items: center; height: 44px; }
-.cabinet-logo img { width: auto; height: 100%; }
+.cabinet-logo { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 11px; background: #00071f; overflow: hidden; }
+.cabinet-logo img { width: 100%; height: 100%; object-fit: cover; }
 .cabinet-brand small { display: block; font-size: 10px; letter-spacing: 1.8px; text-transform: uppercase; margin-top: 2px; color: var(--muted); font-weight: 600; }
 .cabinet-sidebar-user strong { display: block; font-size: 13px; font-weight: 650; }
 .cabinet-sidebar-user div > span { display: block; color: var(--muted); font-size: 11px; margin-top: 3px; }

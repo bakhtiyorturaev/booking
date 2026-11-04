@@ -54,47 +54,27 @@ body,
 }
 
 @font-face {
-  font-family: "Cinzel";
+  font-family: "Montserrat";
   font-style: normal;
-  font-weight: 500;
+  font-weight: 800;
   font-display: swap;
-  src: url("/fonts/cinzel-500.woff2") format("woff2");
+  src: url("/fonts/montserrat-800.woff2") format("woff2");
 }
 
 .brand-wordmark {
-  display: inline-grid;
-  gap: 0.28em;
-  line-height: 1;
+  font-family: "Montserrat", Inter, "Segoe UI", Arial, sans-serif;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--text);
 }
 
-.brand-wordmark-title {
-  font-family: "Cinzel", Georgia, "Times New Roman", serif;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  color: #e8eef7;
+.brand-wordmark-accent {
+  background: linear-gradient(90deg, #4f5bff 0%, #8b5cf6 55%, #c056f5 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
-
-.brand-wordmark-sub {
-  display: flex;
-  align-items: center;
-  gap: 0.7em;
-  font-family: Inter, "Segoe UI", Arial, sans-serif;
-  font-size: 0.42em;
-  font-weight: 700;
-  letter-spacing: 0.42em;
-  color: #3cc3d3;
-}
-
-.brand-wordmark-sub::after {
-  content: "";
-  flex: 1;
-  min-width: 1.5em;
-  height: 1px;
-  background: #c9943a;
-}
-
-:root[data-theme="light"] .brand-wordmark-title { color: #17315c; }
-:root[data-theme="light"] .brand-wordmark-sub { color: #127580; }
 
 body {
   background: var(--page);

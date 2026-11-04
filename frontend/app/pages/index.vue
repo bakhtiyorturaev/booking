@@ -5,13 +5,11 @@ import { useBranchesApi } from "~/api/branches"
 import type { BranchListSummary } from "~/types/club"
 
 definePageMeta({ layout: "customer" })
-useHead({ title: "Uzbekistan Tour Guide — Yaqin xizmatlarni toping" })
+useHead({ title: "RezervUZ — Yaqin xizmatlarni toping" })
 const branchesApi = useBranchesApi()
 const location = ref<{ latitude: number; longitude: number } | null>(null)
 const locating = ref(false)
 const selectedId = ref<string | null>(null)
-// Google Maps when a key is configured; falls back to the Leaflet/OpenStreetMap map otherwise.
-const useGoogleMap = ref(Boolean(useRuntimeConfig().public.googleMapsKey))
 const { data: result, status, error, refresh } = await useAsyncData("home-map-branches", () => branchesApi.list({
   ...(location.value ? { ...location.value, ordering: "distance" } : { ordering: "-rating" }),
 }), { watch: [location] })
@@ -37,11 +35,11 @@ onMounted(locate)
 
 <template>
   <div class="discovery-page">
-    <section class="discovery-ad" aria-label="Uzbekistan Tour Guide reklamasi">
+    <section class="discovery-ad" aria-label="RezervUZ reklamasi">
       <div class="ad-copy">
-        <span class="ad-eyebrow">UZBEKISTAN TOUR GUIDE · SIZNING VAQTINGIZ QADRLI</span>
+        <span class="ad-eyebrow">REZERVUZ · SIZNING VAQTINGIZ QADRLI</span>
         <h1>Yaqin joy.<br>Qulay vaqt.<br><span>Hammasi bir joyda.</span></h1>
-        <div class="ad-benefits" aria-label="Uzbekistan Tour Guide bilan qulayliklar">
+        <div class="ad-benefits" aria-label="RezervUZ bilan qulayliklar">
           <span>Vaqtingizni tejang</span>
           <span>Uzoq kutmang</span>
           <span>Oldindan bron qiling</span>
@@ -50,8 +48,8 @@ onMounted(locate)
       <div class="ad-art" aria-hidden="true">
         <div class="ad-orbit orbit-one" /><div class="ad-orbit orbit-two" />
         <div class="ad-pin">
-          <img src="/logo-mark.png?v=tg1" alt="" width="52" height="84">
-          <span class="brand-wordmark"><span class="brand-wordmark-title">Uzbekistan</span><span class="brand-wordmark-sub">Tour guide</span></span>
+          <img src="/logo-mark.png" alt="" width="84" height="84">
+          <span class="brand-wordmark">Rezerv<span class="brand-wordmark-accent">uz.uz</span></span>
         </div>
         <span class="ad-tag tag-one">O‘ynang</span><span class="ad-tag tag-two">Dam oling</span><span class="ad-tag tag-three">Vaqtingizni bron qiling</span>
       </div>
@@ -62,7 +60,7 @@ onMounted(locate)
       <div class="map-workspace" :aria-busy="status === 'pending'">
         <div class="map-panel">
           <button type="button" class="map-locate" :disabled="locating" :aria-busy="locating" aria-label="Mening joylashuvim" title="Mening joylashuvim" @click="locate"><FontAwesomeIcon :icon="faLocationArrow" aria-hidden="true" /></button>
-          <ClientOnly><DiscoveryGoogleNearbyMap v-if="useGoogleMap" :branches="branches" :location="location" :selected-id="selectedId" @select="selectedId = $event" @failed="useGoogleMap = false" /><DiscoveryNearbyMap v-else :branches="branches" :location="location" :selected-id="selectedId" @select="selectedId = $event" /><template #fallback><div class="map-loading">Xarita yuklanmoqda…</div></template></ClientOnly>
+          <ClientOnly><DiscoveryNearbyMap :branches="branches" :location="location" :selected-id="selectedId" @select="selectedId = $event" /><template #fallback><div class="map-loading">Xarita yuklanmoqda…</div></template></ClientOnly>
           <div v-if="error" class="map-progress" role="alert">Xizmatlarni yuklab bo‘lmadi. <button type="button" @click="refresh()">Qayta urinish</button></div>
           <span v-else-if="status === 'pending'" class="map-progress" role="status">Xizmatlar yuklanmoqda…</span>
         </div>
@@ -84,11 +82,9 @@ h1 span { color: #bdb5ff; }
 .ad-art { position: relative; min-height: 160px; display: grid; place-items: center; }
 .ad-orbit { position: absolute; width: 230px; height: 230px; border: 1px solid #ffffff25; border-radius: 50%; transform: rotate(-25deg) scaleX(1.25); }
 .orbit-two { width: 185px; height: 185px; transform: rotate(30deg) scaleX(1.3); }
-.ad-pin { position: relative; display: grid; justify-items: center; gap: 8px; padding: 16px 18px 14px; border: 1px solid #ffffff60; border-radius: 26px; background: #fff; box-shadow: 0 0 28px #1ba6b955, 0 22px 40px #0007; transform: rotate(-6deg); animation: ad-pin-float 6s ease-in-out infinite; }
-.ad-pin img { display: block; width: auto; height: 84px; }
-.ad-pin .brand-wordmark { font-size: 15px; }
-.ad-pin .brand-wordmark-title { color: #17315c; }
-.ad-pin .brand-wordmark-sub { color: #127580; }
+.ad-pin { position: relative; display: grid; justify-items: center; gap: 8px; padding: 16px 18px 14px; border: 1px solid #6d6cff80; border-radius: 26px; background: #00071f; box-shadow: 0 0 28px #6366f166, 0 22px 40px #0007; transform: rotate(-6deg); animation: ad-pin-float 6s ease-in-out infinite; }
+.ad-pin img { display: block; width: 84px; height: 84px; }
+.ad-pin .brand-wordmark { color: #fff; font-size: 13px; line-height: 1; }
 @keyframes ad-pin-float { 0%, 100% { transform: rotate(-6deg) translateY(0); } 50% { transform: rotate(-4deg) translateY(-6px); } }
 @media (prefers-reduced-motion: reduce) { .ad-pin { animation: none; } }
 .ad-tag { position: absolute; padding: 8px 12px; border: 1px solid #ffffff30; border-radius: 12px; background: #ffffff15; backdrop-filter: blur(8px); font-size: 11px; }

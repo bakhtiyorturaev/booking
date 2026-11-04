@@ -3,8 +3,8 @@ export default defineNuxtConfig({
   compatibilityDate: "2026-08-01",
   app: {
     head: {
-      title: "Uzbekistan Tour Guide — Onlayn bron qilish platformasi",
-      titleTemplate: "%s — Uzbekistan Tour Guide",
+      title: "RezervUZ — Onlayn bron qilish platformasi",
+      titleTemplate: "%s — RezervUZ",
       meta: [
         { charset: "utf-8" },
         { name: "viewport", content: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" },
@@ -12,9 +12,9 @@ export default defineNuxtConfig({
         { name: "description", content: "Klublar, PlayStation zallari va sartaroshxonalarni qulay onlayn bron qilish platformasi" },
       ],
       link: [
-        { rel: "icon", type: "image/png", sizes: "32x32", href: "/favicon-32x32.png?v=tg1" },
-        { rel: "icon", type: "image/png", sizes: "16x16", href: "/favicon-16x16.png?v=tg1" },
-        { rel: "apple-touch-icon", sizes: "180x180", href: "/apple-touch-icon.png?v=tg1" },
+        { rel: "icon", type: "image/png", sizes: "32x32", href: "/favicon-32x32.png" },
+        { rel: "icon", type: "image/png", sizes: "16x16", href: "/favicon-16x16.png" },
+        { rel: "apple-touch-icon", sizes: "180x180", href: "/apple-touch-icon.png" },
         { rel: "manifest", href: "/site.webmanifest" },
       ],
       script: [
@@ -41,8 +41,6 @@ export default defineNuxtConfig({
     djangoApiBaseUrl: process.env.NUXT_DJANGO_API_BASE_URL || "http://127.0.0.1:8000/api/v1",
     public: {
       apiBaseUrl: process.env.NUXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000/api/v1",
-      googleMapsKey: process.env.NUXT_PUBLIC_GOOGLE_MAPS_KEY || "",
-      googleMapsMapId: process.env.NUXT_PUBLIC_GOOGLE_MAPS_MAP_ID || "",
     },
   },
   typescript: {

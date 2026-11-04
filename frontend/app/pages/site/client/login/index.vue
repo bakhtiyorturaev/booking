@@ -10,7 +10,7 @@ const route = useRoute()
 const { t } = useTranslations()
 const { loginWithPassword } = useAuth("client")
 
-useHead({ title: "Hamkorlar portali — Uzbekistan Tour Guide" })
+useHead({ title: "Hamkorlar portali — RezervUZ" })
 
 const loginInput = ref("")
 const passwordInput = ref("")
