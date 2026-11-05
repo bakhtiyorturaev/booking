@@ -2799,8 +2799,21 @@ a {
   }
 
   .customer-header .brand-mark {
+    flex-shrink: 0;
     width: 32px;
     height: 32px;
+  }
+
+  /* Telefonda yozuv o'ng tomondagi tugmalar ostiga kirib ketmasin. */
+  .customer-header .customer-header-start .brand {
+    min-width: 0;
+    font-size: 16px;
+  }
+
+  .customer-header .brand-wordmark {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .customer-nav {
@@ -3124,4 +3137,11 @@ a {
   background: transparent;
   color: inherit;
   box-shadow: none;
+}
+
+/* Telefonlarda yozuv kesilib qolmasin: faqat logotip belgisi qoladi. */
+@media (max-width: 439px) {
+  .customer-header .customer-header-start .brand-wordmark {
+    display: none;
+  }
 }
