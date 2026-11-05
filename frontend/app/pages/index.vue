@@ -87,6 +87,15 @@ h1 span { color: #bdb5ff; }
 .ad-pin .brand-wordmark { color: #fff; font-size: 13px; line-height: 1; }
 @keyframes ad-pin-float { 0%, 100% { transform: rotate(-6deg) translateY(0); } 50% { transform: rotate(-4deg) translateY(-6px); } }
 @media (prefers-reduced-motion: reduce) { .ad-pin { animation: none; } }
+/* Kunduzgi rejim: banner och fonda, matnlar to'q rangda. Logotip plitkasi brend rangida qoladi. */
+:root[data-theme="light"] .discovery-ad { background: radial-gradient(ellipse at 80% 25%, #c7c2ff 0, transparent 55%), linear-gradient(120deg, #f4f3ff, #e4e1ff); color: #14142b; box-shadow: inset 0 0 0 1px #6366f126; }
+:root[data-theme="light"] .ad-eyebrow { color: #5b4fd6; }
+:root[data-theme="light"] h1 span { color: #5b4fd6; }
+:root[data-theme="light"] .ad-benefits span { border-color: #4f46e533; background: #ffffffb3; color: #2a2560; }
+:root[data-theme="light"] .ad-orbit { border-color: #4f46e540; }
+:root[data-theme="light"] .ad-pin { box-shadow: 0 0 24px #6366f14d, 0 18px 32px #1e1b4b33; }
+:root[data-theme="light"] .ad-tag { border-color: #4f46e533; background: #ffffffb3; color: #2a2560; }
+:root[data-theme="light"] .ad-label { color: #14142b80; }
 .ad-tag { position: absolute; padding: 8px 12px; border: 1px solid #ffffff30; border-radius: 12px; background: #ffffff15; backdrop-filter: blur(8px); font-size: 11px; }
 .tag-one { top: 12px; left: 2%; transform: rotate(-10deg); }.tag-two { right: 0; top: 46px; transform: rotate(10deg); }.tag-three { bottom: 0; left: 12%; }
 .ad-label { position: absolute; bottom: 14px; right: 18px; color: #ffffff80; font-size: 10px; }
