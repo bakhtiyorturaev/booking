@@ -9,7 +9,6 @@ import {
   faComputer,
   faCreditCard,
   faGamepad,
-  faImages,
   faLocationDot,
   faStar,
   faStore,
@@ -24,6 +23,7 @@ import { ApiRequestError } from "~/types/api"
 import type { Booking } from "~/types/booking"
 import type { BarberItem } from "~/types/barber"
 import BranchCard from "~/components/catalog/BranchCard.vue"
+import BranchGallery from "~/components/catalog/BranchGallery.vue"
 import BarberCard from "~/components/catalog/BarberCard.vue"
 import BarberBookingModal from "~/components/catalog/BarberBookingModal.vue"
 import TelegramAuthModal from "~/components/auth/TelegramAuthModal.vue"
@@ -418,41 +418,7 @@ const submitBooking = async () => {
     </div>
 
     <template v-else>
-      <!-- Top 5-Photo Mosaic Gallery Grid -->
-      <section class="branch-gallery-section" :class="{ 'single-img': displayImages.length <= 1 }">
-        <!-- 1. Left Large Cover Photo -->
-        <div class="gallery-main-frame">
-          <img
-            v-if="displayImages[0]"
-            :src="displayImages[0]"
-            :alt="branch.name"
-            class="gallery-cover-img"
-          >
-          <div v-else class="gallery-placeholder">
-            <FontAwesomeIcon :icon="faStore" />
-          </div>
-        </div>
-
-        <!-- 2-5. Right 2x2 Photos Grid (Max 4 photos) -->
-        <div v-if="displayImages.length > 1" class="gallery-side-thumbs-grid">
-          <div
-            v-for="(img, idx) in displayImages.slice(1, 5)"
-            :key="idx"
-            class="gallery-thumb-item"
-            :class="{ 'is-last-item': idx === Math.min(displayImages.length - 2, 3) }"
-          >
-            <img :src="img" :alt="`${branch.name} - ${idx + 2}`" class="gallery-thumb-img">
-            <!-- Rasm va videolar badge button on last visible photo -->
-            <div
-              v-if="idx === Math.min(displayImages.length - 2, 3)"
-              class="gallery-all-photos-badge"
-            >
-              <FontAwesomeIcon :icon="faImages" />
-              <span>RASM VA VIDEOLAR</span>
-            </div>
-          </div>
-        </div>
-      </section>
+      <BranchGallery :images="displayImages" :name="branch.name" />
 
       <!-- Branch Header Row -->
       <header class="branch-info-header">
@@ -872,96 +838,6 @@ const submitBooking = async () => {
 
 .detail-back-link:hover {
   color: var(--accent);
-}
-
-/* 5-Photo Mosaic Gallery Section */
-.branch-gallery-section {
-  display: grid;
-  grid-template-columns: 1.15fr 1fr;
-  gap: 10px;
-  height: 420px;
-  border-radius: 20px;
-  overflow: hidden;
-}
-
-.branch-gallery-section.single-img {
-  grid-template-columns: 1fr;
-}
-
-.gallery-main-frame {
-  position: relative;
-  height: 100%;
-  background: #0f172a;
-  overflow: hidden;
-}
-
-.gallery-cover-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-  transition: transform 0.3s ease;
-}
-
-.gallery-main-frame:hover .gallery-cover-img {
-  transform: scale(1.02);
-}
-
-.gallery-placeholder {
-  width: 100%;
-  height: 100%;
-  display: grid;
-  place-items: center;
-  font-size: 48px;
-  color: var(--muted);
-  background: var(--surface);
-}
-
-.gallery-side-thumbs-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
-  gap: 10px;
-  height: 100%;
-}
-
-.gallery-thumb-item {
-  position: relative;
-  height: 100%;
-  overflow: hidden;
-  background: #0f172a;
-}
-
-.gallery-thumb-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-  transition: transform 0.3s ease;
-}
-
-.gallery-thumb-item:hover .gallery-thumb-img {
-  transform: scale(1.03);
-}
-
-.gallery-all-photos-badge {
-  position: absolute;
-  bottom: 12px;
-  right: 12px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 14px;
-  border-radius: 10px;
-  background: rgba(0, 0, 0, 0.8);
-  backdrop-filter: blur(8px);
-  color: #ffffff;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.03em;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  pointer-events: none;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
 /* Header Section */
@@ -1593,13 +1469,6 @@ const submitBooking = async () => {
   .branch-main-grid {
     grid-template-columns: 1fr;
   }
-  .branch-gallery-section {
-    grid-template-columns: 1fr;
-    height: 260px;
-  }
-  .gallery-side-thumbs-grid {
-    display: none;
-  }
   .branch-right-sidebar {
     position: static;
   }
@@ -1612,11 +1481,6 @@ const submitBooking = async () => {
   .branch-page-wrapper {
     gap: 16px;
     padding: 6px 0 40px;
-  }
-
-  .branch-gallery-section {
-    height: 210px;
-    border-radius: 14px;
   }
 
   .branch-header-hero {
