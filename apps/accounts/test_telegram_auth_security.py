@@ -17,7 +17,7 @@ import json
 import time
 import urllib.parse
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from apps.accounts.models import User
 from apps.accounts.services.telegram_code_auth import (
@@ -104,6 +104,8 @@ class TelegramMiniAppSignatureTests(TestCase):
         self.assertEqual(second_login["user"].id, first_user_id)
 
 
+# Bot username is fixed so the test neither depends on .env nor calls Telegram's getMe.
+@override_settings(TELEGRAM_BOT_USERNAME="rezervuz_test_bot")
 class TelegramLoginCodeSingleUseTests(TestCase):
     """Verifies single_use_telegram_login_challenges: a login code must not
     be redeemable twice, and a code must not be guessable from an unrelated

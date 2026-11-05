@@ -13,11 +13,11 @@ const route = useRoute()
 const { locale } = useTranslations()
 const serviceTypesApi = useServiceTypesApi()
 
-// Katalog sahifasi bilan bir xil kalit: so'rov bir marta bajariladi.
-const { data } = await useAsyncData(
-  props.cabinet ? "cabinet-navigation-service-types" : "public-service-types",
-  () => props.cabinet ? adminApi.getServiceTypes() : serviceTypesApi.list(),
-)
+// Katalog sahifasi bilan bir xil kalit: so'rov bir marta bajariladi. Nuxt bir kalitdagi
+// handler'larni manba matni bo'yicha solishtiradi, shuning uchun ommaviy handler katalognikidek.
+const { data } = props.cabinet
+  ? await useAsyncData("cabinet-navigation-service-types", () => adminApi.getServiceTypes())
+  : await useAsyncData("public-service-types", () => serviceTypesApi.list())
 const services = computed<ServiceTypeOption[]>(() => Array.isArray(data.value)
   ? data.value.filter(service => {
     const seen = new Set<string>()
