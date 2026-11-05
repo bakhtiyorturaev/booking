@@ -445,7 +445,10 @@ class PublicBranchViewSet(viewsets.ReadOnlyModelViewSet):
             if category_val in Club.Category.values:
                 queryset = queryset.filter(club__category=category_val)
         if service_category:
-            service = ServiceType.objects.filter(code__iexact=service_category, pk__in=active_service_ids()).first()
+            active = ServiceType.objects.filter(pk__in=active_service_ids())
+            # Kodlar faqat harf kattaligi bilan farq qilishi mumkin (BARBERSHOP va barbershop):
+            # avval aniq moslik, aks holda tasodifiy "egizak" xizmat tanlanib qoladi.
+            service = active.filter(code=service_category).first() or active.filter(code__iexact=service_category).first()
             if not service:
                 return queryset.none()
             service_ids = descendant_service_ids([service.pk], active_only=True)
