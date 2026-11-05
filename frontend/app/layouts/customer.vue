@@ -26,8 +26,6 @@ watch(() => route.fullPath, () => { menuOpen.value = false })
 const onKeydown = (event: KeyboardEvent) => { if (event.key === "Escape") closeMenu() }
 onMounted(() => window.addEventListener("keydown", onKeydown))
 onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown))
-const SKYLINE_ROUTES = ["/", "/catalog", "/bookings", "/profile"]
-const isHome = computed(() => SKYLINE_ROUTES.includes(route.path))
 
 await loadTranslations()
 if (["auth.login_tab", "profile.subscription_paid"].some(code => t(code) === code)) await loadTranslations(locale.value, true)
@@ -42,7 +40,8 @@ const onAuthenticated = async () => {
 </script>
 
 <template>
-  <div class="customer-shell" :class="{ 'customer-shell--home': isHome }">
+  <!-- Shahar manzarasi foni barcha mijoz sahifalarida (filial, sartarosh, bron va h.k.) bir xil. -->
+  <div class="customer-shell customer-shell--home">
     <header class="customer-header glass-panel">
       <div class="customer-header-start">
         <button
