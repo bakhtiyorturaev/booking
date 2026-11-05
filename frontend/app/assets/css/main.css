@@ -517,7 +517,7 @@ a {
 }
 
 .customer-shell--home {
-  background-image: linear-gradient(180deg, rgba(3, 9, 20, 0.35) 0%, rgba(3, 9, 20, 0.6) 45%, var(--page) 92%), url("/images/night.png");
+  background-image: linear-gradient(180deg, rgba(3, 9, 20, 0.35) 0%, rgba(3, 9, 20, 0.6) 45%, var(--page) 92%), url("/images/night.webp");
   background-repeat: no-repeat;
   background-position: center top;
   background-size: cover;
@@ -525,7 +525,7 @@ a {
 }
 
 :root[data-theme="light"] .customer-shell--home {
-  background-image: linear-gradient(180deg, rgba(245, 247, 251, 0.35) 0%, rgba(245, 247, 251, 0.65) 45%, var(--page) 92%), url("/images/light.png");
+  background-image: linear-gradient(180deg, rgba(245, 247, 251, 0.35) 0%, rgba(245, 247, 251, 0.65) 45%, var(--page) 92%), url("/images/light.webp");
 }
 
 .customer-header {
