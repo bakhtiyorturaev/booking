@@ -55,8 +55,9 @@ const serviceAncestors = computed(() => {
   return result
 })
 
+// Bosh sahifadagi qidiruv /catalog?q=... bilan keladi.
 const filterState = ref<FilterState>({
-  search: "",
+  search: typeof route.query.q === "string" ? route.query.q.trim().slice(0, 100) : "",
   city: "",
   ordering: "",
   service_type: "",
@@ -456,7 +457,7 @@ const openBarberInfo = (barber: BarberItem) => {
               <span class="empty-icon"><FontAwesomeIcon :icon="faStore" /></span>
               <p>{{ t("filter.no_salons_found") }}</p>
             </div>
-            <div v-else class="bronla-cards-grid">
+            <div v-else class="bronla-cards-grid venue-grid">
               <BranchCard
                 v-for="branch in branches"
                 :key="branch.id"
@@ -473,7 +474,7 @@ const openBarberInfo = (barber: BarberItem) => {
             <p>{{ t("clubs.no_clubs_found") }}</p>
           </div>
 
-          <div v-else class="bronla-cards-grid">
+          <div v-else class="bronla-cards-grid venue-grid">
             <BranchCard
               v-for="branch in branches"
               :key="branch.id"
@@ -669,6 +670,12 @@ const openBarberInfo = (barber: BarberItem) => {
   gap: 14px;
 }
 
+/* Klub kartochkalari kattaroq (rasm ustida ma'lumot), telefonda bitta ustun. */
+.bronla-cards-grid.venue-grid {
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 18px;
+}
+
 .catalog-empty {
   display: flex;
   flex-direction: column;
@@ -790,6 +797,10 @@ const openBarberInfo = (barber: BarberItem) => {
   .bronla-cards-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
+  }
+  .bronla-cards-grid.venue-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
   }
 }
 

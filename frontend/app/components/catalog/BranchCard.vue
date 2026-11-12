@@ -55,404 +55,102 @@ const ratingScore = computed(() => {
 </script>
 
 <template>
-  <article class="bronla-card">
-    <NuxtLink :to="`/branches/${branch.id}`" class="bronla-card-link">
-      <!-- Media Header -->
-      <div class="bronla-media-wrapper">
-        <img
-          v-if="branch.cover_image"
-          :src="branch.cover_image"
-          :alt="branch.name"
-          class="bronla-cover-img"
-          loading="lazy"
-        >
-        <div v-else class="bronla-placeholder-img">
-          <FontAwesomeIcon :icon="faStore" />
-        </div>
+  <!-- Rasm butun kartochkani egallaydi, ma'lumotlar rasm ustidagi qorong'i qatlamda. -->
+  <article class="venue-card">
+    <NuxtLink :to="`/branches/${branch.id}`" class="venue-link" :aria-label="branch.name">
+      <img
+        v-if="branch.cover_image"
+        :src="branch.cover_image"
+        alt=""
+        class="venue-img"
+        loading="lazy"
+      >
+      <span v-else class="venue-placeholder" aria-hidden="true"><FontAwesomeIcon :icon="faStore" /></span>
+      <span class="venue-shade" aria-hidden="true" />
 
-        <!-- Top Badges Overlay -->
-        <div v-if="branch.distance_km !== null" class="bronla-badges-row">
-          <span class="bronla-badge distance-badge">
-            {{ branch.distance_km.toFixed(1) }} km
-          </span>
-        </div>
+      <span class="venue-top">
+        <span v-if="branch.distance_km !== null" class="venue-chip">{{ branch.distance_km.toFixed(1) }} km</span>
+        <span v-if="branch.is_24_hours" class="venue-chip venue-chip-accent">24/7</span>
+      </span>
 
-        <!-- Favorite Heart Button -->
-        <button
-          type="button"
-          class="bronla-heart-btn"
-          :class="{ active: isFavorite }"
-          :aria-pressed="isFavorite"
-          :disabled="favorites.isPending(branch.club.id) || favorites.loading.value"
-          aria-label="Sevimlilar"
-          @click="toggleFavorite"
-        >
-          <FontAwesomeIcon :icon="faHeart" />
-        </button>
-
-        <span v-if="branch.is_24_hours" class="bronla-badge-bottom">
-          24/7
+      <span class="venue-body">
+        <span class="venue-title-row">
+          <img v-if="branch.logo" :src="branch.logo" alt="" class="venue-logo" loading="lazy">
+          <span class="venue-title" :title="branch.name">{{ branch.name }}</span>
         </span>
-      </div>
-
-      <!-- Card Content Body -->
-      <div class="bronla-card-body">
-        <!-- Branch Title & Rating Badge -->
-        <div class="bronla-header-line">
-          <img v-if="branch.logo" :src="branch.logo" alt="" class="branch-logo" loading="lazy">
-          <h3 class="bronla-club-title" :title="branch.name">
-            {{ branch.name }}
-          </h3>
-          <div class="bronla-rating-pill">
-            <FontAwesomeIcon :icon="faStar" class="star-icon" />
-            <span class="rating-num">{{ ratingScore }}</span>
-          </div>
-        </div>
-
-        <!-- Address -->
-        <p class="bronla-address" :title="branch.full_address">
-          <FontAwesomeIcon :icon="faLocationDot" class="address-icon" />
-          <span>{{ displayAddress }}</span>
-        </p>
-
-        <!-- Price Section -->
-        <div class="bronla-price-block">
-          <div v-if="branch.club?.category === 'BARBERSHOP'" class="bronla-price-value">
-            <strong>{{ t("barbers.barbershop") }}</strong>
-          </div>
-          <div v-else class="bronla-price-value">
+        <span class="venue-meta">
+          <FontAwesomeIcon :icon="faStar" class="venue-star" aria-hidden="true" />
+          <strong>{{ ratingScore }}</strong>
+          <span class="venue-sep" aria-hidden="true">·</span>
+          <FontAwesomeIcon :icon="faLocationDot" class="venue-pin" aria-hidden="true" />
+          <span class="venue-address" :title="branch.full_address">{{ displayAddress }}</span>
+        </span>
+        <span class="venue-bottom">
+          <span v-if="branch.club?.category === 'BARBERSHOP'" class="venue-price"><strong>{{ t("barbers.barbershop") }}</strong></span>
+          <span v-else class="venue-price">
             <strong>{{ formatPrice(branch.min_price_tiyin) }}</strong>
-            <span class="bronla-price-unit">{{ t("clubs.per_hour_suffix") }}</span>
-          </div>
-        </div>
-
-        <!-- Action Button -->
-        <button type="button" class="bronla-book-button">
-          {{ branch.club?.category === 'BARBERSHOP' ? t("barbers.view_barbers") : t("bookings.book_now") }}
-        </button>
-      </div>
+            <span>{{ t("clubs.per_hour_suffix") }}</span>
+          </span>
+          <span class="venue-cta">{{ branch.club?.category === 'BARBERSHOP' ? t("barbers.view_barbers") : t("bookings.book_now") }}</span>
+        </span>
+      </span>
     </NuxtLink>
+
+    <!-- Havola ichida tugma bo'lmasligi uchun "sevimli" tugmasi havoladan tashqarida turadi. -->
+    <button
+      type="button"
+      class="venue-heart"
+      :class="{ active: isFavorite }"
+      :aria-pressed="isFavorite"
+      :disabled="favorites.isPending(branch.club.id) || favorites.loading.value"
+      aria-label="Sevimlilar"
+      @click="toggleFavorite"
+    >
+      <FontAwesomeIcon :icon="faHeart" />
+    </button>
   </article>
 </template>
 
 <style scoped>
-.branch-logo { width: 32px; height: 32px; border-radius: 8px; object-fit: cover; flex-shrink: 0; }
-.bronla-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-  position: relative;
-}
+.venue-card { position: relative; border-radius: 24px; overflow: hidden; background: #12121c; border: 1px solid var(--glass-border); box-shadow: 0 14px 34px rgba(0, 0, 0, 0.22); transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease; }
+.venue-card:hover { transform: translateY(-3px); border-color: color-mix(in srgb, var(--accent) 60%, transparent); box-shadow: 0 22px 46px rgba(0, 0, 0, 0.32); }
+.venue-link { position: relative; display: flex; flex-direction: column; justify-content: space-between; aspect-ratio: 4 / 5; min-height: 300px; padding: 14px; color: #fff; text-decoration: none; isolation: isolate; }
+.venue-link:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; border-radius: 24px; }
+.venue-img { position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; object-fit: cover; transition: transform .5s ease; }
+.venue-card:hover .venue-img { transform: scale(1.05); }
+.venue-placeholder { position: absolute; inset: 0; z-index: -2; display: grid; place-items: center; background: radial-gradient(circle at 30% 20%, #3b2f8f, #12121c 70%); color: rgba(255, 255, 255, 0.4); font-size: 40px; }
+.venue-shade { position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, rgba(7, 7, 13, 0.25) 0%, rgba(7, 7, 13, 0) 22%, rgba(7, 7, 13, 0.35) 48%, rgba(7, 7, 13, 0.94) 100%); }
 
-.bronla-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.16);
-  border-color: var(--accent);
-}
+.venue-top { display: flex; gap: 6px; padding-right: 48px; }
+.venue-chip { display: inline-flex; align-items: center; min-height: 28px; padding: 0 11px; border: 1px solid rgba(255, 255, 255, 0.22); border-radius: 999px; background: rgba(7, 7, 13, 0.55); color: #fff; font-size: 13px; font-weight: 800; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+.venue-chip-accent { color: #c4bdff; }
 
-.bronla-card-link {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  text-decoration: none;
-  color: inherit;
-}
+.venue-body { display: flex; flex-direction: column; gap: 8px; }
+.venue-title-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.venue-logo { width: 30px; height: 30px; flex-shrink: 0; border-radius: 9px; object-fit: cover; border: 1px solid rgba(255, 255, 255, 0.3); }
+.venue-title { min-width: 0; overflow: hidden; font-family: var(--font-display); font-size: 18px; font-weight: 800; line-height: 1.2; letter-spacing: -0.01em; white-space: nowrap; text-overflow: ellipsis; }
+.venue-meta { display: flex; align-items: center; gap: 5px; min-width: 0; color: rgba(255, 255, 255, 0.85); font-size: 14px; }
+.venue-meta strong { color: #fff; }
+.venue-star { color: #fbbf24; font-size: 13px; }
+.venue-pin { flex-shrink: 0; font-size: 12px; color: rgba(255, 255, 255, 0.7); }
+.venue-address { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.venue-bottom { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 4px; }
+.venue-price { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
+.venue-price strong { font-size: 16px; font-weight: 800; white-space: nowrap; }
+.venue-price span { color: rgba(255, 255, 255, 0.75); font-size: 13px; font-weight: 600; }
+.venue-cta { flex-shrink: 0; display: inline-flex; align-items: center; min-height: 42px; padding: 0 16px; border-radius: 14px; background: var(--cta); color: #fff; font-size: 14px; font-weight: 800; box-shadow: 0 8px 22px rgba(109, 77, 255, 0.45); }
 
-.bronla-media-wrapper {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  overflow: hidden;
-  background: #000000;
-}
-
-.bronla-cover-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-  transition: transform 0.35s ease;
-}
-
-.bronla-card:hover .bronla-cover-img {
-  transform: scale(1.05);
-}
-
-.bronla-placeholder-img {
-  width: 100%;
-  height: 100%;
-  display: grid;
-  place-items: center;
-  font-size: 30px;
-  color: var(--muted);
-  background: color-mix(in srgb, var(--control) 80%, transparent);
-}
-
-.bronla-badges-row {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  display: flex;
-  gap: 5px;
-  z-index: 2;
-}
-
-.bronla-badge {
-  padding: 3px 8px;
-  border-radius: 6px;
-  font-size: 10px;
-  font-weight: 700;
-  backdrop-filter: blur(8px);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-}
-
-.location-badge {
-  background: rgba(15, 23, 42, 0.85);
-  color: #ffffff;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-}
-
-.distance-badge {
-  background: rgba(2, 132, 199, 0.9);
-  color: #ffffff;
-}
-
-.bronla-badge-bottom {
-  position: absolute;
-  bottom: 8px;
-  right: 8px;
-  padding: 2px 6px;
-  border-radius: 5px;
-  font-size: 9.5px;
-  font-weight: 800;
-  background: rgba(0, 0, 0, 0.75);
-  color: #38bdf8;
-  backdrop-filter: blur(6px);
-  border: 1px solid rgba(56, 189, 248, 0.3);
-}
-
-.bronla-heart-btn {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: rgba(15, 23, 42, 0.7);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  color: #ffffff;
-  display: grid;
-  place-items: center;
-  font-size: 12px;
-  cursor: pointer;
-  z-index: 2;
-  transition: all 0.15s ease;
-}
-
-.bronla-heart-btn:hover {
-  transform: scale(1.1);
-  background: rgba(239, 68, 68, 0.9);
-}
-
-.bronla-heart-btn.active {
-  color: #ef4444;
-  background: #ffffff;
-}
-
-.bronla-card-body {
-  padding: 12px 14px 14px;
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-}
-
-.bronla-header-line {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 6px;
-  margin-bottom: 4px;
-}
-
-.bronla-club-title {
-  margin: 0;
-  font-size: 13.5px;
-  font-weight: 750;
-  line-height: 1.3;
-  color: var(--text);
-  display: -webkit-box;
-  -webkit-line-clamp: 1;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  letter-spacing: -0.01em;
-  flex: 1;
-}
-
-.bronla-rating-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 2.5px 6px;
-  border-radius: 6px;
-  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
-  color: #ffffff;
-  font-size: 10px;
-  font-weight: 750;
-  flex-shrink: 0;
-}
-
-.star-icon {
-  color: #facc15;
-  font-size: 9px;
-}
-
-.rating-num {
-  font-weight: 800;
-}
-
-.bronla-address {
-  margin: 0 0 8px;
-  font-size: 11.5px;
-  color: var(--muted);
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.address-icon {
-  color: var(--accent);
-  flex-shrink: 0;
-  font-size: 11px;
-}
-
-.bronla-price-block {
-  margin-top: auto;
-  margin-bottom: 10px;
-  padding-top: 8px;
-  border-top: 1px solid var(--border);
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-}
-
-.bronla-price-value strong {
-  font-size: 14.5px;
-  font-weight: 800;
-  color: var(--text);
-  letter-spacing: -0.02em;
-}
-
-.bronla-price-unit {
-  font-size: 11px;
-  color: var(--muted);
-  margin-left: 3px;
-}
-
-.bronla-book-button {
-  width: 100%;
-  height: 36px;
-  border: 0;
-  border-radius: 10px;
-  background: #10b981;
-  color: #ffffff;
-  font-size: 13px;
-  font-weight: 750;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.bronla-book-button:hover {
-  background: #059669;
-  transform: translateY(-1px);
-  box-shadow: 0 5px 15px rgba(16, 185, 129, 0.35);
-}
+.venue-heart { position: absolute; top: 12px; right: 12px; z-index: 2; display: grid; place-items: center; width: 40px; height: 40px; padding: 0; border: 1px solid rgba(255, 255, 255, 0.24); border-radius: 50%; background: rgba(7, 7, 13, 0.55); color: #fff; font-size: 16px; cursor: pointer; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); transition: transform .15s ease, background .15s ease; }
+.venue-heart:hover { transform: scale(1.08); }
+.venue-heart.active { background: #fff; color: #ef4444; }
+.venue-heart:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.venue-heart:disabled { cursor: wait; }
 
 @media (max-width: 640px) {
-  .bronla-card {
-    border-radius: 12px;
-  }
-
-  .bronla-card-body {
-    padding: 8px 8px 10px;
-  }
-
-  .bronla-club-title {
-    font-size: 12.5px;
-  }
-
-  .bronla-rating-pill {
-    padding: 2px 5px;
-    font-size: 9px;
-    border-radius: 4px;
-    gap: 2px;
-  }
-
-  .star-icon {
-    font-size: 8px;
-  }
-
-  .bronla-address {
-    font-size: 10px;
-    margin-bottom: 6px;
-    gap: 3px;
-  }
-
-  .address-icon {
-    font-size: 9.5px;
-  }
-
-  .bronla-price-block {
-    padding-top: 6px;
-    margin-bottom: 8px;
-  }
-
-  .bronla-price-value strong {
-    font-size: 12px;
-  }
-
-  .bronla-price-unit {
-    font-size: 9.5px;
-  }
-
-  .bronla-book-button {
-    height: 32px;
-    font-size: 11.5px;
-    font-weight: 700;
-    border-radius: 8px;
-    padding: 0 4px;
-  }
-
-  .bronla-badge {
-    padding: 2px 5px;
-    font-size: 8.5px;
-    border-radius: 4px;
-  }
-
-  .bronla-heart-btn {
-    width: 24px;
-    height: 24px;
-    font-size: 10px;
-    top: 6px;
-    right: 6px;
-  }
-
-  .bronla-badge-bottom {
-    font-size: 8.5px;
-    padding: 1px 4px;
-    bottom: 6px;
-    right: 6px;
-  }
+  .venue-link { aspect-ratio: 16 / 13; min-height: 260px; padding: 14px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .venue-card, .venue-img, .venue-heart { transition: none; }
+  .venue-card:hover, .venue-card:hover .venue-img { transform: none; }
 }
 </style>

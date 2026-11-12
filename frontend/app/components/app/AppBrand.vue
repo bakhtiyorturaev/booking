@@ -3,7 +3,7 @@
     <span class="brand-mark" aria-hidden="true">
       <img src="/logo-mark.png" alt="" width="36" height="36">
     </span>
-    <span class="brand-wordmark">Rezerv<span class="brand-wordmark-accent">uz.uz</span></span>
+    <span class="brand-wordmark">Rezerv<span class="brand-wordmark-accent">UZ</span></span>
   </NuxtLink>
 </template>
 

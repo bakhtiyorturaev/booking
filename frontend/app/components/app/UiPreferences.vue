@@ -79,7 +79,7 @@ onUnmounted(() => {
         :title="currentLanguage.name"
         @click="toggleLangMenu"
       >
-        <img :src="currentLanguage.flag" :alt="currentLanguage.name" class="flag-icon-round trigger-flag">
+        <span class="locale-short">{{ currentLanguage.shortLabel }}</span>
       </button>
 
       <Transition name="dropdown-fade">
@@ -245,4 +245,22 @@ onUnmounted(() => {
   opacity: 0;
   transform: translateY(-6px);
 }
+/* Yangi dizayn: shisha uslubidagi 44px tugmalar. */
+.locale-trigger-btn,
+.theme-toggle {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  border-color: var(--glass-border);
+  background: var(--glass);
+}
+
+.locale-short {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.theme-toggle { color: var(--accent); }
 </style>
