@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ServiceTypeOption } from "~/api/serviceTypes"
 import { useTranslations } from "~/composables/useTranslations"
+import { BARBER_SERVICE_GENDERS } from "~/types/barber"
 
 export interface FilterState {
   search: string
@@ -38,7 +39,7 @@ const emit = defineEmits<{
 
 const { t } = useTranslations()
 const categoryCode = computed(() => props.category?.toUpperCase().replaceAll("-", "_") || "")
-const isBarbershop = computed(() => ["BARBERSHOP", "BARBER"].includes(categoryCode.value))
+const isBarbershop = computed(() => ["BARBERSHOP", ...Object.keys(BARBER_SERVICE_GENDERS)].includes(categoryCode.value))
 
 const localState = reactive<FilterState>({
   ...props.modelValue,

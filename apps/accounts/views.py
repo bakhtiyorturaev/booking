@@ -46,11 +46,6 @@ from apps.accounts.services.telegram_miniapp import (
     login_with_telegram_miniapp,
     save_telegram_contact,
 )
-from apps.accounts.services.telegram_web_login import (
-    TelegramWebLoginError,
-    check_web_login_status,
-    init_web_login,
-)
 from apps.core.responses import (
     serializer_error_response,
     service_error_response,
@@ -122,48 +117,6 @@ class TelegramContactAPIView(APIView):
                 "phone": user.phone,
                 "is_phone_verified": user.is_phone_verified,
                 "user": AuthUserSerializer(user).data,
-            },
-        )
-
-
-class TelegramWebLoginInitAPIView(APIView):
-    permission_classes = [AllowAny]
-
-    @extend_schema(
-        tags=["Authentication"],
-        summary="Web brauzer uchun Telegram login sessiyasini boshlash",
-        responses={200: OpenApiTypes.OBJECT},
-    )
-    def post(self, request):
-        result = init_web_login()
-        return success_response("auth.google_config_loaded", request, data=result)
-
-
-class TelegramWebLoginCheckAPIView(APIView):
-    permission_classes = [AllowAny]
-
-    @extend_schema(
-        tags=["Authentication"],
-        summary="Web brauzer Telegram login sessiyasini tekshirish",
-        responses={200: OpenApiTypes.OBJECT},
-    )
-    def get(self, request, token):
-        try:
-            result = check_web_login_status(token)
-        except TelegramWebLoginError as error:
-            return service_error_response(error, request)
-
-        if result.get("status") == "PENDING":
-            return Response({"success": True, "data": {"status": "PENDING"}}, status=status.HTTP_200_OK)
-
-        return success_response(
-            "auth.login_success",
-            request,
-            data={
-                "status": "SUCCESS",
-                "user": AuthUserSerializer(result["user"]).data,
-                "tokens": public_auth_tokens(result["tokens"]),
-                "is_new_user": result["is_new_user"],
             },
         )
 

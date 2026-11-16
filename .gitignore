@@ -39,13 +39,8 @@ env/
 htmlcov/
 
 # Local test code
-tests/
-__tests__/
-tests.py
-test_*.py
-*_test.py
-*.test.*
-*.spec.*
+# Testlar endi Git'ga qo'shiladi (Django ularni `test_*.py` nomi bilan
+# topadi) — Docker image'ga kiritilmasligi .dockerignore orqali ta'minlanadi.
 /load_tests/
 /telegram_bot/management/commands/create_telegram_test_booking.py
 

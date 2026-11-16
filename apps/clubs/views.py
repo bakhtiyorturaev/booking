@@ -1,6 +1,7 @@
 import uuid
 from datetime import timedelta
 
+from django.db import transaction
 from django.db.models import Count, F, Min, Prefetch, Q
 from django.db.models.deletion import ProtectedError
 from django.shortcuts import get_object_or_404
@@ -427,10 +428,15 @@ class PublicBranchViewSet(viewsets.ReadOnlyModelViewSet):
         min_rating = parse_decimal_parameter(self.request, "min_rating", 0, 5)
 
         if search:
+            # `Branch.full_address` — Python property, DB maydoni emas; shuning
+            # uchun uni tashkil etuvchi haqiqiy maydonlar bo'yicha izlaymiz.
             queryset = queryset.filter(
                 Q(name__icontains=search)
                 | Q(club__name__icontains=search)
-                | Q(full_address__icontains=search)
+                | Q(address__icontains=search)
+                | Q(landmark__icontains=search)
+                | Q(city__name__icontains=search)
+                | Q(district__name__icontains=search)
             )
         if club_id:
             queryset = queryset.filter(club_id=club_id)
@@ -439,7 +445,10 @@ class PublicBranchViewSet(viewsets.ReadOnlyModelViewSet):
             if category_val in Club.Category.values:
                 queryset = queryset.filter(club__category=category_val)
         if service_category:
-            service = ServiceType.objects.filter(code__iexact=service_category, pk__in=active_service_ids()).first()
+            active = ServiceType.objects.filter(pk__in=active_service_ids())
+            # Kodlar faqat harf kattaligi bilan farq qilishi mumkin (BARBERSHOP va barbershop):
+            # avval aniq moslik, aks holda tasodifiy "egizak" xizmat tanlanib qoladi.
+            service = active.filter(code=service_category).first() or active.filter(code__iexact=service_category).first()
             if not service:
                 return queryset.none()
             service_ids = descendant_service_ids([service.pk], active_only=True)
@@ -604,15 +613,12 @@ class PublicBranchViewSet(viewsets.ReadOnlyModelViewSet):
         context = super().get_serializer_context()
         latitude, longitude = requested_location(self.request)
         if latitude is not None:
+            # Masofa endi serializerning o'zida (`PublicBranchDetailSerializer.
+            # get_distance_km`) hisoblanadi — u allaqachon serializatsiya
+            # qilinayotgan filial instansidan latitude/longitude o'qiydi, shu
+            # sababli bu yerda bir xil filialni DB'dan qayta o'qib olishga
+            # hojat yo'q.
             context["location"] = (latitude, longitude)
-        if latitude is not None and getattr(self, "kwargs", {}).get("pk"):
-            try:
-                branch = self.get_queryset().only("latitude", "longitude").get(pk=self.kwargs["pk"])
-                context["distance_km"] = haversine_km(
-                    latitude, longitude, branch.latitude, branch.longitude
-                )
-            except (Branch.DoesNotExist, ValueError):
-                pass
         favorite_ids = set()
         if self.request.user and self.request.user.is_authenticated:
             favorite_ids = set(
@@ -980,6 +986,19 @@ class CabinetBranchImageViewSet(CabinetAccessMixin, viewsets.ModelViewSet):
             .select_related("branch__club")
             .distinct()
         )
+
+    @transaction.atomic
+    def perform_destroy(self, instance):
+        branch, was_cover, image = instance.branch, instance.is_cover, instance.image
+        instance.delete()
+        # Muqova o'chirilsa, katalog kartasi bo'sh qolmasin — keyingi rasm muqova bo'ladi.
+        if was_cover:
+            next_image = branch.images.order_by("sort_order", "created_at").first()
+            if next_image:
+                next_image.is_cover = True
+                next_image.save(update_fields=["is_cover", "updated_at"])
+        # Django faylni diskdan o'zi o'chirmaydi; bazaga yozilgandan keyingina o'chiramiz.
+        transaction.on_commit(lambda: image.delete(save=False))
 
 
 @extend_schema_view(

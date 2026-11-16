@@ -8,6 +8,9 @@ useHead({
   title: computed(() => t("auth.login_tab") || "Kirish"),
 })
 
+// Bu sahifa layout'siz ochiladi: saqlangan kunduzgi/tungi rejimni shu yerda qo'llaymiz.
+useTheme()
+
 const route = useRoute()
 const showModal = ref(true)
 
@@ -23,7 +26,7 @@ const onClose = async () => {
 </script>
 
 <template>
-  <div class="login-page-container">
+  <div class="login-page-container customer-shell--home">
     <TelegramAuthModal
       v-model="showModal"
       @authenticated="onAuthenticated"

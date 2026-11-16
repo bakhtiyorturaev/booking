@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import VenueBillingBadge from "~/components/cabinet/VenueBillingBadge.vue"
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome"
-import { faBolt, faBorderAll, faBuilding, faCodeBranch, faScissors, faCalendarCheck, faCreditCard, faUsers, faArrowUpRightFromSquare, faBars, faXmark, faSun, faMoon, faKey, faArrowRightFromBracket, faChevronRight, faShieldHalved } from "@fortawesome/free-solid-svg-icons"
+import { faBorderAll, faBuilding, faCodeBranch, faScissors, faCalendarCheck, faCreditCard, faUsers, faArrowUpRightFromSquare, faBars, faXmark, faSun, faMoon, faKey, faArrowRightFromBracket, faChevronRight, faShieldHalved } from "@fortawesome/free-solid-svg-icons"
 import ChangePasswordModal from "~/components/auth/ChangePasswordModal.vue"
 import { useAuth } from "~/composables/useAuth"
 import { useTheme } from "~/composables/useTheme"
@@ -140,8 +140,8 @@ const handleLogout = async () => {
     <aside id="cabinet-navigation" ref="sidebar" class="cabinet-sidebar" :class="{ 'is-open': isSidebarOpen }" :role="isSidebarOpen ? 'dialog' : undefined" :aria-modal="isSidebarOpen ? true : undefined" aria-label="Kabinet menyusi" @keydown="onSidebarKeydown">
       <div class="cabinet-brand-row">
         <NuxtLink :to="cabinetPath('')" class="cabinet-brand" aria-label="RezervUZ boshqaruv paneli">
-          <span class="cabinet-logo"><FontAwesomeIcon :icon="faBolt" /></span>
-          <span>Rezerv<span class="cabinet-brand-accent">UZ</span><small>Boshqaruv</small></span>
+          <span class="cabinet-logo"><img src="/logo-mark.png" alt="" width="40" height="40"></span>
+          <span><span class="brand-wordmark">Rezerv<span class="brand-wordmark-accent">uz.uz</span></span><small>Boshqaruv</small></span>
         </NuxtLink>
         <button type="button" class="cabinet-icon-button sidebar-close" aria-label="Menyuni yopish" @click="closeSidebar"><FontAwesomeIcon :icon="faXmark" /></button>
       </div>
@@ -225,8 +225,8 @@ const handleLogout = async () => {
 .cabinet-sidebar { position: fixed; inset: 0 auto 0 0; width: 248px; display: flex; flex-direction: column; background: var(--surface); border-right: 1px solid var(--panel-border); z-index: 70; }
 .cabinet-brand-row { display: flex; align-items: center; justify-content: space-between; height: 88px; padding: 20px 24px; }
 .cabinet-brand { display: flex; align-items: center; gap: 11px; font-size: 22px; font-weight: 750; letter-spacing: -.7px; color: var(--text); text-decoration: none; }
-.cabinet-logo { display: grid; place-items: center; width: 36px; height: 40px; border-radius: 11px; background: var(--accent); color: white; font-size: 17px; }
-.cabinet-brand-accent { color: var(--accent); }
+.cabinet-logo { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 11px; background: #00071f; overflow: hidden; }
+.cabinet-logo img { width: 100%; height: 100%; object-fit: cover; }
 .cabinet-brand small { display: block; font-size: 10px; letter-spacing: 1.8px; text-transform: uppercase; margin-top: 2px; color: var(--muted); font-weight: 600; }
 .cabinet-sidebar-user strong { display: block; font-size: 13px; font-weight: 650; }
 .cabinet-sidebar-user div > span { display: block; color: var(--muted); font-size: 11px; margin-top: 3px; }

@@ -1,5 +1,11 @@
 export type BarberStatus = "AVAILABLE" | "BREAK" | "NOT_AT_WORK" | "DAY_OFF"
 export type AffiliationStatus = "NONE" | "PENDING" | "APPROVED" | "REJECTED"
+export type BarberGender = "MALE" | "FEMALE"
+
+export const BARBER_GENDER_LABELS: Record<BarberGender, string> = { MALE: "Erkak sartarosh", FEMALE: "Ayol sartarosh" }
+
+// Katalogdagi xizmat kodi -> shu bo'limdagi sartaroshlar turi (backend: Barber.SERVICE_CODE_GENDERS).
+export const BARBER_SERVICE_GENDERS: Record<string, BarberGender> = { BARBER: "MALE", WOMEN_BARBER: "FEMALE" }
 
 export interface BarberSlot {
   starts_at: string
@@ -25,6 +31,7 @@ export interface BarberItem {
   full_name: string
   phone: string
   photo: string | null
+  gender: BarberGender
   status: BarberStatus
   status_display: string
   rating: string
@@ -76,6 +83,7 @@ export interface CabinetBarberItem {
   full_name: string
   phone: string
   photo: string | null
+  gender: BarberGender
   status: BarberStatus
   status_display: string
   affiliation_status: AffiliationStatus

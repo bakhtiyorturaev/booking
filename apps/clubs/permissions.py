@@ -75,6 +75,46 @@ class IsStaffOrReadOnly(BasePermission):
         return request.method in SAFE_METHODS or is_platform_admin(request.user)
 
 
+class IsBarberSelfOrPlatformAdmin(BasePermission):
+    """Sartaroshning o'z-o'ziga xizmat endpointlari uchun.
+
+    O'qish — har qanday autentifikatsiyalangan foydalanuvchi; yozish — faqat
+    o'z `barber_profile` egasi yoki platforma admini. Ilgari bu view'larda
+    `IsStaffOrReadOnly` ishlatilgani uchun sartarosh o'z holatini ham
+    o'zgartira olmay 403 olardi.
+    """
+
+    message = "clubs.permission_denied"
+    code = "clubs.permission_denied"
+
+    def has_permission(self, request, view):
+        user = request.user
+        if not (user and user.is_authenticated):
+            return False
+        if request.method in SAFE_METHODS:
+            return True
+        return is_platform_admin(user) or hasattr(user, "barber_profile")
+
+
+class IsClubBarberManagerOrReadOnly(BasePermission):
+    """Sartaroshlar kabineti: yozish — platforma admini yoki klub egasi.
+
+    Obyekt darajasidagi tekshiruv `CabinetBarberViewSet` ichidagi
+    `require_affiliation_manager()` / `perform_update()` da bajariladi.
+    """
+
+    message = "clubs.permission_denied"
+    code = "clubs.permission_denied"
+
+    def has_permission(self, request, view):
+        user = request.user
+        if not (user and user.is_authenticated):
+            return False
+        if request.method in SAFE_METHODS:
+            return True
+        return is_platform_admin(user) or user.owned_clubs.exists()
+
+
 class IsSuperuserOrReadOnly(BasePermission):
     def has_permission(self, request, view):
         return request.method in SAFE_METHODS or bool(

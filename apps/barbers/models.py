@@ -1,4 +1,5 @@
 import uuid
+from datetime import time
 from decimal import Decimal
 from pathlib import Path
 
@@ -37,6 +38,13 @@ class Barber(models.Model):
         PENDING = "PENDING", "Tasdiq kutilmoqda"
         APPROVED = "APPROVED", "Tasdiqlangan"
         REJECTED = "REJECTED", "Rad etilgan"
+
+    class Gender(models.TextChoices):
+        MALE = "MALE", "Erkak sartarosh"
+        FEMALE = "FEMALE", "Ayol sartarosh"
+
+    # Katalogdagi xizmat turi kodi -> shu bo'limda ko'rinadigan sartaroshlar turi.
+    SERVICE_CODE_GENDERS = {"BARBER": Gender.MALE, "WOMEN_BARBER": Gender.FEMALE}
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.OneToOneField(
@@ -79,6 +87,13 @@ class Barber(models.Model):
         default=AffiliationStatus.NONE,
         help_text="Sartaroshxonaga birikish holati.",
     )
+    gender = models.CharField(
+        max_length=6,
+        choices=Gender.choices,
+        default=Gender.MALE,
+        db_index=True,
+        help_text="Erkak yoki ayol sartarosh — katalogda alohida bo'limlarda ko'rinadi.",
+    )
     full_name = models.CharField(max_length=180, help_text="Sartaroshning to'liq ismi.")
     phone = models.CharField(max_length=20, blank=True, help_text="Aloqa telefoni.")
     photo = models.ImageField(
@@ -93,8 +108,8 @@ class Barber(models.Model):
         default=Status.AVAILABLE,
         help_text="Real vaqt holati (Ishda, Tanaffusda, Ishga chiqmagan, Dam olish kuni).",
     )
-    work_start_time = models.TimeField(default="09:00", help_text="Ish boshlanish vaqti.")
-    work_end_time = models.TimeField(default="20:00", help_text="Ish tugash vaqti.")
+    work_start_time = models.TimeField(default=time(9, 0), help_text="Ish boshlanish vaqti.")
+    work_end_time = models.TimeField(default=time(20, 0), help_text="Ish tugash vaqti.")
     working_days = models.JSONField(
         default=list,
         blank=True,

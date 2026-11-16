@@ -1,5 +1,6 @@
 import re
 import secrets
+from django.conf import settings
 from apps.accounts.models import User
 
 
@@ -58,7 +59,12 @@ def generate_phone_username(phone):
 def get_client_ip(request):
     if not request:
         return None
-    x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
-    if x_forwarded_for:
-        return x_forwarded_for.split(",")[0].strip()
-    return request.META.get("REMOTE_ADDR")
+    remote_address = request.META.get("REMOTE_ADDR") or None
+    # `X-Forwarded-For` faqat ishonchli teskari-proksi (load balancer/nginx)
+    # orqali kelganda hisobga olinadi — aks holda har qanday mijoz bu
+    # headerni o'zi yuborib, IP manzilini (demak, sessiya logi/geo-bloklash
+    # kabi IP-ga asoslangan tekshiruvlarni) soxtalashtirishi mumkin edi.
+    if remote_address not in settings.TRUSTED_PROXY_IPS:
+        return remote_address
+    forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR", "")
+    return forwarded_for.split(",", 1)[0].strip() or remote_address

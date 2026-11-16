@@ -89,6 +89,26 @@ const pickBranchImages = (event: Event, kind: "logo" | "photos") => {
     photoPreviews.value = files.map(file => URL.createObjectURL(file))
   }
 }
+const removeNewPhoto = (index: number) => {
+  URL.revokeObjectURL(photoPreviews.value[index] || "")
+  photoPreviews.value = photoPreviews.value.filter((_, i) => i !== index)
+  branchPhotos.value = branchPhotos.value.filter((_, i) => i !== index)
+}
+const deletingImageId = ref("")
+const deleteBranchImage = async (image: { id: string }) => {
+  if (!confirm("Bu rasmni o‘chirmoqchimisiz? Uni qaytarib bo‘lmaydi.")) return
+  deletingImageId.value = image.id
+  try {
+    await adminApi.deleteBranchImage(image.id)
+    editingBranch.value.images = editingBranch.value.images.filter((item: { id: string }) => item.id !== image.id)
+    useToast().success("Rasm o‘chirildi.")
+    void fetchBranches()
+  } catch (cause) {
+    branchModalError.value = cabinetErrorMessage(cause)
+  } finally {
+    deletingImageId.value = ""
+  }
+}
 const zoneServiceChoices = computed(() => {
   const allowed = descendantServiceIds(services.value, selectedBranch.value?.enabled_services || [])
   return serviceTreeOptions(services.value.filter(service => service.is_active && allowed.has(service.id)))
@@ -116,6 +136,12 @@ const zoneForm = ref({
   unit_count: 10,
   price_per_hour_tiyin: 2000000,
   status: "ACTIVE",
+})
+// Staff type the price in so‘m with thousand separators ("100.000", "100 000");
+// the API stores tiyin. A number input would read "100.000" as 100.
+const zonePriceSom = computed({
+  get: () => (zoneForm.value.price_per_hour_tiyin / 100).toLocaleString("ru-RU").replace(/\u00a0/g, " "),
+  set: (value: string) => { zoneForm.value.price_per_hour_tiyin = Number(value.replace(/\D/g, "") || 0) * 100 },
 })
 
 watch(() => zoneForm.value.service_type, id => {
@@ -251,7 +277,9 @@ const saveBranch = async () => {
     const enabled = new Set(branchForm.value.enabled_services)
     if (primaryService.value?.is_active) enabled.add(primaryService.value.id)
     Object.entries(branchForm.value).forEach(([key, value]) => {
-      if (key !== "enabled_services" && value != null) payload.append(key, String(value))
+      if (key === "enabled_services" || value == null) return
+      // Backend stores 6 decimal places; map-copied coordinates often have more.
+      payload.append(key, key === "latitude" || key === "longitude" ? Number(value).toFixed(6) : String(value))
     })
     enabled.forEach(id => payload.append("enabled_services", id))
     if (branchLogo.value) payload.append("logo", branchLogo.value)
@@ -325,7 +353,16 @@ const saveZone = async () => {
       await selectBranch(selectedBranch.value)
     }
   } catch (err: any) {
-    zoneModalError.value = err?.data?.message || err?.message || "Saqlashda xatolik yuz berdi"
+    // Backend returns only a generic message; name the field that actually failed.
+    const fields = Object.keys(err?.errors || err?.data?.errors || {})
+    zoneModalError.value = fields.includes("service_type")
+      ? "Tanlangan xizmat turi ushbu filialga biriktirilmagan. Filialni tahrirlab, xizmatni yoqing yoki zonaga boshqa xizmat tanlang."
+      : fields.includes("non_field_errors")
+        // The only model-level constraint on Zone is a unique name per branch.
+        ? `Bu filialda “${zoneForm.value.name.trim()}” nomli zona allaqachon bor. Boshqa nom kiriting.`
+        : fields.length
+          ? `Quyidagi maydon noto‘g‘ri: ${fields.join(", ")}`
+          : err?.data?.message || err?.message || "Saqlashda xatolik yuz berdi"
   } finally {
     isSavingZone.value = false
   }
@@ -527,12 +564,12 @@ useDialogFocus(showZoneModal, "#cabinet-branches-showZoneModal", () => { showZon
             </div>
 
             <div class="form-row branch-coordinates">
-              <div class="form-group"><label for="branch-latitude">Latitude *</label><input id="branch-latitude" v-model.number="branchForm.latitude" type="number" required min="-90" max="90" step="0.000001" inputmode="decimal" placeholder="41.311081"></div>
-              <div class="form-group"><label for="branch-longitude">Longitude *</label><input id="branch-longitude" v-model.number="branchForm.longitude" type="number" required min="-180" max="180" step="0.000001" inputmode="decimal" placeholder="69.240562"></div>
+              <div class="form-group"><label for="branch-latitude">Latitude *</label><input id="branch-latitude" v-model.number="branchForm.latitude" type="number" required min="-90" max="90" step="any" inputmode="decimal" placeholder="41.311081"></div>
+              <div class="form-group"><label for="branch-longitude">Longitude *</label><input id="branch-longitude" v-model.number="branchForm.longitude" type="number" required min="-180" max="180" step="any" inputmode="decimal" placeholder="69.240562"></div>
             </div>
             <div class="branch-media-fields">
               <div class="form-group"><label for="branch-logo">Filial logotipi</label><img v-if="logoPreview" :src="logoPreview" class="branch-logo-preview" alt="Filial logotipi"><input id="branch-logo" type="file" accept="image/jpeg,image/png,image/webp" @change="pickBranchImages($event, 'logo')"></div>
-              <div class="form-group"><label for="branch-photos">Filial rasmlari</label><div v-if="editingBranch?.images?.length || photoPreviews.length" class="branch-photo-previews"><img v-for="image in editingBranch?.images || []" :key="image.id" :src="image.image" alt="Filial rasmi"><img v-for="url in photoPreviews" :key="url" :src="url" alt="Yangi rasm"></div><input id="branch-photos" type="file" multiple accept="image/jpeg,image/png,image/webp" @change="pickBranchImages($event, 'photos')"><small>JPG, PNG, WEBP · Har biri 5 MB gacha</small></div>
+              <div class="form-group"><label for="branch-photos">Filial rasmlari</label><div v-if="editingBranch?.images?.length || photoPreviews.length" class="branch-photo-previews"><div v-for="image in editingBranch?.images || []" :key="image.id" class="branch-photo-item"><img :src="image.image" alt="Filial rasmi"><button type="button" class="branch-photo-remove" aria-label="Rasmni o‘chirish" title="O‘chirish" :disabled="deletingImageId === image.id" @click="deleteBranchImage(image)">×</button></div><div v-for="(url, index) in photoPreviews" :key="url" class="branch-photo-item"><img :src="url" alt="Yangi rasm"><button type="button" class="branch-photo-remove" aria-label="Tanlangan rasmni olib tashlash" title="Olib tashlash" @click="removeNewPhoto(index)">×</button></div></div><input id="branch-photos" type="file" multiple accept="image/jpeg,image/png,image/webp" @change="pickBranchImages($event, 'photos')"><small>JPG, PNG, WEBP · Har biri 5 MB gacha</small></div>
             </div>
 
             <div class="form-checkbox">
@@ -599,8 +636,8 @@ useDialogFocus(showZoneModal, "#cabinet-branches-showZoneModal", () => { showZon
             </div>
 
             <div class="form-group">
-              <label>Soatlik narx (tiyinda, masalan: 2000000 = 20,000 so'm) *</label>
-              <input v-model.number="zoneForm.price_per_hour_tiyin" type="number" min="0" step="1" required>
+              <label for="zone-price">Soatlik narx (so‘mda, masalan: 20 000) *</label>
+              <input id="zone-price" v-model="zonePriceSom" type="text" inputmode="numeric" required placeholder="20 000">
             </div>
 
             <div class="form-group">
@@ -630,6 +667,9 @@ useDialogFocus(showZoneModal, "#cabinet-branches-showZoneModal", () => { showZon
 .branch-logo-preview { width: 64px; height: 64px; object-fit: cover; border: 1px solid var(--border); border-radius: 12px; }
 .branch-photo-previews { display: flex; flex-wrap: wrap; gap: 8px; }
 .branch-photo-previews img { width: 80px; height: 64px; object-fit: cover; border-radius: 8px; }
+.branch-photo-item { position: relative; }
+.branch-photo-remove { position: absolute; top: -6px; right: -6px; width: 22px; height: 22px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: #ef4444; color: #fff; font-size: 15px; line-height: 1; cursor: pointer; box-shadow: 0 1px 4px rgb(0 0 0 / 30%); }
+.branch-photo-remove:disabled { opacity: .5; cursor: wait; }
 .branch-media-fields input[type="file"] { max-width: 100%; font-size: 12px; padding: 10px; }
 .branch-media-fields small { color: var(--muted); font-size: 11px; }
 

@@ -1,5 +1,5 @@
 export default defineEventHandler((event) => {
-  const privatePath = ["/api/cabinet/", "/api/auth/", "/cabinet", "/site/staff/", "/site/client/", "/api/profile", "/api/bookings", "/api/booking-holds", "/api/favorites", "/api/payment-checkout"].some(prefix => event.path.startsWith(prefix))
+  const privatePath = ["/api/cabinet/", "/api/auth/", "/cabinet", "/site/staff/", "/site/client/", "/api/profile", "/api/barber-profile", "/api/bookings", "/api/booking-holds", "/api/favorites", "/api/payment-checkout"].some(prefix => event.path.startsWith(prefix))
   const writes = !["GET", "HEAD", "OPTIONS"].includes(event.method)
   if (!privatePath && !(writes && event.path.startsWith("/api/"))) return
   setResponseHeader(event, "Cache-Control", "private, no-store")

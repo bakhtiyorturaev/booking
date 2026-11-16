@@ -60,7 +60,16 @@ const FALLBACK_TRANSLATIONS: Record<Locale, Record<string, string>> = {
     "barbers.booking_title": "Sartaroshxonada band qilish",
     "barbers.branch": "Filial",
     "barbers.date_and_time": "Sana & Vaqt",
+    "barbers.day_1": "Dush",
+    "barbers.day_2": "Sesh",
+    "barbers.day_3": "Chor",
+    "barbers.day_4": "Pay",
+    "barbers.day_5": "Juma",
+    "barbers.day_6": "Shan",
+    "barbers.day_7": "Yak",
     "barbers.day_off_today": "Bugun dam olish kuni",
+    "barbers.distance_km": "{km} km masofada",
+    "barbers.working_days": "Ish kunlari",
     "barbers.guide_tip": "Chapdagi ustalar ro‘yxatidan o‘zingizga ma’qul usta ostidagi \"Band qilish\" tugmasini bosing va qulay bo‘sh vaqtingizni belgilang.",
     "barbers.main_branch": "Asosiy filial",
     "barbers.no_barbers_in_branch": "Ushbu filialda hozircha faol ustalar mavjud emas.",
@@ -375,7 +384,16 @@ const FALLBACK_TRANSLATIONS: Record<Locale, Record<string, string>> = {
     "barbers.booking_title": "Бронирование в барбершопе",
     "barbers.branch": "Филиал",
     "barbers.date_and_time": "Дата и время",
+    "barbers.day_1": "Пн",
+    "barbers.day_2": "Вт",
+    "barbers.day_3": "Ср",
+    "barbers.day_4": "Чт",
+    "barbers.day_5": "Пт",
+    "barbers.day_6": "Сб",
+    "barbers.day_7": "Вс",
     "barbers.day_off_today": "Сегодня выходной день",
+    "barbers.distance_km": "{km} км от вас",
+    "barbers.working_days": "Рабочие дни",
     "barbers.guide_tip": "Нажмите кнопку «Забронировать» под нужным мастером слева и выберите удобное свободное время.",
     "barbers.main_branch": "Главный филиал",
     "barbers.no_barbers_in_branch": "В этом филиале пока нет активных мастеров.",
@@ -691,7 +709,16 @@ const FALLBACK_TRANSLATIONS: Record<Locale, Record<string, string>> = {
     "barbers.booking_title": "Barbershop Booking",
     "barbers.branch": "Branch",
     "barbers.date_and_time": "Date & Time",
+    "barbers.day_1": "Mon",
+    "barbers.day_2": "Tue",
+    "barbers.day_3": "Wed",
+    "barbers.day_4": "Thu",
+    "barbers.day_5": "Fri",
+    "barbers.day_6": "Sat",
+    "barbers.day_7": "Sun",
     "barbers.day_off_today": "Day off today",
+    "barbers.distance_km": "{km} km away",
+    "barbers.working_days": "Working days",
     "barbers.guide_tip": "Click \"Book now\" under your preferred barber on the left and choose a convenient time slot.",
     "barbers.main_branch": "Main branch",
     "barbers.no_barbers_in_branch": "There are currently no active barbers in this branch.",
@@ -963,16 +990,23 @@ export const useTranslations = () => {
   const translations = useState<Record<string, string>>("current_translations", () => ({ ...FALLBACK_TRANSLATIONS.uz }))
 
   const load = async (nextLocale?: Locale, force = false) => {
+    // SSR har doim standart tilda (`uz`) render qiladi — brauzerning
+    // `localStorage`'iga kira olmaydi. Shu sababli bu tekshiruv pastdagi
+    // "allaqachon yuklangan" guard'idan OLDIN turishi kerak: aks holda
+    // hydration paytida server bilan bir xil bo'lgan `locale`/`loadedLocale`
+    // holati guard'ni ishga tushirib, foydalanuvchi saqlagan tilni o'qishga
+    // hech qachon yetib bormaydi — sahifa qayta yuklanganda tanlov yo'qoladi.
+    if (import.meta.client && !nextLocale) {
+      const savedLocale = localStorage.getItem(activeLocaleKey) as Locale | null
+      if (savedLocale && ["uz", "ru", "en"].includes(savedLocale) && savedLocale !== locale.value) {
+        nextLocale = savedLocale
+        force = true
+      }
+    }
+
     const targetLocale = nextLocale ?? locale.value
     if (!force && loadedLocale.value === targetLocale && Object.keys(translations.value).length > 0) {
       return
-    }
-
-    if (import.meta.client) {
-      const savedLocale = localStorage.getItem(activeLocaleKey) as Locale | null
-      if (!nextLocale && savedLocale && ["uz", "ru", "en"].includes(savedLocale)) {
-        locale.value = savedLocale
-      }
     }
 
     const resolvedLocale = nextLocale ?? locale.value
@@ -1009,7 +1043,11 @@ export const useTranslations = () => {
     let text = translations.value[code] || FALLBACK_TRANSLATIONS[locale.value]?.[code] || FALLBACK_TRANSLATIONS.uz[code] || code
     if (params) {
       Object.entries(params).forEach(([key, val]) => {
-        text = text.replace(new RegExp(`\\{${key}\\}`, 'g'), String(val))
+        // Almashtiruvchi satr emas, FUNKSIYA beriladi — aks holda `val`
+        // ichida `$&`, `$1`, `$$` kabi maxsus ketma-ketliklar bo'lsa (masalan,
+        // sartaroshning o'zi kiritgan ismida), `String.replace()` ularni
+        // o'zicha talqin qilib, natijani buzib qo'yardi.
+        text = text.replace(new RegExp(`\\{${key}\\}`, 'g'), () => String(val))
       })
     }
     return text

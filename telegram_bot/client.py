@@ -59,6 +59,18 @@ class TelegramClient:
             payload["reply_markup"] = reply_markup
         return self.request("sendMessage", **payload)
 
+    def send_venue(self, chat_id, latitude, longitude, title, address, reply_markup=None):
+        payload = {
+            "chat_id": chat_id,
+            "latitude": latitude,
+            "longitude": longitude,
+            "title": title,
+            "address": address,
+        }
+        if reply_markup is not None:
+            payload["reply_markup"] = reply_markup
+        return self.request("sendVenue", **payload)
+
     def edit_message(self, chat_id, message_id, text, reply_markup=None):
         return self.request(
             "editMessageText",

@@ -14,7 +14,7 @@ import BarberCard from "~/components/catalog/BarberCard.vue"
 import BarberBookingModal from "~/components/catalog/BarberBookingModal.vue"
 import CatalogSidebarFilter, { type FilterState } from "~/components/catalog/CatalogSidebarFilter.vue"
 import CatalogBottomSheet from "~/components/catalog/CatalogBottomSheet.vue"
-import type { BarberItem } from "~/types/barber"
+import { BARBER_SERVICE_GENDERS, type BarberItem } from "~/types/barber"
 import { descendantServiceIds, serviceTreeOptions } from "~/utils/serviceTree"
 
 definePageMeta({ layout: "customer" })
@@ -55,8 +55,9 @@ const serviceAncestors = computed(() => {
   return result
 })
 
+// Bosh sahifadagi qidiruv /catalog?q=... bilan keladi.
 const filterState = ref<FilterState>({
-  search: "",
+  search: typeof route.query.q === "string" ? route.query.q.trim().slice(0, 100) : "",
   city: "",
   ordering: "",
   service_type: "",
@@ -64,8 +65,9 @@ const filterState = ref<FilterState>({
 })
 const draftFilterState = ref<FilterState>({ ...filterState.value })
 const effectiveService = computed(() => serviceTypes.value.find(service => service.code === (filterState.value.service_type || selectedServiceCode.value)) || null)
-const isBarbershop = computed(() => ["BARBERSHOP", "BARBER"].includes(effectiveService.value?.code.toUpperCase() || ""))
-const isBarberOnly = computed(() => effectiveService.value?.code.toUpperCase() === "BARBER")
+const barberGender = computed(() => BARBER_SERVICE_GENDERS[effectiveService.value?.code.toUpperCase() || ""])
+const isBarbershop = computed(() => effectiveService.value?.code.toUpperCase() === "BARBERSHOP" || Boolean(barberGender.value))
+const isBarberOnly = computed(() => Boolean(barberGender.value))
 const serviceFilterOptions = computed(() => {
   const ids = descendantServiceIds(serviceTypes.value, activeService.value ? [activeService.value.id] : [])
   return serviceTypes.value.filter(service => ids.has(service.id) && service.id !== activeService.value?.id)
@@ -118,6 +120,7 @@ const fetchBranches = async () => {
         search: filterState.value.search || undefined,
         city: filterState.value.city || undefined,
         status: filterState.value.status || undefined,
+        gender: barberGender.value,
         ordering: filterState.value.ordering || undefined,
       }
       if (filterState.value.ordering === "distance" && userCoords.value) {
@@ -143,7 +146,7 @@ const { data } = await useAsyncData("branch-catalog", () => {
 })
 
 const { data: initialBarbers } = await useAsyncData("barbers-catalog", () => {
-  return barbersApi.getBarbers({ ordering: "-rating" })
+  return barbersApi.getBarbers({ ordering: "-rating", gender: barberGender.value })
 })
 
 if (initialBarbers.value) {
@@ -171,7 +174,7 @@ const setService = (code: string) => {
     ...filterState.value,
     service_type: "",
     status: "",
-    ordering: ["BARBERSHOP", "BARBER"].includes(code.toUpperCase().replaceAll("-", "_")) && ["price", "-price"].includes(filterState.value.ordering)
+    ordering: ["BARBERSHOP", ...Object.keys(BARBER_SERVICE_GENDERS)].includes(code.toUpperCase().replaceAll("-", "_")) && ["price", "-price"].includes(filterState.value.ordering)
       ? "-rating"
       : filterState.value.ordering,
   }
@@ -332,6 +335,10 @@ const openBarberBooking = (barber: BarberItem) => {
   selectedBarberForBooking.value = barber
   showBookingModal.value = true
 }
+
+const openBarberInfo = (barber: BarberItem) => {
+  navigateTo(`/barbers/${barber.id}`)
+}
 </script>
 
 <template>
@@ -439,6 +446,7 @@ const openBarberBooking = (barber: BarberItem) => {
                 :key="barber.id"
                 :barber="barber"
                 @book="openBarberBooking"
+                @info="openBarberInfo"
               />
             </div>
           </template>
@@ -449,7 +457,7 @@ const openBarberBooking = (barber: BarberItem) => {
               <span class="empty-icon"><FontAwesomeIcon :icon="faStore" /></span>
               <p>{{ t("filter.no_salons_found") }}</p>
             </div>
-            <div v-else class="bronla-cards-grid">
+            <div v-else class="bronla-cards-grid venue-grid">
               <BranchCard
                 v-for="branch in branches"
                 :key="branch.id"
@@ -466,7 +474,7 @@ const openBarberBooking = (barber: BarberItem) => {
             <p>{{ t("clubs.no_clubs_found") }}</p>
           </div>
 
-          <div v-else class="bronla-cards-grid">
+          <div v-else class="bronla-cards-grid venue-grid">
             <BranchCard
               v-for="branch in branches"
               :key="branch.id"
@@ -662,6 +670,12 @@ const openBarberBooking = (barber: BarberItem) => {
   gap: 14px;
 }
 
+/* Klub kartochkalari kattaroq (rasm ustida ma'lumot), telefonda bitta ustun. */
+.bronla-cards-grid.venue-grid {
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 18px;
+}
+
 .catalog-empty {
   display: flex;
   flex-direction: column;
@@ -783,6 +797,10 @@ const openBarberBooking = (barber: BarberItem) => {
   .bronla-cards-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
+  }
+  .bronla-cards-grid.venue-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
   }
 }
 

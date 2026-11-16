@@ -12,12 +12,14 @@ def generate_booking_number():
     from django.apps import apps
 
     booking_model = apps.get_model("bookings", "Booking")
-    number = str(secrets.randbelow(900_000_000_000) + 100_000_000_000)
     for _ in range(10):
+        number = str(secrets.randbelow(900_000_000_000) + 100_000_000_000)
         if not booking_model.objects.filter(booking_number=number).exists():
             return number
-        number = str(secrets.randbelow(900_000_000_000) + 100_000_000_000)
-    return number
+    # 10 marta ketma-ket to'qnashuv — amalda deyarli imkonsiz (900 mlrd
+    # variantdan), lekin shunga qaramay tekshirilmagan (to'qnashishi mumkin
+    # bo'lgan) raqamni jim qaytarish o'rniga, aniq xatolik berish afzalroq.
+    raise RuntimeError("Noyob bron raqamini generatsiya qilib bo'lmadi.")
 
 
 class ReservationBase(models.Model):

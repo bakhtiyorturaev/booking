@@ -1,31 +1,41 @@
 :root {
   color-scheme: dark;
-  --page: #030914;
-  --surface: #07101c;
-  --text: #f7f9fc;
-  --muted: #8e9aab;
-  --border: #445064;
-  --accent: #20c7f4;
-  --accent-hover: #49d5fa;
-  --accent-text: #03111b;
-  --control: #0b1522;
-  --panel: rgba(3, 9, 20, 0.9);
-  --panel-border: rgba(97, 201, 239, 0.18);
+  /* "Neon premium" dizayni: tungi asos, binafsha–moviy nur. */
+  --page: #07070d;
+  --surface: #12121c;
+  --text: #f4f4fa;
+  --muted: #a3a6ba;
+  --border: #2b2b3d;
+  --accent: #a99cff;
+  --accent-hover: #c4baff;
+  --accent-text: #0b0820;
+  --control: #161624;
+  --panel: rgba(14, 14, 24, 0.86);
+  --panel-border: rgba(255, 255, 255, 0.12);
+  --cta: linear-gradient(135deg, #6d4dff, #3b63f5);
+  --cta-glow: 0 10px 28px rgba(109, 77, 255, 0.45);
+  --glass: rgba(255, 255, 255, 0.06);
+  --glass-border: rgba(255, 255, 255, 0.14);
+  --font-display: Unbounded, Manrope, "Segoe UI", Arial, sans-serif;
+  --font-body: Manrope, Inter, "Segoe UI", Arial, sans-serif;
 }
 
 :root[data-theme="light"] {
   color-scheme: light;
-  --page: #f5f7fb;
+  --page: #f4f3fb;
   --surface: #ffffff;
-  --text: #071426;
-  --muted: #667085;
-  --border: #c8d0db;
-  --accent: #0868ee;
-  --accent-hover: #005ad6;
+  --text: #0f1020;
+  --muted: #5b5f75;
+  --border: #dddceb;
+  --accent: #5b3ff0;
+  --accent-hover: #4a2fe0;
   --accent-text: #ffffff;
   --control: #ffffff;
-  --panel: rgba(247, 249, 252, 0.94);
-  --panel-border: rgba(7, 20, 38, 0.12);
+  --panel: rgba(255, 255, 255, 0.9);
+  --panel-border: rgba(15, 16, 32, 0.1);
+  --cta-glow: 0 10px 24px rgba(91, 63, 240, 0.28);
+  --glass: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(15, 16, 32, 0.08);
 }
 
 /* Prevent FontAwesome massive SVG flash on initial page load / SSR hydration */
@@ -53,10 +63,33 @@ body,
   margin: 0;
 }
 
+@font-face {
+  font-family: "Montserrat";
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url("/fonts/montserrat-800.woff2") format("woff2");
+}
+
+.brand-wordmark {
+  font-family: var(--font-display);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--text);
+}
+
+.brand-wordmark-accent {
+  background: linear-gradient(90deg, #4f5bff 0%, #8b5cf6 55%, #c056f5 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
 body {
   background: var(--page);
   color: var(--text);
-  font-family: Inter, "Segoe UI", Arial, sans-serif;
+  font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -493,16 +526,49 @@ a {
   background: var(--page);
 }
 
+/* Mijoz sahifalari foni: binafsha va moviy nur dog'lari (rasm emas — tez yuklanadi). */
 .customer-shell--home {
-  background-image: linear-gradient(180deg, rgba(3, 9, 20, 0.35) 0%, rgba(3, 9, 20, 0.6) 45%, var(--page) 92%), url("/images/night.png");
-  background-repeat: no-repeat;
-  background-position: center top;
-  background-size: cover;
+  background:
+    radial-gradient(900px 620px at 12% -12%, rgba(124, 92, 255, 0.34), transparent 62%),
+    radial-gradient(720px 520px at 100% 6%, rgba(56, 189, 248, 0.16), transparent 62%),
+    radial-gradient(800px 600px at 60% 110%, rgba(124, 92, 255, 0.12), transparent 60%),
+    var(--page);
   background-attachment: fixed;
 }
 
 :root[data-theme="light"] .customer-shell--home {
-  background-image: linear-gradient(180deg, rgba(245, 247, 251, 0.35) 0%, rgba(245, 247, 251, 0.65) 45%, var(--page) 92%), url("/images/light.png");
+  /* Kunduzgi rejim: pastel "mesh" — binafsha, moviy, pushti va yalpiz rang dog'lari. */
+  background:
+    radial-gradient(820px 560px at 6% -8%, rgba(139, 92, 246, 0.30), transparent 60%),
+    radial-gradient(720px 520px at 94% -4%, rgba(56, 189, 248, 0.26), transparent 60%),
+    radial-gradient(640px 520px at 72% 52%, rgba(244, 114, 182, 0.16), transparent 62%),
+    radial-gradient(720px 600px at -4% 82%, rgba(52, 211, 153, 0.16), transparent 60%),
+    radial-gradient(600px 480px at 100% 100%, rgba(251, 146, 60, 0.12), transparent 60%),
+    linear-gradient(180deg, #f8f6ff 0%, #f2f5ff 55%, #f7f3ff 100%);
+  background-attachment: fixed;
+}
+
+/* Nozik nuqtali to'r: tepada ko'rinadi, pastga qarab yo'qoladi. */
+.customer-shell--home { isolation: isolate; }
+.customer-shell--home::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1.6px);
+  background-size: 24px 24px;
+  -webkit-mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, #000 0%, transparent 75%);
+  mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, #000 0%, transparent 75%);
+}
+:root[data-theme="light"] .customer-shell--home::before {
+  background-image: radial-gradient(rgba(91, 63, 240, 0.16) 1px, transparent 1.6px);
+}
+
+/* Sarlavhalar: Unbounded. */
+.customer-main h1 {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
 }
 
 .customer-header {
@@ -2776,8 +2842,21 @@ a {
   }
 
   .customer-header .brand-mark {
+    flex-shrink: 0;
     width: 32px;
     height: 32px;
+  }
+
+  /* Telefonda yozuv o'ng tomondagi tugmalar ostiga kirib ketmasin. */
+  .customer-header .customer-header-start .brand {
+    min-width: 0;
+    font-size: 16px;
+  }
+
+  .customer-header .brand-wordmark {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .customer-nav {
@@ -3069,7 +3148,8 @@ a {
     0 12px 36px rgba(51, 41, 87, .1);
 }
 @media (min-width: 1024px) {
-  .customer-desktop-sidebar { inset: 78px auto 12px 12px; width: 228px; border-radius: 24px; }
+  /* Header ostida (14px + 66px) 16px oraliq bilan, chap cheti header bilan bir chiziqda. */
+  .customer-desktop-sidebar { inset: 96px auto 16px clamp(12px, 2vw, 24px); width: 228px; border-radius: 24px; }
 }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .glass-panel, .customer-desktop-sidebar, .customer-drawer { background: var(--panel); }
@@ -3101,4 +3181,110 @@ a {
   background: transparent;
   color: inherit;
   box-shadow: none;
+}
+
+/* Telefonlarda yozuv kesilib qolmasin: faqat logotip belgisi qoladi. */
+@media (max-width: 439px) {
+  .customer-header .customer-header-start .brand-wordmark {
+    display: none;
+  }
+}
+
+
+/* ===== Yangi dizayn: mijoz sarlavha paneli (header) ===== */
+.customer-header.glass-panel {
+  min-height: 64px;
+  margin: 14px clamp(12px, 2vw, 24px) 0;
+  padding: 10px 10px 10px 18px;
+  border: 1px solid var(--glass-border);
+  border-radius: 22px;
+  /* Deyarli to'liq qoplama: pastdagi rasmlar ustidan o'tganda ham matn aniq o'qiladi. */
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  -webkit-backdrop-filter: blur(22px) saturate(160%);
+  backdrop-filter: blur(22px) saturate(160%);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.22);
+}
+
+:root[data-theme="light"] .customer-header.glass-panel {
+  border-color: rgba(15, 16, 32, 0.08);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 10px 30px rgba(51, 41, 87, 0.12);
+}
+
+.customer-header .brand-wordmark {
+  font-size: 18px;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: -0.01em;
+}
+.customer-header .brand-mark img { box-shadow: 0 0 22px rgba(124, 92, 255, 0.55); border-radius: 11px; }
+
+.customer-nav { gap: 4px; align-self: center; }
+.customer-nav a,
+.customer-nav .customer-nav-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  color: color-mix(in srgb, var(--text) 78%, transparent);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease;
+}
+.customer-nav a::after { display: none; }
+.customer-nav a:hover,
+.customer-nav .customer-nav-button:hover { color: var(--text); background: color-mix(in srgb, var(--text) 6%, transparent); }
+.customer-nav a.active { color: var(--text); background: color-mix(in srgb, var(--text) 10%, transparent); }
+.customer-nav a:focus-visible,
+.customer-nav .customer-nav-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.customer-nav .admin-portal-link { color: var(--accent); }
+
+.customer-actions { gap: 8px; }
+.customer-actions .profile-trigger {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  border-color: var(--glass-border);
+  background: var(--glass);
+}
+.header-login {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--text);
+  color: var(--page);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+.header-login:hover { transform: translateY(-1px); box-shadow: 0 8px 22px rgba(124, 92, 255, 0.35); }
+.header-login:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+@media (max-width: 1100px) {
+  .customer-nav a, .customer-nav .customer-nav-button { padding: 0 11px; font-size: 14px; }
+  .header-login span { display: none; }
+  .header-login { width: 44px; padding: 0; justify-content: center; }
+}
+/* Planshet va telefonda bo'limlar pastki menyuda, yuqorida faqat logotip va tugmalar. */
+@media (max-width: 900px) {
+  .customer-nav { display: none; }
+}
+@media (max-width: 767px) {
+  .customer-header.glass-panel { min-height: 60px; padding: 8px 8px 8px 10px; margin-top: 10px; }
+  .customer-actions { gap: 6px; }
 }

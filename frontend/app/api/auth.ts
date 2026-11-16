@@ -10,8 +10,6 @@ import type {
   TelegramCodeInitData,
   TelegramCodeVerifyPayload,
   TelegramContactPayload,
-  TelegramWebLoginCheckData,
-  TelegramWebLoginInitData,
 } from "~/types/auth"
 import type { Locale } from "~/types/translation"
 
@@ -63,16 +61,6 @@ export const useAuthApi = (scope?: AuthScope) => {
           ...payload,
           device_name: payload.device_name || (typeof navigator !== "undefined" ? navigator.userAgent.slice(0, 120) : ""),
         },
-        headers: languageHeaders(language),
-      }),
-    initTelegramWebLogin: (language: Locale) =>
-      api.post<ApiSuccess<TelegramWebLoginInitData>>("/api/auth/telegram-web-init", {
-        local: true,
-        headers: languageHeaders(language),
-      }),
-    checkTelegramWebLogin: (token: string, language: Locale) =>
-      api.get<ApiSuccess<TelegramWebLoginCheckData>>(`/api/auth/telegram-web-check?token=${encodeURIComponent(token)}`, {
-        local: true,
         headers: languageHeaders(language),
       }),
     session: () =>

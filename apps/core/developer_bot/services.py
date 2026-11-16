@@ -1,5 +1,6 @@
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 from django.db import DatabaseError
 
@@ -11,6 +12,18 @@ from apps.core.models import DeveloperBotSettings
 _settings_lock = threading.Lock()
 _cached_settings = None
 _settings_cache_expires_at = 0.0
+
+# Har bir chaqiruvda yangi thread ochish o'rniga umumiy pool — yuqori yuklama
+# ostida (masalan, ko'plab bronlar bir vaqtda saqlanganda) nazoratsiz thread
+# ko'payishining oldini oladi.
+_notification_executor = ThreadPoolExecutor(
+    max_workers=4, thread_name_prefix="developer-telegram-notification"
+)
+# `ThreadPoolExecutor`ning ichki navbati cheksiz — bronlar "to'lqini" paytida
+# navbat xotirada cheksiz o'sishi mumkin. Bu ham faqat ichki monitoring
+# signali, shuning uchun navbat to'lib ketganda yangi bildirishnomalarni jim
+# tashlab yuboramiz.
+_notification_queue_capacity = threading.BoundedSemaphore(100)
 
 
 def get_developer_bot_settings():
@@ -75,6 +88,9 @@ def notify_developer_async(title, message, level="INFO", category=None):
     if category and not getattr(configuration, category, False):
         return
 
+    if not _notification_queue_capacity.acquire(blocking=False):
+        return
+
     def send_safely():
         try:
             notify_developer(
@@ -86,10 +102,13 @@ def notify_developer_async(title, message, level="INFO", category=None):
         except Exception:
             # Operational notifications must not affect the business action.
             return
+        finally:
+            _notification_queue_capacity.release()
 
-    worker = threading.Thread(
-        target=send_safely,
-        name="developer-telegram-notification",
-        daemon=True,
-    )
-    worker.start()
+    try:
+        _notification_executor.submit(send_safely)
+    except RuntimeError:
+        # Interpreter is shutting down; dropping a best-effort notification
+        # is safer than crashing the caller.
+        _notification_queue_capacity.release()
+        return

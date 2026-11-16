@@ -21,12 +21,6 @@ def _get_tashkent_tz():
         return timezone(timedelta(hours=5))
 
 
-def _after_commit(title, message, category):
-    transaction.on_commit(
-        lambda: notify_developer_async(title, message, category=category)
-    )
-
-
 def _format_booking_details(booking):
     try:
         user = booking.user
@@ -168,12 +162,27 @@ def notify_user_created(sender, instance, created, **kwargs):
 
 @receiver(post_save, sender=Booking, dispatch_uid="developer_bot_booking_saved")
 def notify_booking_saved(sender, instance, created, **kwargs):
+    booking_pk = instance.pk
     event = "Yangi bron qabul qilindi" if created else f"Bron holati o‘zgardi (#{instance.booking_number})"
-    _after_commit(
-        event,
-        _format_booking_details(instance),
-        "notify_booking_events",
-    )
+
+    def send_after_commit():
+        booking = (
+            Booking.objects.select_related(
+                "user__profile",
+                "barber__branch__club",
+                "zone__branch__club",
+            )
+            .filter(pk=booking_pk)
+            .first()
+        )
+        if booking is not None:
+            notify_developer_async(
+                event,
+                _format_booking_details(booking),
+                category="notify_booking_events",
+            )
+
+    transaction.on_commit(send_after_commit)
 
 
 @receiver(
@@ -182,9 +191,21 @@ def notify_booking_saved(sender, instance, created, **kwargs):
     dispatch_uid="developer_bot_booking_cancelled",
 )
 def notify_booking_cancelled(sender, instance, created, **kwargs):
-    if created:
-        _after_commit(
-            "Bron bekor qilindi",
-            _format_cancellation_details(instance),
-            "notify_booking_events",
+    if not created:
+        return
+    cancellation_pk = instance.pk
+
+    def send_after_commit():
+        cancellation = (
+            Cancellation.objects.select_related("booking", "requested_by__profile")
+            .filter(pk=cancellation_pk)
+            .first()
         )
+        if cancellation is not None:
+            notify_developer_async(
+                "Bron bekor qilindi",
+                _format_cancellation_details(cancellation),
+                category="notify_booking_events",
+            )
+
+    transaction.on_commit(send_after_commit)

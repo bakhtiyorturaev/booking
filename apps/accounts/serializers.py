@@ -82,7 +82,12 @@ class UserProfileUpdateSerializer(serializers.Serializer):
             user = self.context["request"].user
             if user.phone != phone:
                 user.phone = phone
-                user.save(update_fields=["phone"])
+                # Foydalanuvchi o'zi kiritgan raqam TASDIQLANMAGAN hisoblanadi —
+                # Telegram "Raqamni yuborish" tugmasi orqali qayta tasdiqlanishi
+                # kerak. Aks holda eski `telegram_verified_at` saqlanib qolib,
+                # `is_phone_verified` har qanday raqam uchun True bo'lib qolardi.
+                user.phone_verified_at = None
+                user.save(update_fields=["phone", "phone_verified_at", "updated_at"])
         for field, value in validated_data.items():
             setattr(instance, field, value)
         instance.save()
@@ -98,7 +103,7 @@ def cabinet_sections(user):
     if user.owned_clubs.exists():
         sections.extend(["clubs", "branches"])
     if hasattr(user, "barber_profile") or user.owned_clubs.filter(
-        Q(category="BARBERSHOP") | Q(service_type__code="BARBER") | Q(available_services__code__in=["BARBERSHOP", "BARBER"])
+        Q(category="BARBERSHOP") | Q(service_type__code__in=["BARBER", "WOMEN_BARBER"]) | Q(available_services__code__in=["BARBERSHOP", "BARBER", "WOMEN_BARBER"])
     ).exists():
         sections.append("barbers")
     return sections

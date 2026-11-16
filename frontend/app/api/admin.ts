@@ -79,6 +79,9 @@ export const useAdminApi = () => {
         headers: { "Accept-Language": language },
       }),
 
+    deleteBranchImage: (id: string) =>
+      client.delete(`/api/cabinet/branch-images/${encodeURIComponent(id)}/`, { local: true }),
+
     getZones: (params?: Record<string, any>, language = "uz") =>
       client.get<any>("/api/cabinet/zones/", {
         params,
@@ -107,6 +110,12 @@ export const useAdminApi = () => {
       }),
 
     createBarber: (body: Record<string, unknown>) => client.post<any>("/api/cabinet/barbers/", { local: true, body }),
+
+    uploadBarberPhoto: (id: string, photo: File) => {
+      const data = new FormData()
+      data.append("photo", photo)
+      return client.patch<any>(`/api/cabinet/barbers/${encodeURIComponent(id)}/`, { local: true, body: data })
+    },
 
     getBookings: (params?: Record<string, any>, language = "uz") =>
       client.get<any>("/api/cabinet/bookings/", {
@@ -221,7 +230,7 @@ export const useAdminApi = () => {
         headers: { "Accept-Language": language },
       }),
 
-    updateBarber: (id: string, body: { full_name: string; phone: string; status: string; work_start_time: string; work_end_time: string; working_days: number[] }) =>
+    updateBarber: (id: string, body: { full_name: string; phone: string; gender: string; status: string; work_start_time: string; work_end_time: string; working_days: number[] }) =>
       client.patch(`/api/cabinet/barbers/${encodeURIComponent(id)}/`, { local: true, body }),
 
     approveBarberAffiliation: (id: string, language = "uz") =>

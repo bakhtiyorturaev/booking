@@ -52,6 +52,16 @@ def get_barber_available_slots(barber: Barber, target_date: datetime.date):
             "slots": [],
         }
 
+    if is_today and barber.status == Barber.Status.BREAK:
+        return {
+            "barber_id": str(barber.id),
+            "target_date": target_date.isoformat(),
+            "is_available": False,
+            "status": barber.status,
+            "reason": "Sartarosh hozir tanaffusda.",
+            "slots": [],
+        }
+
     # 2. Haftaning ish kuni tekshiruvi (1 = Dushanba ... 7 = Yakshanba)
     weekday = target_date.isoweekday()
     working_days = barber.working_days or [1, 2, 3, 4, 5, 6]
@@ -77,6 +87,14 @@ def get_barber_available_slots(barber: Barber, target_date: datetime.date):
         opens_at = max(opens_at, window[0])
         closes_at = min(closes_at, window[1])
         if target_date > now_local.date() + datetime.timedelta(days=barber.branch.advance_booking_days):
+            return {"barber_id": str(barber.id), "target_date": target_date.isoformat(), "is_available": False, "status": barber.status, "reason": "Bron sanasi ruxsat etilgan muddatdan tashqarida.", "slots": []}
+    else:
+        # Mustaqil (filialga biriktirilmagan) sartaroshlar uchun ham
+        # oldindan bron qilish muddati cheklovi qo'llanadi — aks holda
+        # ularga istalgan kelajakdagi sanaga (masalan, 5 yildan keyin ham)
+        # bron qilish mumkin bo'lib qolardi.
+        from apps.bookings.services import STANDALONE_ADVANCE_BOOKING_DAYS
+        if target_date > now_local.date() + datetime.timedelta(days=STANDALONE_ADVANCE_BOOKING_DAYS):
             return {"barber_id": str(barber.id), "target_date": target_date.isoformat(), "is_available": False, "status": barber.status, "reason": "Bron sanasi ruxsat etilgan muddatdan tashqarida.", "slots": []}
 
     # Band qilingan bronlar va holdlar

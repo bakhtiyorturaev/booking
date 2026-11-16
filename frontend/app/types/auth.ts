@@ -77,19 +77,6 @@ export interface CurrentUserData {
   user: AuthUser
 }
 
-export interface TelegramWebLoginInitData {
-  token: string
-  bot_username: string
-  deep_link: string
-  expires_in: number
-}
-
-export interface TelegramWebLoginCheckData {
-  status: "PENDING" | "SUCCESS" | "BLOCKED"
-  user?: AuthUser
-  is_new_user?: boolean
-}
-
 export interface TelegramContactPayload {
   phone: string
 }

@@ -8,15 +8,18 @@ export default defineNuxtConfig({
       meta: [
         { charset: "utf-8" },
         { name: "viewport", content: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" },
-        { name: "theme-color", content: "#0f172a" },
+        { name: "theme-color", content: "#07070d" },
         { name: "description", content: "Klublar, PlayStation zallari va sartaroshxonalarni qulay onlayn bron qilish platformasi" },
       ],
       link: [
-        { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
         { rel: "icon", type: "image/png", sizes: "32x32", href: "/favicon-32x32.png" },
         { rel: "icon", type: "image/png", sizes: "16x16", href: "/favicon-16x16.png" },
         { rel: "apple-touch-icon", sizes: "180x180", href: "/apple-touch-icon.png" },
         { rel: "manifest", href: "/site.webmanifest" },
+        // Dizayn shriftlari: Manrope (matn) va Unbounded (sarlavhalar).
+        { rel: "preconnect", href: "https://fonts.googleapis.com" },
+        { rel: "preconnect", href: "https://fonts.gstatic.com", crossorigin: "" },
+        { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Unbounded:wght@600;700;800&display=swap" },
       ],
       script: [
         {
