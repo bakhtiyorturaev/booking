@@ -347,7 +347,16 @@ const saveZone = async () => {
       await selectBranch(selectedBranch.value)
     }
   } catch (err: any) {
-    zoneModalError.value = err?.data?.message || err?.message || "Saqlashda xatolik yuz berdi"
+    // Backend returns only a generic message; name the field that actually failed.
+    const fields = Object.keys(err?.errors || err?.data?.errors || {})
+    zoneModalError.value = fields.includes("service_type")
+      ? "Tanlangan xizmat turi ushbu filialga biriktirilmagan. Filialni tahrirlab, xizmatni yoqing yoki zonaga boshqa xizmat tanlang."
+      : fields.includes("non_field_errors")
+        // The only model-level constraint on Zone is a unique name per branch.
+        ? `Bu filialda “${zoneForm.value.name.trim()}” nomli zona allaqachon bor. Boshqa nom kiriting.`
+        : fields.length
+          ? `Quyidagi maydon noto‘g‘ri: ${fields.join(", ")}`
+          : err?.data?.message || err?.message || "Saqlashda xatolik yuz berdi"
   } finally {
     isSavingZone.value = false
   }
