@@ -137,6 +137,12 @@ const zoneForm = ref({
   price_per_hour_tiyin: 2000000,
   status: "ACTIVE",
 })
+// Staff type the price in so‘m with thousand separators ("100.000", "100 000");
+// the API stores tiyin. A number input would read "100.000" as 100.
+const zonePriceSom = computed({
+  get: () => (zoneForm.value.price_per_hour_tiyin / 100).toLocaleString("ru-RU").replace(/\u00a0/g, " "),
+  set: (value: string) => { zoneForm.value.price_per_hour_tiyin = Number(value.replace(/\D/g, "") || 0) * 100 },
+})
 
 watch(() => zoneForm.value.service_type, id => {
   const code = services.value.find(service => service.id === id)?.code
@@ -630,8 +636,8 @@ useDialogFocus(showZoneModal, "#cabinet-branches-showZoneModal", () => { showZon
             </div>
 
             <div class="form-group">
-              <label>Soatlik narx (tiyinda, masalan: 2000000 = 20,000 so'm) *</label>
-              <input v-model.number="zoneForm.price_per_hour_tiyin" type="number" min="0" step="1" required>
+              <label for="zone-price">Soatlik narx (so‘mda, masalan: 20 000) *</label>
+              <input id="zone-price" v-model="zonePriceSom" type="text" inputmode="numeric" required placeholder="20 000">
             </div>
 
             <div class="form-group">

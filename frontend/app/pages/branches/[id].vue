@@ -679,7 +679,7 @@ const submitBooking = async () => {
                 <strong>{{ t("bookings.duration_hours", { hours: durationHours }) }}</strong>
               </div>
               <div class="checkout-detail-row">
-                <span>{{ selectedZone.booking_type === 'PER_ZONE' ? t("bookings.booking_type") : t("bookings.seats_count") }}:</span>
+                <span>{{ selectedZone.booking_type === 'PER_ZONE' ? t("bookings.booking_type") : t("branches.seats_count") }}:</span>
                 <strong>
                   {{ selectedZone.booking_type === 'PER_ZONE' ? t("bookings.entire_room_with_cap", { count: selectedZone.capacity }) : t("bookings.seats_quantity", { count: quantity }) }}
                 </strong>
